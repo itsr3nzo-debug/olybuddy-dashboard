@@ -2,38 +2,39 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Phone, PoundSterling, List, MoreHorizontal } from 'lucide-react'
+import { LayoutDashboard, Phone, BarChart3, PoundSterling, MoreHorizontal } from 'lucide-react'
 
 const tabs = [
-  { href: '/dashboard',   label: 'Home',   Icon: LayoutDashboard },
-  { href: '/calls',       label: 'Calls',  Icon: Phone },
-  { href: '/money',       label: 'Money',  Icon: PoundSterling },
-  { href: '/performance', label: 'Stats',  Icon: List },
-  { href: '/settings',    label: 'More',   Icon: MoreHorizontal },
+  { href: '/dashboard',    label: 'Home',   Icon: LayoutDashboard },
+  { href: '/calls',        label: 'Calls',  Icon: Phone },
+  { href: '/performance',  label: 'Stats',  Icon: BarChart3 },
+  { href: '/money',        label: 'Money',  Icon: PoundSterling },
+  { href: '/settings',     label: 'More',   Icon: MoreHorizontal },
 ]
 
 export default function MobileNav() {
   const pathname = usePathname()
 
   return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 z-50 flex lg:hidden border-t"
-      style={{ background: 'var(--sidebar-bg)', borderColor: 'rgba(255,255,255,0.06)' }}
-    >
-      {tabs.map(({ href, label, Icon }) => {
-        const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
-        return (
-          <Link
-            key={href}
-            href={href}
-            className="flex-1 flex flex-col items-center justify-center py-3 gap-1 text-xs font-medium min-h-[56px]"
-            style={{ color: active ? '#a5b4fc' : '#64748b' }}
-          >
-            <Icon size={20} strokeWidth={active ? 2.5 : 2} />
-            <span style={{ fontSize: '10px' }}>{label}</span>
-          </Link>
-        )
-      })}
+    <nav className="fixed bottom-0 left-0 right-0 lg:hidden z-50 border-t border-border bg-card-bg/95 backdrop-blur-sm">
+      <div className="flex items-center justify-around px-2">
+        {tabs.map(({ href, label, Icon }) => {
+          const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
+          return (
+            <Link
+              key={href}
+              href={href}
+              aria-label={label}
+              className={`flex flex-col items-center gap-0.5 py-2 px-3 touch-target transition-colors ${
+                active ? 'text-brand-primary' : 'text-muted-foreground'
+              }`}
+            >
+              <Icon size={20} strokeWidth={active ? 2.5 : 1.5} />
+              <span className="text-[10px] font-medium">{label}</span>
+            </Link>
+          )
+        })}
+      </div>
     </nav>
   )
 }

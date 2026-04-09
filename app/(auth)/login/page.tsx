@@ -1,13 +1,18 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { motion } from 'motion/react'
 import { createClient } from '@/lib/supabase/client'
+import { Phone, Mail, ArrowRight, Sparkles, Zap } from 'lucide-react'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [demoLoading, setDemoLoading] = useState(false)
+  const router = useRouter()
 
   const supabase = createClient()
 
@@ -33,87 +38,160 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--sidebar-bg)' }}>
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--accent)' }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 15a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 4.29h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 12a16 16 0 0 0 6 6l1.06-1.06a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 18.92z"/>
-              </svg>
-            </div>
-            <span className="text-2xl font-bold text-white">Olybuddy</span>
-          </div>
-          <p className="text-slate-400 text-sm">AI Employee Dashboard</p>
-        </div>
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#0a0e1a]">
+      {/* Animated background gradient orbs */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-indigo-500/20 blur-[100px] animate-pulse" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-emerald-500/15 blur-[100px] animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-indigo-600/10 blur-[120px]" />
+      </div>
 
-        {/* Card */}
-        <div className="rounded-2xl p-8 shadow-2xl" style={{ background: 'var(--card-bg)' }}>
+      {/* Grid pattern overlay */}
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(99,102,241,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(99,102,241,0.03)_1px,transparent_1px)] bg-[size:64px_64px]" />
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="w-full max-w-md mx-4 relative z-10"
+      >
+        {/* Logo */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="text-center mb-8"
+        >
+          <div className="inline-flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-gradient-to-br from-indigo-500 to-indigo-600 shadow-lg shadow-indigo-500/25">
+              <Phone size={22} className="text-white" strokeWidth={2.5} />
+            </div>
+            <span className="text-3xl font-bold text-white tracking-tight">Olybuddy</span>
+          </div>
+          <p className="text-slate-400 text-sm flex items-center justify-center gap-1.5">
+            <Sparkles size={14} className="text-indigo-400" />
+            AI Employee Dashboard
+          </p>
+        </motion.div>
+
+        {/* Card with glassmorphism */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="rounded-2xl p-8 shadow-2xl border border-white/[0.08] backdrop-blur-xl"
+          style={{ background: 'rgba(30, 41, 59, 0.7)' }}
+        >
           {!submitted ? (
             <>
-              <h1 className="text-xl font-semibold mb-1" style={{ color: 'var(--foreground)' }}>Sign in</h1>
-              <p className="text-sm mb-6" style={{ color: 'var(--muted)' }}>
+              <h1 className="text-xl font-semibold mb-1 text-white">Sign in</h1>
+              <p className="text-sm mb-6 text-slate-400">
                 We&apos;ll send a magic link to your email — no password needed.
               </p>
 
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
+                  <label className="block text-sm font-medium mb-1.5 text-slate-300">
                     Email address
                   </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    required
-                    className="w-full px-4 py-2.5 rounded-lg border text-sm outline-none focus:ring-2 transition-all"
-                    style={{
-                      borderColor: 'var(--border)',
-                      background: 'var(--background)',
-                      color: 'var(--foreground)',
-                    }}
-                  />
+                  <div className="relative">
+                    <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      required
+                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-white/10 text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all bg-white/5 text-white placeholder:text-slate-500"
+                    />
+                  </div>
                 </div>
 
                 {error && (
-                  <p className="text-sm px-3 py-2 rounded-lg" style={{ color: 'var(--danger)', background: '#fef2f2' }}>
+                  <motion.p
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-sm px-3 py-2 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20"
+                  >
                     {error}
-                  </p>
+                  </motion.p>
                 )}
 
                 <button
                   type="submit"
                   disabled={loading || !email}
-                  className="w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity disabled:opacity-50"
-                  style={{ background: 'var(--accent)' }}
+                  className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 flex items-center justify-center gap-2"
                 >
-                  {loading ? 'Sending...' : 'Send magic link'}
+                  {loading ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  ) : (
+                    <>
+                      Send magic link
+                      <ArrowRight size={16} />
+                    </>
+                  )}
                 </button>
+
+                <div className="relative my-5">
+                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10" /></div>
+                  <div className="relative flex justify-center text-xs"><span className="px-3 text-slate-500 bg-[rgba(30,41,59,0.7)]">or try it instantly</span></div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={demoLoading}
+                  onClick={async () => {
+                    setDemoLoading(true)
+                    setError('')
+                    const { error } = await supabase.auth.signInWithPassword({
+                      email: 'test@olybuddy.com',
+                      password: 'testpassword123',
+                    })
+                    if (error) {
+                      setError(error.message)
+                      setDemoLoading(false)
+                    } else {
+                      router.push('/dashboard')
+                      router.refresh()
+                    }
+                  }}
+                  className="w-full py-3.5 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-50 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 flex items-center justify-center gap-2"
+                >
+                  {demoLoading ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  ) : (
+                    <>
+                      <Zap size={16} className="fill-white" />
+                      Demo Login — Apex Automations
+                    </>
+                  )}
+                </button>
+                <p className="text-center text-[11px] text-slate-500 mt-2">See the dashboard with real call data</p>
               </form>
             </>
           ) : (
-            <div className="text-center py-4">
-              <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--accent-light)' }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                  <polyline points="22,6 12,13 2,6"/>
-                </svg>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
+              className="text-center py-4"
+            >
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-indigo-500/10 border border-indigo-500/20">
+                <Mail size={28} className="text-indigo-400" />
               </div>
-              <h2 className="text-lg font-semibold mb-2">Check your email</h2>
-              <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                We sent a magic link to <strong>{email}</strong>.<br />
+              <h2 className="text-lg font-semibold mb-2 text-white">Check your email</h2>
+              <p className="text-sm text-slate-400">
+                We sent a magic link to <strong className="text-white">{email}</strong>.<br />
                 Click it to sign in — link expires in 1 hour.
               </p>
-            </div>
+            </motion.div>
           )}
-        </div>
+        </motion.div>
 
-        <p className="text-center text-xs mt-6" style={{ color: 'var(--muted)' }}>
+        <p className="text-center text-xs mt-6 text-slate-500">
           Only registered clients can access this dashboard.
         </p>
-      </div>
+      </motion.div>
     </div>
   )
 }

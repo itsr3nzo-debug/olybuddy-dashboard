@@ -1,35 +1,15 @@
+import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
+
+export const metadata: Metadata = { title: 'Performance | Olybuddy' }
 import { redirect } from 'next/navigation'
+import { Suspense } from 'react'
 import type { CallLog } from '@/lib/types'
-
-type SentimentRow = {
-  sentiment: string | null
-}
-
-function StatCard({ label, value, sub, color = 'var(--foreground)' }: { label: string; value: string | number; sub?: string; color?: string }) {
-  return (
-    <div className="rounded-xl border p-5 flex flex-col gap-2" style={{ background: 'var(--card-bg)', borderColor: 'var(--border)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-      <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--muted)' }}>{label}</span>
-      <span className="text-3xl font-bold leading-none" style={{ color }}>{value}</span>
-      {sub && <span className="text-xs" style={{ color: 'var(--muted)' }}>{sub}</span>}
-    </div>
-  )
-}
-
-function SentimentBar({ label, count, total, color }: { label: string; count: number; total: number; color: string }) {
-  const pct = total > 0 ? Math.round((count / total) * 100) : 0
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>{label}</span>
-        <span className="text-sm" style={{ color: 'var(--muted)' }}>{count} · {pct}%</span>
-      </div>
-      <div className="h-2 rounded-full" style={{ background: 'var(--border)' }}>
-        <div className="h-2 rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
-      </div>
-    </div>
-  )
-}
+import KpiCard, { KpiCardSkeleton } from '@/components/dashboard/KpiCard'
+import { Phone, Clock, CheckCircle, Zap } from 'lucide-react'
+import { formatDuration } from '@/lib/format'
+import SentimentDonut from '@/components/performance/SentimentDonut'
+import PeakHoursHeatmap from '@/components/performance/PeakHoursHeatmap'
 
 export default async function PerformancePage() {
   const supabase = await createClient()
@@ -37,92 +17,135 @@ export default async function PerformancePage() {
   if (!user) redirect('/login')
 
   const clientId = user.app_metadata?.client_id
-
-  let calls: CallLog[] = []
-  let sentiments: SentimentRow[] = []
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+
+  let calls: CallLog[] = []
+  let businessName = 'Your AI Employee'
 
   if (clientId) {
     const { data } = await supabase
       .from('call_logs')
-      .select('status, duration_seconds, direction, started_at, ended_at')
+      .select('status, duration_seconds, direction, started_at, ended_at, sentiment')
       .eq('client_id', clientId)
       .gte('started_at', monthStart.toISOString())
     calls = (data ?? []) as CallLog[]
 
-    const { data: sents } = await supabase
-      .from('call_logs')
-      .select('sentiment')
+    const { data: config } = await supabase
+      .from('agent_config')
+      .select('business_name')
       .eq('client_id', clientId)
-      .gte('started_at', monthStart.toISOString())
-    sentiments = (sents ?? []) as SentimentRow[]
+      .single()
+    if (config?.business_name) businessName = config.business_name
   }
 
   const totalCalls = calls.length
   const answeredCalls = calls.filter(c => c.status === 'completed').length
   const resolutionRate = totalCalls > 0 ? Math.round((answeredCalls / totalCalls) * 100) : 0
-
-  // Hours worked this month (AI answers 24/7 — fixed metric)
   const daysThisMonth = now.getDate()
   const hoursWorked = daysThisMonth * 24
 
-  // Average response time — we don't have "ring time", so use avg duration as proxy
   const durations = calls.filter(c => c.duration_seconds && c.status === 'completed').map(c => c.duration_seconds!)
   const avgDuration = durations.length > 0 ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : 0
-  const avgDurationStr = avgDuration > 0 ? `${Math.floor(avgDuration / 60)}m ${avgDuration % 60}s` : '—'
 
-  // Sentiment breakdown
-  const posCount = sentiments.filter(s => s.sentiment === 'positive').length
-  const neuCount = sentiments.filter(s => s.sentiment === 'neutral' || !s.sentiment).length
-  const negCount = sentiments.filter(s => s.sentiment === 'negative').length
-  const sentTotal = sentiments.length || 1
+  // Sentiment
+  const posCount = calls.filter(c => c.sentiment === 'positive').length
+  const neuCount = calls.filter(c => c.sentiment === 'neutral' || !c.sentiment).length
+  const negCount = calls.filter(c => c.sentiment === 'negative').length
+
+  // Peak hours data (7x24 grid)
+  const peakData: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0))
+  for (const call of calls) {
+    if (!call.started_at) continue
+    const d = new Date(call.started_at)
+    const day = d.getDay() // 0=Sun
+    const hour = d.getHours()
+    peakData[day][hour]++
+  }
+
+  // Top call reasons from analysis
+  const reasons: Record<string, number> = {}
+  for (const call of calls) {
+    const reason = (call.analysis as Record<string, string>)?.intent
+      || (call.analysis as Record<string, string>)?.reason
+      || (call.summary ? call.summary.split('.')[0].slice(0, 40) : null)
+    if (reason) reasons[reason] = (reasons[reason] || 0) + 1
+  }
+  const topReasons = Object.entries(reasons)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>Performance</h1>
-        <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
-          Your AI Employee&apos;s stats · {now.toLocaleString('en-GB', { month: 'long', year: 'numeric' })}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-foreground">Performance</h1>
+        <p className="text-sm mt-1 text-muted-foreground">
+          {businessName}&apos;s AI Employee · {now.toLocaleString('en-GB', { month: 'long', year: 'numeric' })}
         </p>
       </div>
 
-      {!clientId && (
-        <div className="rounded-xl p-4 mb-6 border" style={{ background: '#fffbeb', borderColor: '#fde68a' }}>
-          <p className="text-sm" style={{ color: '#92400e' }}>
-            <strong>Setup required:</strong> Account not linked. Contact Olybuddy.
-          </p>
-        </div>
-      )}
-
       {/* AI Employee framing */}
-      <div className="rounded-xl border p-6 mb-6" style={{ background: 'var(--card-bg)', borderColor: 'var(--border)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-        <p className="text-xs font-medium uppercase tracking-wider mb-2" style={{ color: 'var(--muted)' }}>This month</p>
-        <p className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>
-          Your AI Employee worked <span style={{ color: 'var(--accent)' }}>{hoursWorked} hours</span>, handled <span style={{ color: 'var(--success)' }}>{totalCalls} calls</span>, and never took a day off.
+      <div className="rounded-xl border p-6 mb-6 bg-card-bg">
+        <p className="text-xs font-medium uppercase tracking-wider mb-2 text-muted-foreground">This month</p>
+        <p className="text-xl sm:text-2xl font-bold text-foreground">
+          Your AI Employee worked <span className="text-brand-primary">{hoursWorked} hours</span>,
+          handled <span className="text-brand-success">{totalCalls} calls</span>,
+          and never took a day off.
         </p>
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Calls Handled" value={totalCalls} sub="this month" color="var(--accent)" />
-        <StatCard label="Resolution Rate" value={`${resolutionRate}%`} sub="calls fully handled" color="var(--success)" />
-        <StatCard label="Avg Call Duration" value={avgDurationStr} sub="completed calls" />
-        <StatCard label="Hours Worked" value={hoursWorked} sub="24/7 this month" color="var(--warning)" />
+      <Suspense fallback={
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+          {[0,1,2,3].map(i => <KpiCardSkeleton key={i} />)}
+        </div>
+      }>
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+          <KpiCard label="Calls Handled" value={totalCalls} sub="this month" color="accent" animate icon={<Phone size={16} />} />
+          <KpiCard label="Resolution Rate" value={`${resolutionRate}%`} sub="calls fully handled" color="success" icon={<CheckCircle size={16} />} />
+          <KpiCard label="Avg Duration" value={formatDuration(avgDuration)} sub="completed calls" icon={<Clock size={16} />} />
+          <KpiCard label="Hours Worked" value={hoursWorked} sub="24/7 this month" color="warning" animate icon={<Zap size={16} />} />
+        </div>
+      </Suspense>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Sentiment donut */}
+        <div className="rounded-xl border p-6 bg-card-bg">
+          <h2 className="text-sm font-semibold mb-4 text-foreground">Caller Sentiment</h2>
+          <SentimentDonut positive={posCount} neutral={neuCount} negative={negCount} />
+        </div>
+
+        {/* Top call reasons */}
+        <div className="rounded-xl border p-6 bg-card-bg">
+          <h2 className="text-sm font-semibold mb-4 text-foreground">Top Call Reasons</h2>
+          {topReasons.length > 0 ? (
+            <div className="space-y-3">
+              {topReasons.map(([reason, count], i) => {
+                const maxCount = topReasons[0][1]
+                const pct = Math.round((count / maxCount) * 100)
+                return (
+                  <div key={i}>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-sm text-foreground truncate max-w-[70%]">{reason}</span>
+                      <span className="text-sm text-muted-foreground">{count}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-muted">
+                      <div className="h-2 rounded-full bg-brand-primary transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Call reasons will appear as more calls are logged.</p>
+          )}
+        </div>
       </div>
 
-      {/* Sentiment breakdown */}
-      <div className="rounded-xl border p-6" style={{ background: 'var(--card-bg)', borderColor: 'var(--border)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-        <h2 className="text-sm font-semibold mb-5" style={{ color: 'var(--foreground)' }}>Caller Sentiment</h2>
-        {sentiments.length === 0 ? (
-          <p className="text-sm" style={{ color: 'var(--muted)' }}>Sentiment data will appear after calls are processed.</p>
-        ) : (
-          <div className="space-y-4">
-            <SentimentBar label="Positive" count={posCount} total={sentTotal} color="var(--success)" />
-            <SentimentBar label="Neutral" count={neuCount} total={sentTotal} color="var(--muted)" />
-            <SentimentBar label="Negative" count={negCount} total={sentTotal} color="var(--danger)" />
-          </div>
-        )}
+      {/* Peak hours heatmap */}
+      <div className="rounded-xl border p-6 bg-card-bg">
+        <h2 className="text-sm font-semibold mb-4 text-foreground">Peak Hours</h2>
+        <PeakHoursHeatmap data={peakData} />
       </div>
     </div>
   )

@@ -1,31 +1,16 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { CallLog } from '@/lib/types'
+import { formatDuration, formatDateTime, callerDisplayName } from '@/lib/format'
+import { STATUS_CONFIG, DIRECTION_CONFIG } from '@/lib/constants'
+import TranscriptBubbles from '@/components/shared/TranscriptBubbles'
+import EmptyState from '@/components/shared/EmptyState'
+import { ChevronRight, Phone, Search } from 'lucide-react'
+import dynamic from 'next/dynamic'
 
-function formatDuration(secs: number | null): string {
-  if (!secs) return '—'
-  const m = Math.floor(secs / 60)
-  const s = secs % 60
-  return m > 0 ? `${m}m ${s}s` : `${s}s`
-}
-
-function formatDateTime(ts: string | null): string {
-  if (!ts) return '—'
-  return new Date(ts).toLocaleString('en-GB', {
-    day: 'numeric', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
-}
-
-const statusColors: Record<string, { bg: string; text: string }> = {
-  completed: { bg: '#f0fdf4', text: '#15803d' },
-  failed:    { bg: '#fef2f2', text: '#b91c1c' },
-  no_answer: { bg: '#fffbeb', text: '#b45309' },
-  voicemail: { bg: '#eef2ff', text: '#4338ca' },
-  busy:      { bg: '#fef2f2', text: '#b91c1c' },
-}
+const AudioPlayer = dynamic(() => import('@/components/shared/AudioPlayer'), { ssr: false })
 
 export default function CallsPage() {
   const [calls, setCalls] = useState<CallLog[]>([])
@@ -36,15 +21,20 @@ export default function CallsPage() {
   const [page, setPage] = useState(0)
   const PAGE_SIZE = 20
 
-  const supabase = createClient()
+  // Stable ref to avoid re-creating on every render
+  const supabaseRef = useRef(createClient())
 
   const fetchCalls = useCallback(async () => {
     setLoading(true)
+    const supabase = supabaseRef.current
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
     const clientId = user.app_metadata?.client_id
     if (!clientId) { setLoading(false); return }
+
+    // Escape wildcards in search to prevent pattern injection
+    const safeSearch = search.replace(/[%_]/g, '\\$&')
 
     let query = supabase
       .from('call_logs')
@@ -57,50 +47,46 @@ export default function CallsPage() {
       query = query.eq('status', statusFilter)
     }
 
-    if (search.length >= 3) {
-      query = query.ilike('from_number', `%${search}%`)
+    if (safeSearch.length >= 3) {
+      query = query.ilike('from_number', `%${safeSearch}%`)
     }
 
-    const { data } = await query
+    const { data, error } = await query
+    if (error) console.error('Failed to fetch calls:', error.message)
     setCalls((data ?? []) as CallLog[])
     setLoading(false)
-  }, [supabase, page, statusFilter, search])
+  }, [page, statusFilter, search])
 
   useEffect(() => {
     fetchCalls()
   }, [fetchCalls])
 
-  function toggleExpand(id: string) {
-    setExpandedId(prev => prev === id ? null : id)
-  }
-
-  const filtered = calls
-
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>Call Log</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>Every call your AI Employee handled</p>
+          <h1 className="text-2xl font-bold text-foreground">Call Log</h1>
+          <p className="text-sm mt-1 text-muted-foreground">Every call your AI Employee handled</p>
         </div>
       </div>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-5">
-        <input
-          type="text"
-          placeholder="Search by phone number..."
-          value={search}
-          onChange={e => { setSearch(e.target.value); setPage(0) }}
-          className="px-4 py-2 rounded-lg border text-sm outline-none"
-          style={{ borderColor: 'var(--border)', background: 'var(--card-bg)', color: 'var(--foreground)', minWidth: 220 }}
-        />
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search by phone..."
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(0) }}
+            className="pl-9 pr-4 py-2 rounded-lg border text-sm outline-none bg-card-bg text-foreground border-border focus:ring-2 focus:ring-ring min-w-[200px]"
+          />
+        </div>
         <select
           value={statusFilter}
           onChange={e => { setStatusFilter(e.target.value); setPage(0) }}
-          className="px-4 py-2 rounded-lg border text-sm outline-none"
-          style={{ borderColor: 'var(--border)', background: 'var(--card-bg)', color: 'var(--foreground)' }}
+          className="px-4 py-2 rounded-lg border text-sm outline-none bg-card-bg text-foreground border-border focus:ring-2 focus:ring-ring"
         >
           <option value="all">All statuses</option>
           <option value="completed">Completed</option>
@@ -111,158 +97,124 @@ export default function CallsPage() {
       </div>
 
       {/* Table */}
-      <div className="rounded-xl shadow-sm border overflow-hidden" style={{ background: 'var(--card-bg)', borderColor: 'var(--border)' }}>
+      <div className="rounded-xl shadow-sm border overflow-hidden bg-card-bg border-border">
         {loading ? (
-          <div className="flex items-center justify-center py-16" style={{ color: 'var(--muted)' }}>
-            <svg className="animate-spin mr-2" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-            </svg>
-            Loading calls...
+          /* Skeleton loader */
+          <div className="divide-y divide-border">
+            <div className="grid grid-cols-6 gap-4 px-5 py-3 bg-muted/50">
+              {[0,1,2,3,4,5].map(i => <div key={i} className="skeleton h-3 w-16 rounded" />)}
+            </div>
+            {[0,1,2,3,4].map(i => (
+              <div key={i} className="grid grid-cols-6 gap-4 px-5 py-4">
+                <div className="skeleton h-4 w-28 rounded" />
+                <div className="skeleton h-4 w-16 rounded" />
+                <div className="skeleton h-4 w-12 rounded" />
+                <div className="skeleton h-4 w-16 rounded" />
+                <div className="skeleton h-4 w-24 rounded" />
+                <div className="skeleton h-4 w-32 rounded" />
+              </div>
+            ))}
           </div>
+        ) : calls.length === 0 ? (
+          <EmptyState
+            icon={<Phone size={24} />}
+            title="No calls found"
+            description={search || statusFilter !== 'all'
+              ? 'Try adjusting your filters.'
+              : 'Calls will appear here once your AI Employee starts handling them.'}
+          />
         ) : (
           <>
-            <table className="w-full">
-              <thead>
-                <tr style={{ background: '#f8fafc' }}>
-                  {['Caller', 'Direction', 'Duration', 'Status', 'Date & Time', 'Summary'].map(h => (
-                    <th key={h} className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-5 py-12 text-center text-sm" style={{ color: 'var(--muted)' }}>
-                      No calls found.
-                    </td>
+            {/* Desktop table */}
+            <div className="hidden md:block">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-muted/50">
+                    {['Caller', 'Direction', 'Duration', 'Status', 'Date & Time', 'Summary'].map(h => (
+                      <th key={h} className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ) : (
-                  filtered.map((call, i) => {
-                    const sc = statusColors[call.status] ?? { bg: '#f8fafc', text: '#64748b' }
-                    const caller = call.contacts
-                      ? [call.contacts.first_name, call.contacts.last_name].filter(Boolean).join(' ') || call.from_number
-                      : call.from_number ?? 'Unknown'
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {calls.map((call) => {
+                    const sc = STATUS_CONFIG[call.status]
+                    const dc = DIRECTION_CONFIG[call.direction]
+                    const caller = callerDisplayName(call)
                     const isExpanded = expandedId === call.id
                     const hasDetail = call.summary || call.transcript
 
                     return (
-                      <>
-                        <tr
-                          key={call.id}
-                          onClick={() => hasDetail && toggleExpand(call.id)}
-                          style={{
-                            borderTop: i > 0 ? '1px solid var(--border)' : 'none',
-                            cursor: hasDetail ? 'pointer' : 'default',
-                            background: isExpanded ? '#f8fafc' : 'transparent',
-                          }}
-                        >
-                          <td className="px-5 py-3.5 text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-                            <div className="flex items-center gap-2">
-                              {hasDetail && (
-                                <svg
-                                  width="14" height="14" viewBox="0 0 24 24" fill="none"
-                                  stroke="var(--muted)" strokeWidth="2" strokeLinecap="round"
-                                  style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }}
-                                >
-                                  <polyline points="9 18 15 12 9 6"/>
-                                </svg>
-                              )}
-                              {caller}
-                            </div>
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <span className="text-xs font-medium capitalize" style={{ color: call.direction === 'inbound' ? '#4338ca' : '#0f766e' }}>
-                              {call.direction}
-                            </span>
-                          </td>
-                          <td className="px-5 py-3.5 text-sm" style={{ color: 'var(--muted)' }}>
-                            {formatDuration(call.duration_seconds)}
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <span
-                              className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium capitalize"
-                              style={{ background: sc.bg, color: sc.text }}
-                            >
-                              {call.status.replace('_', ' ')}
-                            </span>
-                          </td>
-                          <td className="px-5 py-3.5 text-sm" style={{ color: 'var(--muted)' }}>
-                            {formatDateTime(call.started_at)}
-                          </td>
-                          <td className="px-5 py-3.5 text-sm max-w-xs" style={{ color: 'var(--muted)' }}>
-                            <span className="truncate block">
-                              {call.summary ? call.summary.slice(0, 80) + (call.summary.length > 80 ? '...' : '') : '—'}
-                            </span>
-                          </td>
-                        </tr>
-
-                        {/* Expanded Row */}
-                        {isExpanded && (
-                          <tr key={`${call.id}-expanded`} style={{ borderTop: '1px solid var(--border)' }}>
-                            <td colSpan={6} className="px-6 py-5" style={{ background: '#f8fafc' }}>
-                              {call.summary && (
-                                <div className="mb-4">
-                                  <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--muted)' }}>AI Summary</p>
-                                  <p className="text-sm" style={{ color: 'var(--foreground)' }}>{call.summary}</p>
-                                </div>
-                              )}
-                              {call.transcript && Array.isArray(call.transcript) && call.transcript.length > 0 && (
-                                <div>
-                                  <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: 'var(--muted)' }}>Transcript</p>
-                                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                                    {call.transcript.map((turn, idx) => (
-                                      <div
-                                        key={idx}
-                                        className="flex gap-3"
-                                      >
-                                        <span
-                                          className="text-xs font-semibold w-16 flex-shrink-0 mt-0.5 capitalize"
-                                          style={{ color: turn.role === 'agent' ? 'var(--accent)' : 'var(--muted)' }}
-                                        >
-                                          {turn.role === 'agent' ? 'AI' : 'Caller'}
-                                        </span>
-                                        <p className="text-sm leading-relaxed" style={{ color: 'var(--foreground)' }}>
-                                          {turn.message}
-                                        </p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {call.transcript_text && !Array.isArray(call.transcript) && (
-                                <div>
-                                  <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--muted)' }}>Transcript</p>
-                                  <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--foreground)' }}>{call.transcript_text}</p>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        )}
-                      </>
+                      <CallRow
+                        key={call.id}
+                        call={call}
+                        caller={caller}
+                        sc={sc}
+                        dc={dc}
+                        isExpanded={isExpanded}
+                        hasDetail={!!hasDetail}
+                        onToggle={() => hasDetail && setExpandedId(prev => prev === call.id ? null : call.id)}
+                      />
                     )
-                  })
-                )}
-              </tbody>
-            </table>
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile card layout */}
+            <div className="md:hidden divide-y divide-border">
+              {calls.map((call) => {
+                const sc = STATUS_CONFIG[call.status]
+                const caller = callerDisplayName(call)
+                const isExpanded = expandedId === call.id
+                const hasDetail = call.summary || call.transcript
+
+                return (
+                  <div key={call.id}>
+                    <button
+                      className="w-full px-4 py-3.5 text-left touch-target"
+                      onClick={() => hasDetail && setExpandedId(prev => prev === call.id ? null : call.id)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{caller}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {formatDuration(call.duration_seconds)} · {formatDateTime(call.started_at)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {sc && (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${sc.className}`}>
+                              {sc.label}
+                            </span>
+                          )}
+                          {hasDetail && (
+                            <ChevronRight size={14} className={`text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                    {isExpanded && <ExpandedDetail call={call} />}
+                  </div>
+                )
+              })}
+            </div>
 
             {/* Pagination */}
-            {filtered.length === PAGE_SIZE && (
-              <div className="flex items-center justify-between px-5 py-3 border-t" style={{ borderColor: 'var(--border)' }}>
+            {calls.length === PAGE_SIZE && (
+              <div className="flex items-center justify-between px-5 py-3 border-t border-border">
                 <button
                   onClick={() => setPage(p => Math.max(0, p - 1))}
                   disabled={page === 0}
-                  className="px-3 py-1.5 rounded-lg text-sm border disabled:opacity-40 transition-colors"
-                  style={{ borderColor: 'var(--border)', color: 'var(--foreground)', background: 'var(--card-bg)' }}
+                  className="px-3 py-1.5 rounded-lg text-sm border disabled:opacity-40 transition-colors bg-card-bg text-foreground border-border"
                 >
                   Previous
                 </button>
-                <span className="text-sm" style={{ color: 'var(--muted)' }}>Page {page + 1}</span>
+                <span className="text-sm text-muted-foreground">Page {page + 1}</span>
                 <button
                   onClick={() => setPage(p => p + 1)}
-                  className="px-3 py-1.5 rounded-lg text-sm border transition-colors"
-                  style={{ borderColor: 'var(--border)', color: 'var(--foreground)', background: 'var(--card-bg)' }}
+                  className="px-3 py-1.5 rounded-lg text-sm border transition-colors bg-card-bg text-foreground border-border"
                 >
                   Next
                 </button>
@@ -270,6 +222,119 @@ export default function CallsPage() {
             )}
           </>
         )}
+      </div>
+    </div>
+  )
+}
+
+/* ── Desktop table row ─────────────────────────────── */
+
+function CallRow({ call, caller, sc, dc, isExpanded, hasDetail, onToggle }: {
+  call: CallLog
+  caller: string
+  sc: (typeof STATUS_CONFIG)[string] | undefined
+  dc: (typeof DIRECTION_CONFIG)[string] | undefined
+  isExpanded: boolean
+  hasDetail: boolean
+  onToggle: () => void
+}) {
+  return (
+    <>
+      <tr
+        onClick={onToggle}
+        className={`transition-colors ${hasDetail ? 'cursor-pointer hover:bg-muted/30' : ''} ${isExpanded ? 'bg-muted/30' : ''}`}
+      >
+        <td className="px-5 py-3.5 text-sm font-medium text-foreground">
+          <div className="flex items-center gap-2">
+            {hasDetail && (
+              <ChevronRight size={14} className={`text-muted-foreground transition-transform flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`} />
+            )}
+            {caller}
+          </div>
+        </td>
+        <td className="px-5 py-3.5">
+          {dc && <span className={`text-xs font-medium capitalize ${dc.className}`}>{dc.label}</span>}
+        </td>
+        <td className="px-5 py-3.5 text-sm text-muted-foreground">
+          {formatDuration(call.duration_seconds)}
+        </td>
+        <td className="px-5 py-3.5">
+          {sc && (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${sc.className}`}>
+              {sc.label}
+            </span>
+          )}
+        </td>
+        <td className="px-5 py-3.5 text-sm text-muted-foreground">
+          {formatDateTime(call.started_at)}
+        </td>
+        <td className="px-5 py-3.5 text-sm text-muted-foreground max-w-xs">
+          <span className="truncate block">
+            {call.summary ? call.summary.slice(0, 80) + (call.summary.length > 80 ? '...' : '') : '—'}
+          </span>
+        </td>
+      </tr>
+      {isExpanded && (
+        <tr>
+          <td colSpan={6} className="bg-muted/20">
+            <ExpandedDetail call={call} />
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+/* ── Expanded call detail ──────────────────────────── */
+
+function ExpandedDetail({ call }: { call: CallLog }) {
+  return (
+    <div className="px-6 py-5 space-y-4">
+      {call.summary && (
+        <div className="rounded-lg bg-muted/50 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">AI Summary</p>
+          <p className="text-sm text-foreground">{call.summary}</p>
+        </div>
+      )}
+
+      {call.transcript && Array.isArray(call.transcript) && call.transcript.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Transcript</p>
+          <TranscriptBubbles transcript={call.transcript} />
+        </div>
+      )}
+
+      {call.transcript_text && !Array.isArray(call.transcript) && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Transcript</p>
+          <p className="text-sm whitespace-pre-wrap text-foreground">{call.transcript_text}</p>
+        </div>
+      )}
+
+      {call.recording_url && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Recording</p>
+          <AudioPlayer url={call.recording_url} />
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div className="flex flex-wrap gap-2 pt-2">
+        {call.from_number && (
+          <a
+            href={`tel:${call.from_number}`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-primary/10 text-brand-primary transition-colors hover:bg-brand-primary/20"
+          >
+            <Phone size={12} /> Call Back
+          </a>
+        )}
+        <button
+          disabled
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-muted text-muted-foreground cursor-not-allowed"
+          title="SMS coming soon"
+        >
+          Send SMS — coming soon
+        </button>
       </div>
     </div>
   )

@@ -22,14 +22,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   }
 
   return (
-    <div className="flex min-h-screen">
-      {/* Desktop sidebar */}
+    <div className="flex min-h-screen bg-background">
+      {/* Desktop sidebar — starts at w-60, JS collapses to w-16 */}
       <div className="hidden lg:block">
         <Sidebar businessName={businessName} />
       </div>
 
-      {/* Main content */}
-      <main className="flex-1 lg:ml-60 min-h-screen p-4 sm:p-6 lg:p-8 overflow-auto pb-20 lg:pb-8">
+      {/* Main content — margin matches sidebar default, JS adjusts on collapse */}
+      <main className="flex-1 lg:ml-60 min-h-screen p-4 sm:p-6 lg:p-8 overflow-auto pb-24 lg:pb-8 transition-[margin] duration-300">
         {children}
       </main>
 

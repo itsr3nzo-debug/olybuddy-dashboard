@@ -3,14 +3,14 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Phone, List, Filter, PoundSterling, Settings, LogOut, Sun, Moon, LayoutDashboard } from 'lucide-react'
+import { Phone, LayoutDashboard, BarChart3, PoundSterling, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft } from 'lucide-react'
 
 const navItems = [
   { href: '/dashboard',    label: 'Overview',     Icon: LayoutDashboard },
   { href: '/calls',        label: 'Call Log',      Icon: Phone },
-  { href: '/pipeline',     label: 'Pipeline',      Icon: Filter },
-  { href: '/performance',  label: 'Performance',   Icon: List },
+  { href: '/performance',  label: 'Performance',   Icon: BarChart3 },
   { href: '/money',        label: 'Money',         Icon: PoundSterling },
   { href: '/settings',     label: 'Settings',      Icon: Settings },
 ]
@@ -20,6 +20,19 @@ export default function Sidebar({ businessName }: { businessName?: string }) {
   const router = useRouter()
   const { theme, setTheme } = useTheme()
   const supabase = createClient()
+  const [collapsed, setCollapsed] = useState(false)
+
+  useEffect(() => {
+    const saved = localStorage.getItem('sidebar-collapsed')
+    if (saved === 'true') setCollapsed(true)
+  }, [])
+
+  function toggleCollapse() {
+    setCollapsed(prev => {
+      localStorage.setItem('sidebar-collapsed', String(!prev))
+      return !prev
+    })
+  }
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -29,66 +42,70 @@ export default function Sidebar({ businessName }: { businessName?: string }) {
 
   return (
     <aside
-      className="flex flex-col w-60 h-screen fixed left-0 top-0 z-40 border-r"
-      style={{ background: 'var(--sidebar-bg)', borderColor: 'rgba(255,255,255,0.06)' }}
+      className={`flex flex-col h-screen fixed left-0 top-0 z-40 border-r border-sidebar-border bg-sidebar transition-all duration-300 ${collapsed ? 'w-16' : 'w-60'}`}
     >
       {/* Logo / Business Name */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--accent)' }}>
-          <Phone size={14} color="white" strokeWidth={2.5} />
+      <div className="flex items-center gap-3 px-4 py-4 border-b border-sidebar-border min-h-[60px]">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-sidebar-primary">
+          <Phone size={14} className="text-sidebar-primary-foreground" strokeWidth={2.5} />
         </div>
-        <div className="min-w-0">
-          <p className="text-white text-sm font-semibold truncate">{businessName ?? 'My Business'}</p>
-          <p className="text-xs" style={{ color: '#64748b' }}>AI Employee</p>
-        </div>
+        {!collapsed && (
+          <div className="min-w-0">
+            <p className="text-sm font-semibold truncate text-sidebar-foreground">{businessName ?? 'My Business'}</p>
+            <p className="text-xs text-sidebar-foreground/50">AI Employee</p>
+          </div>
+        )}
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
         {navItems.map(({ href, label, Icon }) => {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
           return (
             <Link
               key={href}
               href={href}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all"
-              style={{
-                background: active ? 'rgba(99,102,241,0.15)' : 'transparent',
-                color: active ? '#a5b4fc' : '#64748b',
-              }}
+              aria-label={label}
+              className={`flex items-center gap-3 rounded-lg text-sm font-medium transition-all ${collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'} ${
+                active
+                  ? 'bg-sidebar-accent text-sidebar-primary'
+                  : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
+              }`}
             >
               <Icon size={16} strokeWidth={active ? 2.5 : 2} />
-              {label}
+              {!collapsed && label}
             </Link>
           )
         })}
       </nav>
 
       {/* Footer */}
-      <div className="px-3 py-4 space-y-0.5 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-        {/* Dark mode toggle */}
+      <div className="px-2 py-3 space-y-0.5 border-t border-sidebar-border">
         <button
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm transition-all"
-          style={{ color: '#64748b' }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#94a3b8')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#64748b')}
-          aria-label="Toggle dark mode"
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          className={`flex items-center gap-3 w-full rounded-lg text-sm transition-all text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 ${collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'}`}
         >
           {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-          {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          {!collapsed && (theme === 'dark' ? 'Light mode' : 'Dark mode')}
+        </button>
+
+        <button
+          onClick={toggleCollapse}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className={`flex items-center gap-3 w-full rounded-lg text-sm transition-all text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 ${collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'}`}
+        >
+          {collapsed ? <PanelLeft size={16} /> : <PanelLeftClose size={16} />}
+          {!collapsed && 'Collapse'}
         </button>
 
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm transition-all"
-          style={{ color: '#64748b' }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#94a3b8')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#64748b')}
           aria-label="Sign out"
+          className={`flex items-center gap-3 w-full rounded-lg text-sm transition-all text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 ${collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'}`}
         >
           <LogOut size={16} />
-          Sign out
+          {!collapsed && 'Sign out'}
         </button>
       </div>
     </aside>
