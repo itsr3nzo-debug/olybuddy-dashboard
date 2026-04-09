@@ -1,23 +1,13 @@
 /** Twilio SMS helper — sends SMS and logs to comms_log */
 
 import { createClient } from '@supabase/supabase-js'
+import { normalizePhone } from '@/lib/phone'
 
 const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID!
 const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN!
 const TWILIO_FROM = process.env.TWILIO_FROM_NUMBER!
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-function normalizePhone(phone: string): string {
-  let cleaned = phone.replace(/[\s\-\(\)]/g, '')
-  if (cleaned.startsWith('0') && cleaned.length >= 10) {
-    cleaned = '+44' + cleaned.slice(1)
-  }
-  if (!cleaned.startsWith('+')) {
-    cleaned = '+44' + cleaned
-  }
-  return cleaned
-}
 
 export async function sendSms(
   to: string,
@@ -26,6 +16,7 @@ export async function sendSms(
   contactId?: string | null
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const normalizedTo = normalizePhone(to)
+  if (!normalizedTo) return { success: false, error: 'Invalid phone number' }
 
   if (!TWILIO_SID || !TWILIO_TOKEN || !TWILIO_FROM) {
     return { success: false, error: 'Twilio credentials not configured' }

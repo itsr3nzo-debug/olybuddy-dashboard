@@ -79,19 +79,22 @@ export async function updateAgent(agentId: string, systemPrompt: string, firstMe
 
 export async function createAgent(templateAgentId: string, name: string): Promise<string | null> {
   try {
-    // Get the template agent config
+    // Get the template agent config to clone its settings
     const template = await getAgent(templateAgentId)
     if (!template) return null
 
-    // Create a new agent based on the template
-    const res = await fetch(`${BASE_URL}/convai/agents/create`, {
+    // Strip fields that shouldn't be copied to the new agent
+    const { agent_id: _id, ...templateConfig } = template as unknown as Record<string, unknown>
+
+    // Create a new agent (POST /v1/convai/agents — no /create suffix)
+    const res = await fetch(`${BASE_URL}/convai/agents`, {
       method: 'POST',
       headers: {
         'xi-api-key': API_KEY,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        ...template,
+        ...templateConfig,
         name,
       }),
     })

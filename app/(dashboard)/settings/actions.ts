@@ -123,7 +123,7 @@ export async function updateAgentConfig(formData: FormData) {
       const prompt = buildAgentPrompt(fullConfig)
       const firstMessage = buildFirstMessage(fullConfig)
       const synced = await updateAgent(fullConfig.agent_id, prompt, firstMessage)
-      if (!synced) console.error('ElevenLabs sync failed (non-fatal)')
+      if (!synced) console.error(`ElevenLabs sync failed for agent ${fullConfig.agent_id} — settings saved to DB but agent not updated`)
     }
   } catch (syncErr) {
     console.error('ElevenLabs sync error (non-fatal):', syncErr)
