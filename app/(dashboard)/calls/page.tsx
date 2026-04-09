@@ -7,7 +7,8 @@ import { formatDuration, formatDateTime, callerDisplayName } from '@/lib/format'
 import { STATUS_CONFIG, DIRECTION_CONFIG } from '@/lib/constants'
 import TranscriptBubbles from '@/components/shared/TranscriptBubbles'
 import EmptyState from '@/components/shared/EmptyState'
-import { ChevronRight, Phone, Search } from 'lucide-react'
+import { ChevronRight, Phone, Search, MessageSquare, Send, X } from 'lucide-react'
+import { toast } from 'sonner'
 import dynamic from 'next/dynamic'
 
 const AudioPlayer = dynamic(() => import('@/components/shared/AudioPlayer'), { ssr: false })
@@ -288,6 +289,31 @@ function CallRow({ call, caller, sc, dc, isExpanded, hasDetail, onToggle }: {
 /* ── Expanded call detail ──────────────────────────── */
 
 function ExpandedDetail({ call }: { call: CallLog }) {
+  const [showSms, setShowSms] = useState(false)
+  const [smsText, setSmsText] = useState('')
+  const [sending, setSending] = useState(false)
+
+  async function sendSms() {
+    if (!call.from_number || !smsText.trim()) return
+    setSending(true)
+    try {
+      const res = await fetch('/api/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: call.from_number, body: smsText.trim() }),
+      })
+      const data = await res.json() as { success?: boolean; error?: string }
+      if (!res.ok) throw new Error(data.error ?? 'Failed to send')
+      toast.success('SMS sent')
+      setSmsText('')
+      setShowSms(false)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to send SMS')
+    } finally {
+      setSending(false)
+    }
+  }
+
   return (
     <div className="px-6 py-5 space-y-4">
       {call.summary && (
@@ -328,14 +354,48 @@ function ExpandedDetail({ call }: { call: CallLog }) {
             <Phone size={12} /> Call Back
           </a>
         )}
-        <button
-          disabled
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-muted text-muted-foreground cursor-not-allowed"
-          title="SMS coming soon"
-        >
-          Send SMS — coming soon
-        </button>
+        {call.from_number && !showSms && (
+          <button
+            onClick={() => setShowSms(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-success/10 text-brand-success transition-colors hover:bg-brand-success/20"
+          >
+            <MessageSquare size={12} /> Send SMS
+          </button>
+        )}
       </div>
+
+      {/* SMS composer */}
+      {showSms && call.from_number && (
+        <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              SMS to {call.from_number}
+            </p>
+            <button onClick={() => { setShowSms(false); setSmsText('') }} className="text-muted-foreground hover:text-foreground">
+              <X size={14} />
+            </button>
+          </div>
+          <textarea
+            value={smsText}
+            onChange={e => setSmsText(e.target.value)}
+            rows={3}
+            maxLength={1600}
+            placeholder="Hi, this is your AI Employee following up..."
+            className="w-full px-3 py-2 rounded-lg border text-sm bg-card-bg text-foreground border-border focus:ring-2 focus:ring-ring outline-none resize-none"
+          />
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">{smsText.length}/1600</span>
+            <button
+              onClick={sendSms}
+              disabled={sending || !smsText.trim()}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold bg-brand-success text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              <Send size={12} />
+              {sending ? 'Sending...' : 'Send'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

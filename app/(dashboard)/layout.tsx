@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Sidebar from '@/components/dashboard/Sidebar'
 import MobileNav from '@/components/dashboard/MobileNav'
+import CommandPalette from '@/components/shared/CommandPalette'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -23,18 +24,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex min-h-screen bg-background">
-      {/* Desktop sidebar — starts at w-60, JS collapses to w-16 */}
+      {/* Desktop sidebar */}
       <div className="hidden lg:block">
         <Sidebar businessName={businessName} />
       </div>
 
-      {/* Main content — margin matches sidebar default, JS adjusts on collapse */}
+      {/* Main content */}
       <main className="flex-1 lg:ml-60 min-h-screen p-4 sm:p-6 lg:p-8 overflow-auto pb-24 lg:pb-8 transition-[margin] duration-300">
         {children}
       </main>
 
       {/* Mobile bottom nav */}
       <MobileNav />
+
+      {/* Global command palette (Cmd+K) */}
+      <CommandPalette />
     </div>
   )
 }

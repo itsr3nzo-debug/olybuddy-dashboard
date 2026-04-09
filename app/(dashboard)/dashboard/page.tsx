@@ -8,7 +8,10 @@ import KpiCard, { KpiCardSkeleton } from '@/components/dashboard/KpiCard'
 import CallsChart, { ChartSkeleton } from '@/components/dashboard/CallsChart'
 import DashboardRealtime from '@/components/dashboard/DashboardRealtime'
 import EmptyState from '@/components/shared/EmptyState'
-import type { CallLog } from '@/lib/types'
+import HeroRoiCard from '@/components/dashboard/HeroRoiCard'
+import AgentStatusCard from '@/components/dashboard/AgentStatusCard'
+import WeeklyChallengeCard from '@/components/dashboard/WeeklyChallengeCard'
+import type { CallLog, AgentStatus } from '@/lib/types'
 import { Phone, Calendar, PoundSterling, XCircle } from 'lucide-react'
 import { AI_PHONE_DISPLAY } from '@/lib/constants'
 
@@ -100,10 +103,14 @@ export default async function DashboardPage() {
   let allTimeCalls = 0
   let bookingsThisWeek = 0
   let prevBookings = 0
+  let agentName = 'Ava'
+  let agentStatus: AgentStatus = 'online'
+  let agentIsActive = true
+  let agentLastCallAt: string | null = null
 
   if (clientId) {
     // Parallel fetch all dashboard data for faster load
-    const [callsRes, prevRes, countRes, bookingsRes, prevBookingsRes] = await Promise.all([
+    const [callsRes, prevRes, countRes, bookingsRes, prevBookingsRes, agentRes] = await Promise.all([
       supabase
         .from('call_logs')
         .select('*, contacts(first_name, last_name, phone)')
@@ -133,6 +140,11 @@ export default async function DashboardPage() {
         .eq('stage', 'demo_booked')
         .gte('created_at', prevWeekStart.toISOString())
         .lt('created_at', sevenDaysAgo.toISOString()),
+      supabase
+        .from('agent_config')
+        .select('agent_name, agent_status, is_active, last_call_at')
+        .eq('client_id', clientId)
+        .single(),
     ])
 
     calls = (callsRes.data ?? []) as CallLog[]
@@ -140,6 +152,15 @@ export default async function DashboardPage() {
     allTimeCalls = countRes.count ?? 0
     bookingsThisWeek = bookingsRes.count ?? 0
     prevBookings = prevBookingsRes.count ?? 0
+
+    // Agent config (gracefully handle missing columns from migration)
+    const ac = agentRes.data as Record<string, unknown> | null
+    if (ac) {
+      agentName = (ac.agent_name as string) ?? 'Ava'
+      agentStatus = (ac.agent_status as AgentStatus) ?? 'online'
+      agentIsActive = (ac.is_active as boolean) ?? true
+      agentLastCallAt = (ac.last_call_at as string) ?? null
+    }
   }
 
   const today = new Date().toDateString()
@@ -182,6 +203,19 @@ export default async function DashboardPage() {
           </p>
         </div>
       )}
+
+      {/* AI Employee Status */}
+      {clientId && (
+        <AgentStatusCard
+          agentName={agentName}
+          status={agentStatus}
+          lastCallAt={agentLastCallAt}
+          isActive={agentIsActive}
+        />
+      )}
+
+      {/* Hero ROI Card */}
+      <HeroRoiCard savedPounds={savedPounds} />
 
       {/* KPI Grid */}
       <Suspense fallback={
@@ -238,6 +272,9 @@ export default async function DashboardPage() {
         <KpiCard label="Inbound Calls" value={calls.filter(c => c.direction === 'inbound').length} sub="customers calling in" />
         <KpiCard label="Calls Today" value={calls.filter(c => c.started_at && new Date(c.started_at).toDateString() === today).length} sub="so far today" />
       </div>
+
+      {/* Weekly Challenge */}
+      <WeeklyChallengeCard lastWeekCalls={prevCalls.length} thisWeekCalls={calls.length} />
 
       {/* Chart */}
       <Suspense fallback={<ChartSkeleton />}>

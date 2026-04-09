@@ -6,6 +6,7 @@ import { ChevronRight, Phone, PhoneOutgoing } from 'lucide-react'
 import { formatDuration, formatRelativeTime, callerDisplayName } from '@/lib/format'
 import { STATUS_CONFIG } from '@/lib/constants'
 import TranscriptBubbles from '@/components/shared/TranscriptBubbles'
+import MiniAudioButton from '@/components/shared/MiniAudioButton'
 import { AI_PHONE_DISPLAY } from '@/lib/constants'
 
 export default function RecentCallsTable({ calls }: { calls: CallLog[] }) {
@@ -56,6 +57,7 @@ export default function RecentCallsTable({ calls }: { calls: CallLog[] }) {
                   </div>
 
                   <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                    <MiniAudioButton recordingUrl={call.recording_url} />
                     <span className="text-xs text-muted-foreground">{formatDuration(call.duration_seconds)}</span>
                     {sc && (
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${sc.className}`}>

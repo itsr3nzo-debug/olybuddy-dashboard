@@ -127,6 +127,14 @@ export interface HoursConfig {
   [day: string]: { open: string; close: string } | 'closed'
 }
 
+export type AgentStatus = 'online' | 'offline' | 'in_call' | 'idle'
+export type AgentTone = 'formal' | 'friendly' | 'casual'
+
+export interface FaqItem {
+  question: string
+  answer: string
+}
+
 export interface AgentConfig {
   id: string
   client_id: string
@@ -139,6 +147,15 @@ export interface AgentConfig {
   twilio_phone: string | null
   escalation_phone: string | null
   greeting_message: string | null
+  // AI Employee identity (Sprint 2)
+  agent_name: string
+  agent_status: AgentStatus
+  is_active: boolean
+  last_call_at: string | null
+  tone: AgentTone
+  faqs: FaqItem[]
+  escalation_rules: Record<string, unknown>[]
+  notification_prefs: Record<string, unknown>
   created_at: string
   updated_at: string
 }

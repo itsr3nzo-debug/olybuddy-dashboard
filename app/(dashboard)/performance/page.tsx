@@ -10,6 +10,8 @@ import { Phone, Clock, CheckCircle, Zap } from 'lucide-react'
 import { formatDuration } from '@/lib/format'
 import SentimentDonut from '@/components/performance/SentimentDonut'
 import PeakHoursHeatmap from '@/components/performance/PeakHoursHeatmap'
+import BeforeAfterCard from '@/components/performance/BeforeAfterCard'
+import BenchmarkCard from '@/components/performance/BenchmarkCard'
 
 export default async function PerformancePage() {
   const supabase = await createClient()
@@ -21,22 +23,59 @@ export default async function PerformancePage() {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
 
   let calls: CallLog[] = []
-  let businessName = 'Your AI Employee'
+  let agentName = 'Your AI Employee'
+  let clientIndustry: string | null = null
+  let clientCreatedAt: string | null = null
+  let first30Calls: CallLog[] = []
+  let bookingsThisMonth = 0
 
   if (clientId) {
-    const { data } = await supabase
-      .from('call_logs')
-      .select('status, duration_seconds, direction, started_at, ended_at, sentiment')
-      .eq('client_id', clientId)
-      .gte('started_at', monthStart.toISOString())
-    calls = (data ?? []) as CallLog[]
+    const thirtyDaysAgo = new Date(now)
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-    const { data: config } = await supabase
-      .from('agent_config')
-      .select('business_name')
-      .eq('client_id', clientId)
-      .single()
-    if (config?.business_name) businessName = config.business_name
+    const [callsRes, configRes, clientRes, bookingsRes] = await Promise.all([
+      supabase
+        .from('call_logs')
+        .select('status, duration_seconds, direction, started_at, ended_at, sentiment')
+        .eq('client_id', clientId)
+        .gte('started_at', thirtyDaysAgo.toISOString()),
+      supabase
+        .from('agent_config')
+        .select('business_name, agent_name')
+        .eq('client_id', clientId)
+        .single(),
+      supabase
+        .from('clients')
+        .select('industry, created_at')
+        .eq('id', clientId)
+        .single(),
+      supabase
+        .from('opportunities')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', clientId)
+        .eq('stage', 'demo_booked')
+        .gte('created_at', monthStart.toISOString()),
+    ])
+
+    calls = (callsRes.data ?? []) as CallLog[]
+    const config = configRes.data as Record<string, string> | null
+    agentName = config?.agent_name ?? config?.business_name ?? 'Your AI Employee'
+    clientIndustry = clientRes.data?.industry ?? null
+    clientCreatedAt = clientRes.data?.created_at ?? null
+    bookingsThisMonth = bookingsRes.count ?? 0
+
+    // First 30 days of calls (for before/after comparison)
+    if (clientCreatedAt) {
+      const first30End = new Date(clientCreatedAt)
+      first30End.setDate(first30End.getDate() + 30)
+      const { data: f30 } = await supabase
+        .from('call_logs')
+        .select('status, duration_seconds, sentiment')
+        .eq('client_id', clientId)
+        .gte('started_at', clientCreatedAt)
+        .lt('started_at', first30End.toISOString())
+      first30Calls = (f30 ?? []) as CallLog[]
+    }
   }
 
   const totalCalls = calls.length
@@ -63,6 +102,28 @@ export default async function PerformancePage() {
     peakData[day][hour]++
   }
 
+  // Before/after comparison
+  const computePeriod = (periodCalls: CallLog[]) => {
+    const total = periodCalls.length
+    const answered = periodCalls.filter(c => c.status === 'completed').length
+    const durs = periodCalls.filter(c => c.duration_seconds && c.status === 'completed').map(c => c.duration_seconds!)
+    const avgDur = durs.length > 0 ? Math.round(durs.reduce((a, b) => a + b, 0) / durs.length) : 0
+    const pos = periodCalls.filter(c => c.sentiment === 'positive').length
+    return {
+      resolutionRate: total > 0 ? Math.round((answered / total) * 100) : 0,
+      callsHandled: total,
+      positiveRate: total > 0 ? Math.round((pos / total) * 100) : 0,
+      avgDuration: avgDur,
+    }
+  }
+  const first30Stats = computePeriod(first30Calls)
+  const current30Stats = computePeriod(calls)
+  const daysSinceStart = clientCreatedAt ? Math.ceil((now.getTime() - new Date(clientCreatedAt).getTime()) / (1000 * 60 * 60 * 24)) : 0
+
+  // Benchmarks
+  const answerRate = resolutionRate
+  const bookingRate = totalCalls > 0 ? Math.round((bookingsThisMonth / totalCalls) * 100) : 0
+
   // Top call reasons from analysis
   const reasons: Record<string, number> = {}
   for (const call of calls) {
@@ -80,7 +141,7 @@ export default async function PerformancePage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">Performance</h1>
         <p className="text-sm mt-1 text-muted-foreground">
-          {businessName}&apos;s AI Employee · {now.toLocaleString('en-GB', { month: 'long', year: 'numeric' })}
+          {agentName} · {now.toLocaleString('en-GB', { month: 'long', year: 'numeric' })}
         </p>
       </div>
 
@@ -88,7 +149,7 @@ export default async function PerformancePage() {
       <div className="rounded-xl border p-6 mb-6 bg-card-bg">
         <p className="text-xs font-medium uppercase tracking-wider mb-2 text-muted-foreground">This month</p>
         <p className="text-xl sm:text-2xl font-bold text-foreground">
-          Your AI Employee worked <span className="text-brand-primary">{hoursWorked} hours</span>,
+          {agentName} worked <span className="text-brand-primary">{hoursWorked} hours</span>,
           handled <span className="text-brand-success">{totalCalls} calls</span>,
           and never took a day off.
         </p>
@@ -107,6 +168,21 @@ export default async function PerformancePage() {
           <KpiCard label="Hours Worked" value={hoursWorked} sub="24/7 this month" color="warning" animate icon={<Zap size={16} />} />
         </div>
       </Suspense>
+
+      {/* Before/After + Benchmarks */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <BeforeAfterCard
+          first30={first30Stats}
+          current30={current30Stats}
+          hasEnoughData={daysSinceStart >= 60}
+        />
+        <BenchmarkCard
+          answerRate={answerRate}
+          avgDuration={avgDuration}
+          bookingRate={bookingRate}
+          industry={clientIndustry}
+        />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Sentiment donut */}
