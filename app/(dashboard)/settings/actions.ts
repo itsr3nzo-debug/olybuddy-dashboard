@@ -107,5 +107,27 @@ export async function updateAgentConfig(formData: FormData) {
     .eq('client_id', clientId)
 
   if (error) throw new Error(error.message)
+
+  // Sync to ElevenLabs agent (if agent_id configured)
+  try {
+    const { buildAgentPrompt, buildFirstMessage } = await import('@/lib/agent-prompt-builder')
+    const { updateAgent } = await import('@/lib/elevenlabs')
+
+    const { data: fullConfig } = await supabase
+      .from('agent_config')
+      .select('*')
+      .eq('client_id', clientId)
+      .single()
+
+    if (fullConfig?.agent_id) {
+      const prompt = buildAgentPrompt(fullConfig)
+      const firstMessage = buildFirstMessage(fullConfig)
+      const synced = await updateAgent(fullConfig.agent_id, prompt, firstMessage)
+      if (!synced) console.error('ElevenLabs sync failed (non-fatal)')
+    }
+  } catch (syncErr) {
+    console.error('ElevenLabs sync error (non-fatal):', syncErr)
+  }
+
   revalidatePath('/settings')
 }
