@@ -106,33 +106,60 @@ export async function POST(request: NextRequest) {
       console.error('ElevenLabs sync on onboard failed (non-fatal):', syncErr)
     }
 
-    // Step 5: Create auth user with app_metadata
-    const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
-      email,
-      email_confirm: true,
-      app_metadata: { client_id: clientId },
-    })
-
-    if (authErr) {
-      console.error('Auth user creation failed:', authErr.message)
-    }
-
-    // Step 6: Send magic link via inviteUserByEmail (actually sends the email)
+    // Step 5: Create auth user with app_metadata AND send invite in one step
+    // Use createUser with email_confirm:false, then generate a magic link to send ourselves
+    let userId: string | null = null
     let inviteSent = false
+
     try {
-      const { error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://olybuddy-dashboard.vercel.app'}/auth/callback`,
+      const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
+        email,
+        email_confirm: false,
+        app_metadata: { client_id: clientId },
       })
-      if (!inviteErr) inviteSent = true
-      else console.error('Invite email failed:', inviteErr.message)
+
+      if (authErr) {
+        console.error('Auth user creation failed:', authErr.message)
+      } else {
+        userId = authData.user?.id ?? null
+      }
+
+      // Generate magic link and send it via our system email
+      const { data: linkData } = await supabase.auth.admin.generateLink({
+        type: 'magiclink',
+        email,
+        options: {
+          redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://olybuddy-dashboard.vercel.app'}/auth/callback`,
+        },
+      })
+
+      if (linkData?.properties?.action_link) {
+        const { sendSystemEmail } = await import('@/lib/email')
+        const result = await sendSystemEmail({
+          to: email,
+          subject: `Welcome to Olybuddy — Your AI Employee is ready`,
+          html: `
+            <div style="font-family:sans-serif;max-width:500px;margin:0 auto;padding:40px 20px;">
+              <h1 style="font-size:24px;">Welcome to Olybuddy!</h1>
+              <p>Your AI Employee is set up and ready to answer calls for <strong>${business_name}</strong>.</p>
+              <p>Click below to access your dashboard:</p>
+              <a href="${linkData.properties.action_link}" style="display:inline-block;background:#6366f1;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin:16px 0;">
+                Open Dashboard
+              </a>
+              <p style="color:#666;font-size:13px;margin-top:24px;">This link expires in 1 hour. After that, use the magic link login on the dashboard.</p>
+            </div>
+          `,
+        })
+        inviteSent = result.success
+      }
     } catch (invErr) {
-      console.error('Invite email error:', invErr)
+      console.error('Auth/invite error:', invErr)
     }
 
     return NextResponse.json({
       success: true,
       clientId,
-      userId: authData?.user?.id ?? null,
+      userId,
       agentId,
       loginEmail: email,
       inviteSent,

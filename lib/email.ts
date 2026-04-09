@@ -66,7 +66,10 @@ export async function sendSystemEmail(options: SendEmailOptions): Promise<{
   }
 }
 
-/** Build the weekly report HTML email */
+/** Build the weekly report HTML email
+ * NOTE: Currently unused — the cron route builds its own HTML inline.
+ * This is available for future use if we migrate the report template here.
+ */
 export function buildWeeklyReportHtml(data: {
   businessName: string
   totalCalls: number

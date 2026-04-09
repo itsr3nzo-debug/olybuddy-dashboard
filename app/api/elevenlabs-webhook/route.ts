@@ -24,13 +24,17 @@ function estimateJobValue(reason: string): number {
 export async function POST(request: Request) {
   const startTime = Date.now()
 
-  // Webhook authentication — check shared secret if configured
-  if (WEBHOOK_SECRET) {
-    const authHeader = request.headers.get('x-webhook-secret')
-      ?? request.headers.get('authorization')?.replace('Bearer ', '')
-    if (authHeader !== WEBHOOK_SECRET) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  // Webhook authentication — fail CLOSED (reject if no secret configured)
+  const authHeader = request.headers.get('x-webhook-secret')
+    ?? request.headers.get('authorization')?.replace('Bearer ', '')
+    ?? request.headers.get('x-elevenlabs-signature')
+  if (!WEBHOOK_SECRET) {
+    // In production, ALWAYS require auth. Log and reject.
+    console.error('ELEVENLABS_WEBHOOK_SECRET not set — rejecting webhook')
+    return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
+  }
+  if (authHeader !== WEBHOOK_SECRET) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
@@ -226,10 +230,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      clientId,
-      contactId,
-      callLogId: callLog?.id,
-      opportunityDeduplicated,
       processingMs: Date.now() - startTime,
     })
 

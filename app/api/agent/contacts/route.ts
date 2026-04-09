@@ -22,7 +22,13 @@ export async function GET(request: Request) {
     .limit(limit)
 
   if (stage) query = query.eq('pipeline_stage', stage)
-  if (search) query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,phone.ilike.%${search}%,company.ilike.%${search}%`)
+  if (search) {
+    // Sanitize search to prevent PostgREST operator injection
+    const safe = search.replace(/[%_(),.]/g, '').slice(0, 50)
+    if (safe.length >= 2) {
+      query = query.or(`first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,phone.ilike.%${safe}%,company.ilike.%${safe}%`)
+    }
+  }
 
   const { data, error } = await query
 
