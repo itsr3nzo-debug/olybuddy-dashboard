@@ -36,7 +36,7 @@ export default async function PerformancePage() {
     const [callsRes, configRes, clientRes, bookingsRes] = await Promise.all([
       supabase
         .from('call_logs')
-        .select('status, duration_seconds, direction, started_at, ended_at, sentiment')
+        .select('status, duration_seconds, direction, started_at, ended_at, sentiment, analysis, summary')
         .eq('client_id', clientId)
         .gte('started_at', thirtyDaysAgo.toISOString()),
       supabase

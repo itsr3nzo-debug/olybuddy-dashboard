@@ -67,14 +67,35 @@ export async function updateAgentConfig(formData: FormData) {
     }
   }
 
-  const servicesJson = formData.get('services') as string | null
-  if (servicesJson) {
+  const faqsJson = formData.get('faqs') as string | null
+  if (faqsJson) {
     try {
-      const parsed = JSON.parse(servicesJson)
-      if (!Array.isArray(parsed)) throw new Error('Invalid services format')
-      updates.services = parsed
+      const parsed = JSON.parse(faqsJson)
+      if (!Array.isArray(parsed)) throw new Error('Invalid FAQs format')
+      updates.faqs = parsed
     } catch {
-      throw new Error('Invalid services data')
+      throw new Error('Invalid FAQ data')
+    }
+  }
+
+  const agentNameVal = formData.get('agent_name')
+  if (agentNameVal !== null) {
+    updates.agent_name = sanitizeText(agentNameVal, 50) || 'Ava'
+  }
+
+  const toneVal = formData.get('tone') as string | null
+  if (toneVal !== null && ['formal', 'friendly', 'casual'].includes(toneVal)) {
+    updates.tone = toneVal
+  }
+
+  const notifPrefs = formData.get('notification_prefs') as string | null
+  if (notifPrefs) {
+    try {
+      const parsed = JSON.parse(notifPrefs)
+      if (typeof parsed !== 'object' || parsed === null) throw new Error('Invalid prefs')
+      updates.notification_prefs = parsed
+    } catch {
+      throw new Error('Invalid notification preferences')
     }
   }
 

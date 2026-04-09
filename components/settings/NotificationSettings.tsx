@@ -2,16 +2,31 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { updateAgentConfig } from '@/app/(dashboard)/settings/actions'
 import { Mail, MessageSquare, Send } from 'lucide-react'
 
 interface NotificationSettingsProps {
-  emailEnabled?: boolean
-  telegramEnabled?: boolean
+  initialPrefs: { email?: boolean; telegram?: boolean }
 }
 
-export default function NotificationSettings({ emailEnabled = true, telegramEnabled = false }: NotificationSettingsProps) {
-  const [email, setEmail] = useState(emailEnabled)
-  const [telegram, setTelegram] = useState(telegramEnabled)
+export default function NotificationSettings({ initialPrefs }: NotificationSettingsProps) {
+  const [email, setEmail] = useState(initialPrefs.email ?? true)
+  const [telegram, setTelegram] = useState(initialPrefs.telegram ?? false)
+  const [saving, setSaving] = useState(false)
+
+  async function savePrefs(newEmail: boolean, newTelegram: boolean) {
+    setSaving(true)
+    try {
+      const fd = new FormData()
+      fd.set('notification_prefs', JSON.stringify({ email: newEmail, telegram: newTelegram }))
+      await updateAgentConfig(fd)
+      toast.success('Notification preferences saved')
+    } catch (e) {
+      toast.error('Failed to save: ' + (e instanceof Error ? e.message : 'Unknown error'))
+    } finally {
+      setSaving(false)
+    }
+  }
 
   function Toggle({ checked, onChange, label, icon, description, disabled = false }: {
     checked: boolean; onChange: (v: boolean) => void; label: string; icon: React.ReactNode; description: string; disabled?: boolean
@@ -31,13 +46,17 @@ export default function NotificationSettings({ emailEnabled = true, telegramEnab
           role="switch"
           aria-checked={checked}
           aria-label={`${label} notifications`}
-          disabled={disabled}
+          disabled={disabled || saving}
           onClick={() => {
-            onChange(!checked)
-            toast.success(`${label} notifications ${!checked ? 'enabled' : 'disabled'}`)
+            const newVal = !checked
+            onChange(newVal)
+            savePrefs(
+              label === 'Email' ? newVal : email,
+              label === 'Telegram' ? newVal : telegram
+            )
           }}
           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-            disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+            disabled || saving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
           } ${checked ? 'bg-brand-primary' : 'bg-muted'}`}
         >
           <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />

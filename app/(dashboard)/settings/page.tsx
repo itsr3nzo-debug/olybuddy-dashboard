@@ -133,7 +133,7 @@ export default async function SettingsPage() {
             <p className="text-xs text-muted-foreground mt-0.5">Help your AI answer common questions about your business</p>
           </div>
           <div className="px-6 py-5">
-            <FaqEditor initialFaqs={Array.isArray(config?.services) ? config.services.map(s => ({ question: s.name, answer: s.description ?? '' })) : []} />
+            <FaqEditor initialFaqs={Array.isArray(config?.faqs) ? (config.faqs as { question: string; answer: string }[]) : []} />
           </div>
         </section>
 
@@ -143,7 +143,7 @@ export default async function SettingsPage() {
             <h2 className="text-sm font-semibold text-foreground">Notifications</h2>
           </div>
           <div className="px-6">
-            <NotificationSettings />
+            <NotificationSettings initialPrefs={(config?.notification_prefs as { email?: boolean; telegram?: boolean }) ?? {}} />
           </div>
         </section>
 

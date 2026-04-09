@@ -34,7 +34,7 @@ export default function FaqEditor({ initialFaqs }: FaqEditorProps) {
     setSaving(true)
     try {
       const fd = new FormData()
-      fd.set('services', JSON.stringify(faqs.filter(f => f.question.trim() && f.answer.trim())))
+      fd.set('faqs', JSON.stringify(faqs.filter(f => f.question.trim() && f.answer.trim())))
       await updateAgentConfig(fd)
       toast.success('FAQs saved')
     } catch (e) {

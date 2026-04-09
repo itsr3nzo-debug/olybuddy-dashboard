@@ -211,6 +211,7 @@ export default async function DashboardPage() {
           status={agentStatus}
           lastCallAt={agentLastCallAt}
           isActive={agentIsActive}
+          clientId={clientId}
         />
       )}
 

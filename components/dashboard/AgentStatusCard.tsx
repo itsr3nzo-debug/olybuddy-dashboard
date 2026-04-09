@@ -2,6 +2,7 @@
 
 import { motion } from 'motion/react'
 import { formatRelativeTime } from '@/lib/format'
+import { useAgentStatus } from '@/lib/hooks/useAgentStatus'
 import type { AgentStatus } from '@/lib/types'
 import { Phone, Wifi, WifiOff, PhoneCall } from 'lucide-react'
 
@@ -10,6 +11,7 @@ interface AgentStatusCardProps {
   status: AgentStatus
   lastCallAt: string | null
   isActive: boolean
+  clientId?: string
 }
 
 const STATUS_CONFIG: Record<AgentStatus, { label: string; dotClass: string; icon: React.ReactNode; description: string }> = {
@@ -19,7 +21,15 @@ const STATUS_CONFIG: Record<AgentStatus, { label: string; dotClass: string; icon
   offline: { label: 'Offline', dotClass: 'bg-brand-danger',  icon: <WifiOff size={14} />,    description: 'Not currently active' },
 }
 
-export default function AgentStatusCard({ agentName, status, lastCallAt, isActive }: AgentStatusCardProps) {
+export default function AgentStatusCard({ agentName, status: initialStatus, lastCallAt: initialLastCallAt, isActive, clientId }: AgentStatusCardProps) {
+  // Subscribe to realtime status changes
+  const { status: realtimeStatus, lastCallAt: realtimeLastCallAt } = useAgentStatus({
+    clientId,
+    initialStatus,
+    initialLastCallAt,
+  })
+  const status = realtimeStatus
+  const lastCallAt = realtimeLastCallAt
   const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.online
   const effectiveStatus = isActive ? status : 'offline'
   const effectiveConfig = isActive ? config : STATUS_CONFIG.offline
