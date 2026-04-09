@@ -131,25 +131,16 @@ function buildEmailHtml(clientName: string, stats: ReturnType<typeof computeStat
 </html>`
 }
 
-// Send email via Resend REST API
+// Send email via Nodemailer (Gmail SMTP)
 async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) return false
-
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: 'Olybuddy <reports@olybuddy.com>',
-      to: [to],
-      subject,
-      html,
-    }),
-  })
-  return res.ok
+  try {
+    const { sendSystemEmail } = await import('@/lib/email')
+    const result = await sendSystemEmail({ to, subject, html })
+    return result.success
+  } catch (e) {
+    console.error(`Email to ${to} failed:`, e)
+    return false
+  }
 }
 
 // Send Telegram notification to Renzo
