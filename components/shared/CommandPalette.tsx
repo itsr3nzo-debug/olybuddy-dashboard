@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { motion, AnimatePresence } from 'motion/react'
-import { Search, LayoutDashboard, Phone, BarChart3, PoundSterling, Settings, Moon, Sun, LogOut, Command, Kanban, MessageSquare, Users } from 'lucide-react'
+import { Search, LayoutDashboard, Phone, BarChart3, PoundSterling, Settings, Moon, Sun, LogOut, Command, Kanban, MessageSquare, Users, Calendar, ScrollText, FileBarChart } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const PAGES = [
@@ -13,7 +13,10 @@ const PAGES = [
   { href: '/conversations',  label: 'Inbox',           icon: MessageSquare },
   { href: '/calls',          label: 'Call Log',         icon: Phone },
   { href: '/performance',    label: 'Performance',      icon: BarChart3 },
+  { href: '/reporting',      label: 'Reporting',        icon: FileBarChart },
   { href: '/money',          label: 'Money',            icon: PoundSterling },
+  { href: '/calendar',       label: 'Calendar',         icon: Calendar },
+  { href: '/agent-logs',     label: 'Agent Logs',       icon: ScrollText },
   { href: '/settings',       label: 'Settings',         icon: Settings },
 ]
 
