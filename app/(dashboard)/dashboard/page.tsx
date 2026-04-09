@@ -11,6 +11,7 @@ import EmptyState from '@/components/shared/EmptyState'
 import HeroRoiCard from '@/components/dashboard/HeroRoiCard'
 import AgentStatusCard from '@/components/dashboard/AgentStatusCard'
 import WeeklyChallengeCard from '@/components/dashboard/WeeklyChallengeCard'
+import OpportunityDonut from '@/components/dashboard/OpportunityDonut'
 import type { CallLog, AgentStatus } from '@/lib/types'
 import { Phone, Calendar, PoundSterling, XCircle } from 'lucide-react'
 import { AI_PHONE_DISPLAY } from '@/lib/constants'
@@ -107,10 +108,14 @@ export default async function DashboardPage() {
   let agentStatus: AgentStatus = 'online'
   let agentIsActive = true
   let agentLastCallAt: string | null = null
+  let oppOpen = 0
+  let oppWon = 0
+  let oppLost = 0
+  let oppTotalValue = 0
 
   if (clientId) {
     // Parallel fetch all dashboard data for faster load
-    const [callsRes, prevRes, countRes, bookingsRes, prevBookingsRes, agentRes] = await Promise.all([
+    const [callsRes, prevRes, countRes, bookingsRes, prevBookingsRes, agentRes, oppsRes] = await Promise.all([
       supabase
         .from('call_logs')
         .select('*, contacts(first_name, last_name, phone)')
@@ -145,6 +150,10 @@ export default async function DashboardPage() {
         .select('agent_name, agent_status, is_active, last_call_at')
         .eq('client_id', clientId)
         .single(),
+      supabase
+        .from('opportunities')
+        .select('stage, value_pence')
+        .eq('client_id', clientId),
     ])
 
     calls = (callsRes.data ?? []) as CallLog[]
@@ -160,6 +169,15 @@ export default async function DashboardPage() {
       agentStatus = (ac.agent_status as AgentStatus) ?? 'online'
       agentIsActive = (ac.is_active as boolean) ?? true
       agentLastCallAt = (ac.last_call_at as string) ?? null
+    }
+
+    // Opportunity pipeline data
+    const opps = (oppsRes.data ?? []) as Array<{ stage: string; value_pence: number }>
+    for (const o of opps) {
+      oppTotalValue += o.value_pence ?? 0
+      if (o.stage === 'won') oppWon++
+      else if (o.stage === 'lost') oppLost++
+      else oppOpen++
     }
   }
 
@@ -276,6 +294,9 @@ export default async function DashboardPage() {
 
       {/* Weekly Challenge */}
       <WeeklyChallengeCard lastWeekCalls={prevCalls.length} thisWeekCalls={calls.length} />
+
+      {/* Pipeline Overview */}
+      <OpportunityDonut openCount={oppOpen} wonCount={oppWon} lostCount={oppLost} totalValue={oppTotalValue} />
 
       {/* Chart */}
       <Suspense fallback={<ChartSkeleton />}>

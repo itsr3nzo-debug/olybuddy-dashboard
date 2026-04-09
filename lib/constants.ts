@@ -34,6 +34,20 @@ export const PLAN_LABELS: Record<string, string> = {
   enterprise: 'Enterprise — £399/mo',
 }
 
+export const PIPELINE_STAGES = [
+  { key: 'new',          label: 'New Lead',     color: 'brand-primary',  hex: '#6366f1' },
+  { key: 'contacted',    label: 'Contacted',    color: 'brand-warning',  hex: '#f59e0b' },
+  { key: 'qualified',    label: 'Qualified',    color: 'brand-info',     hex: '#3b82f6' },
+  { key: 'demo_booked',  label: 'Demo Booked',  color: 'purple-500',     hex: '#a855f7' },
+  { key: 'demo_done',    label: 'Demo Done',    color: 'cyan-500',       hex: '#06b6d4' },
+  { key: 'proposal',     label: 'Proposal',     color: 'orange-500',     hex: '#f97316' },
+  { key: 'negotiation',  label: 'Negotiation',  color: 'pink-500',       hex: '#ec4899' },
+  { key: 'won',          label: 'Won',          color: 'brand-success',  hex: '#22c55e' },
+  { key: 'lost',         label: 'Lost',         color: 'brand-danger',   hex: '#ef4444' },
+] as const
+
+export type PipelineStageKey = typeof PIPELINE_STAGES[number]['key']
+
 export const SUBSCRIPTION_STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   trial:     { label: 'Trial',     className: 'bg-brand-warning/10 text-brand-warning' },
   active:    { label: 'Active',    className: 'bg-brand-success/10 text-brand-success' },

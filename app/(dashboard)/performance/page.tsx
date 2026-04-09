@@ -12,6 +12,7 @@ import SentimentDonut from '@/components/performance/SentimentDonut'
 import PeakHoursHeatmap from '@/components/performance/PeakHoursHeatmap'
 import BeforeAfterCard from '@/components/performance/BeforeAfterCard'
 import BenchmarkCard from '@/components/performance/BenchmarkCard'
+import FunnelChart from '@/components/pipeline/FunnelChart'
 
 export default async function PerformancePage() {
   const supabase = await createClient()
@@ -28,12 +29,13 @@ export default async function PerformancePage() {
   let clientCreatedAt: string | null = null
   let first30Calls: CallLog[] = []
   let bookingsThisMonth = 0
+  let funnelData: Array<{ stage: string; count: number; value: number }> = []
 
   if (clientId) {
     const thirtyDaysAgo = new Date(now)
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-    const [callsRes, configRes, clientRes, bookingsRes] = await Promise.all([
+    const [callsRes, configRes, clientRes, bookingsRes, allOppsRes] = await Promise.all([
       supabase
         .from('call_logs')
         .select('status, duration_seconds, direction, started_at, ended_at, sentiment, analysis, summary')
@@ -55,6 +57,10 @@ export default async function PerformancePage() {
         .eq('client_id', clientId)
         .eq('stage', 'demo_booked')
         .gte('created_at', monthStart.toISOString()),
+      supabase
+        .from('opportunities')
+        .select('stage, value_pence')
+        .eq('client_id', clientId),
     ])
 
     calls = (callsRes.data ?? []) as CallLog[]
@@ -63,6 +69,16 @@ export default async function PerformancePage() {
     clientIndustry = clientRes.data?.industry ?? null
     clientCreatedAt = clientRes.data?.created_at ?? null
     bookingsThisMonth = bookingsRes.count ?? 0
+
+    // Funnel data from all opportunities
+    const allOpps = (allOppsRes.data ?? []) as Array<{ stage: string; value_pence: number }>
+    const funnelMap: Record<string, { count: number; value: number }> = {}
+    for (const o of allOpps) {
+      if (!funnelMap[o.stage]) funnelMap[o.stage] = { count: 0, value: 0 }
+      funnelMap[o.stage].count++
+      funnelMap[o.stage].value += o.value_pence ?? 0
+    }
+    funnelData = Object.entries(funnelMap).map(([stage, d]) => ({ stage, count: d.count, value: d.value }))
 
     // First 30 days of calls (for before/after comparison)
     if (clientCreatedAt) {
@@ -168,6 +184,14 @@ export default async function PerformancePage() {
           <KpiCard label="Hours Worked" value={hoursWorked} sub="24/7 this month" color="warning" animate icon={<Zap size={16} />} />
         </div>
       </Suspense>
+
+      {/* Pipeline Funnel */}
+      {funnelData.length > 0 && (
+        <div className="rounded-xl border p-6 bg-card-bg mb-6">
+          <h2 className="text-sm font-semibold mb-4 text-foreground">Pipeline Funnel</h2>
+          <FunnelChart stageData={funnelData} />
+        </div>
+      )}
 
       {/* Before/After + Benchmarks */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">

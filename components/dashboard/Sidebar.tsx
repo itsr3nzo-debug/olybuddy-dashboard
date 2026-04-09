@@ -5,14 +5,16 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Phone, LayoutDashboard, BarChart3, PoundSterling, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft } from 'lucide-react'
+import { Phone, LayoutDashboard, BarChart3, PoundSterling, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Kanban, MessageSquare } from 'lucide-react'
 
 const navItems = [
-  { href: '/dashboard',    label: 'Overview',     Icon: LayoutDashboard },
-  { href: '/calls',        label: 'Call Log',      Icon: Phone },
-  { href: '/performance',  label: 'Performance',   Icon: BarChart3 },
-  { href: '/money',        label: 'Money',         Icon: PoundSterling },
-  { href: '/settings',     label: 'Settings',      Icon: Settings },
+  { href: '/dashboard',      label: 'Overview',      Icon: LayoutDashboard },
+  { href: '/pipeline',       label: 'Pipeline',       Icon: Kanban },
+  { href: '/conversations',  label: 'Inbox',          Icon: MessageSquare },
+  { href: '/calls',          label: 'Call Log',        Icon: Phone },
+  { href: '/performance',    label: 'Performance',     Icon: BarChart3 },
+  { href: '/money',          label: 'Money',           Icon: PoundSterling },
+  { href: '/settings',       label: 'Settings',        Icon: Settings },
 ]
 
 export default function Sidebar({ businessName }: { businessName?: string }) {

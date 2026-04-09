@@ -4,15 +4,17 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { motion, AnimatePresence } from 'motion/react'
-import { Search, LayoutDashboard, Phone, BarChart3, PoundSterling, Settings, Moon, Sun, LogOut, Command } from 'lucide-react'
+import { Search, LayoutDashboard, Phone, BarChart3, PoundSterling, Settings, Moon, Sun, LogOut, Command, Kanban, MessageSquare, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const PAGES = [
-  { href: '/dashboard',   label: 'Overview',    icon: LayoutDashboard },
-  { href: '/calls',       label: 'Call Log',     icon: Phone },
-  { href: '/performance', label: 'Performance',  icon: BarChart3 },
-  { href: '/money',       label: 'Money',        icon: PoundSterling },
-  { href: '/settings',    label: 'Settings',     icon: Settings },
+  { href: '/dashboard',      label: 'Overview',       icon: LayoutDashboard },
+  { href: '/pipeline',       label: 'Pipeline',        icon: Kanban },
+  { href: '/conversations',  label: 'Inbox',           icon: MessageSquare },
+  { href: '/calls',          label: 'Call Log',         icon: Phone },
+  { href: '/performance',    label: 'Performance',      icon: BarChart3 },
+  { href: '/money',          label: 'Money',            icon: PoundSterling },
+  { href: '/settings',       label: 'Settings',         icon: Settings },
 ]
 
 export default function CommandPalette() {

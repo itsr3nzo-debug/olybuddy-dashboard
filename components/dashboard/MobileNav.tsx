@@ -2,14 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Phone, BarChart3, PoundSterling, MoreHorizontal } from 'lucide-react'
+import { LayoutDashboard, Phone, Kanban, MessageSquare, MoreHorizontal } from 'lucide-react'
 
 const tabs = [
-  { href: '/dashboard',    label: 'Home',   Icon: LayoutDashboard },
-  { href: '/calls',        label: 'Calls',  Icon: Phone },
-  { href: '/performance',  label: 'Stats',  Icon: BarChart3 },
-  { href: '/money',        label: 'Money',  Icon: PoundSterling },
-  { href: '/settings',     label: 'More',   Icon: MoreHorizontal },
+  { href: '/dashboard',      label: 'Home',     Icon: LayoutDashboard },
+  { href: '/pipeline',       label: 'Pipeline', Icon: Kanban },
+  { href: '/conversations',  label: 'Inbox',    Icon: MessageSquare },
+  { href: '/calls',          label: 'Calls',    Icon: Phone },
+  { href: '/settings',       label: 'More',     Icon: MoreHorizontal },
 ]
 
 export default function MobileNav() {
