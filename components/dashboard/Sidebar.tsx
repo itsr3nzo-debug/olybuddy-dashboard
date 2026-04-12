@@ -5,22 +5,23 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Phone, LayoutDashboard, BarChart3, PoundSterling, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Kanban, MessageSquare, Calendar, ScrollText, FileBarChart } from 'lucide-react'
+import { Phone, LayoutDashboard, BarChart3, PoundSterling, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Kanban, MessageSquare, Calendar, ScrollText, FileBarChart, Plug } from 'lucide-react'
 
 const navItems = [
   // Main
-  { href: '/dashboard',      label: 'Overview',      Icon: LayoutDashboard },
+  { href: '/dashboard',      label: 'Overview',       Icon: LayoutDashboard },
   { href: '/pipeline',       label: 'Pipeline',       Icon: Kanban },
   { href: '/conversations',  label: 'Inbox',          Icon: MessageSquare },
-  { href: '/calls',          label: 'Call Log',        Icon: Phone },
+  { href: '/calls',          label: 'Call Log',       Icon: Phone },
   // Analytics
-  { href: '/performance',    label: 'Performance',     Icon: BarChart3 },
-  { href: '/reporting',      label: 'Reporting',       Icon: FileBarChart },
-  { href: '/money',          label: 'Money',           Icon: PoundSterling },
+  { href: '/performance',    label: 'Performance',    Icon: BarChart3 },
+  { href: '/reporting',      label: 'Reporting',      Icon: FileBarChart },
+  { href: '/money',          label: 'Money',          Icon: PoundSterling },
   // Tools
-  { href: '/calendar',       label: 'Calendar',        Icon: Calendar },
-  { href: '/agent-logs',     label: 'Agent Logs',      Icon: ScrollText },
-  { href: '/settings',       label: 'Settings',        Icon: Settings },
+  { href: '/calendar',       label: 'Calendar',       Icon: Calendar },
+  { href: '/integrations',   label: 'Integrations',   Icon: Plug },
+  { href: '/agent-logs',     label: 'Agent Logs',     Icon: ScrollText },
+  { href: '/settings',       label: 'Settings',       Icon: Settings },
 ]
 
 export default function Sidebar({ businessName }: { businessName?: string }) {
