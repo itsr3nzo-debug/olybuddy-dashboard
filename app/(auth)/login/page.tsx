@@ -132,41 +132,7 @@ export default function LoginPage() {
                   )}
                 </button>
 
-                <div className="relative my-5">
-                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10" /></div>
-                  <div className="relative flex justify-center text-xs"><span className="px-3 text-slate-500 bg-[rgba(30,41,59,0.7)]">or try it instantly</span></div>
-                </div>
-
-                <button
-                  type="button"
-                  disabled={demoLoading}
-                  onClick={async () => {
-                    setDemoLoading(true)
-                    setError('')
-                    const { error } = await supabase.auth.signInWithPassword({
-                      email: 'test@olybuddy.com',
-                      password: 'testpassword123',
-                    })
-                    if (error) {
-                      setError(error.message)
-                      setDemoLoading(false)
-                    } else {
-                      router.push('/dashboard')
-                      router.refresh()
-                    }
-                  }}
-                  className="w-full py-3.5 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-50 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 flex items-center justify-center gap-2"
-                >
-                  {demoLoading ? (
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                  ) : (
-                    <>
-                      <Zap size={16} className="fill-white" />
-                      Demo Login — Apex Automations
-                    </>
-                  )}
-                </button>
-                <p className="text-center text-[11px] text-slate-500 mt-2">See the dashboard with real call data</p>
+                {/* Demo login removed for production — was exposing test credentials */}
               </form>
             </>
           ) : (

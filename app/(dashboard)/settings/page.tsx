@@ -22,6 +22,7 @@ export default async function SettingsPage() {
   let client: {
     id: string; name: string; email: string | null; phone: string | null
     subscription_status: string; subscription_plan: string; created_at: string
+    trial_ends_at: string | null
   } | null = null
   let config: AgentConfig | null = null
   let totalCalls = 0
@@ -29,7 +30,7 @@ export default async function SettingsPage() {
   if (clientId) {
     const { data } = await supabase
       .from('clients')
-      .select('id, name, email, phone, subscription_status, subscription_plan, created_at')
+      .select('id, name, email, phone, subscription_status, subscription_plan, created_at, trial_ends_at')
       .eq('id', clientId)
       .single()
     client = data
@@ -164,7 +165,13 @@ export default async function SettingsPage() {
               }
             />
             <SettingRow label="Plan" value={PLAN_LABELS[client?.subscription_plan ?? ''] ?? 'Starter'} />
+            {client?.subscription_status === 'trial' && client?.trial_ends_at && (
+              <SettingRow label="Trial ends" value={new Date(client.trial_ends_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} />
+            )}
             <SettingRow label="Member since" value={memberSince} />
+            {config?.twilio_phone && (
+              <SettingRow label="Your AI WhatsApp number" value={config.twilio_phone} mono />
+            )}
           </div>
         </section>
 
