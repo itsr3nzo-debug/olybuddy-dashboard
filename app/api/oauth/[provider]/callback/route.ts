@@ -107,8 +107,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
   }
 
   // Encrypt tokens
-  const accessTokenEnc = encryptToken(access_token);
-  const refreshTokenEnc = refresh_token ? encryptToken(refresh_token) : null;
+  let accessTokenEnc: string;
+  let refreshTokenEnc: string | null;
+  try {
+    accessTokenEnc = encryptToken(access_token);
+    refreshTokenEnc = refresh_token ? encryptToken(refresh_token) : null;
+  } catch (e) {
+    console.error("Token encryption failed — ENCRYPTION_KEY may not be set:", e);
+    return NextResponse.redirect(`${origin}/integrations?error=encryption_config`);
+  }
   const expiresAt = expires_in
     ? new Date(Date.now() + expires_in * 1000).toISOString()
     : null;
