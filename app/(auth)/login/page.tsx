@@ -23,14 +23,26 @@ function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
+  const supabase = createClient()
+
   useEffect(() => {
     const err = searchParams.get('error')
     if (err === 'auth_callback_failed') {
       setError('Your sign-in link has expired or was already used. Please request a new one.')
     }
-  }, [searchParams])
 
-  const supabase = createClient()
+    // Supabase implicit magic-link flow: proxy.ts redirects unauthenticated
+    // root → /login, but preserves the #access_token=... hash. Pick it up here.
+    if (typeof window !== 'undefined' && window.location.hash.includes('access_token')) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+        if (event === 'SIGNED_IN') {
+          subscription.unsubscribe()
+          window.history.replaceState({}, '', '/login')
+          router.replace('/dashboard')
+        }
+      })
+    }
+  }, [searchParams, router, supabase])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
