@@ -27,6 +27,18 @@ export const COMPOSIO_PROVIDERS: Record<
     toolkit: "calendly",
     authConfigEnv: "COMPOSIO_AUTH_CONFIG_CALENDLY",
   },
+  google_drive: {
+    toolkit: "googledrive",
+    authConfigEnv: "COMPOSIO_AUTH_CONFIG_GOOGLE_DRIVE",
+  },
+  outlook: {
+    toolkit: "outlook",
+    authConfigEnv: "COMPOSIO_AUTH_CONFIG_OUTLOOK",
+  },
+  microsoft_teams: {
+    toolkit: "microsoft_teams",
+    authConfigEnv: "COMPOSIO_AUTH_CONFIG_MICROSOFT_TEAMS",
+  },
 };
 
 export function getComposioProvider(id: string) {

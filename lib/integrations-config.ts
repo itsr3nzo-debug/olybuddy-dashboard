@@ -55,15 +55,7 @@ export const PROVIDERS: ProviderConfig[] = [
     description: 'Microsoft 365 email integration',
     category: 'communication',
     iconColor: 'bg-blue-900/20 text-blue-400',
-    available: false,
-    oauth: {
-      authUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
-      tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
-      userinfoUrl: 'https://graph.microsoft.com/v1.0/me',
-      scopes: 'openid profile email Mail.ReadWrite Calendars.ReadWrite offline_access',
-      clientIdEnv: 'MICROSOFT_CLIENT_ID',
-      clientSecretEnv: 'MICROSOFT_CLIENT_SECRET',
-    },
+    available: true,
   },
   {
     id: 'slack',
@@ -88,7 +80,7 @@ export const PROVIDERS: ProviderConfig[] = [
     description: 'Enterprise communication and collaboration',
     category: 'communication',
     iconColor: 'bg-indigo-900/20 text-indigo-400',
-    available: false,
+    available: true,
   },
 
   // ═══ Scheduling ═══
@@ -195,6 +187,14 @@ export const PROVIDERS: ProviderConfig[] = [
   },
 
   // ═══ Document Processing ═══
+  {
+    id: 'google_drive',
+    name: 'Google Drive',
+    description: 'Access and manage files in Google Drive',
+    category: 'documents',
+    iconColor: 'bg-green-900/20 text-green-400',
+    available: true,
+  },
   {
     id: 'dext',
     name: 'Dext',
