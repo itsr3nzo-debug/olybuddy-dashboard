@@ -1,0 +1,920 @@
+{
+  "gmail": {
+    "authConfigId": "ac__vwYjOdJJ6PF",
+    "name": "Gmail",
+    "categories": [
+      "email"
+    ]
+  },
+  "github": {
+    "authConfigId": "ac_LN8xhkPE8BGs",
+    "name": "GitHub",
+    "categories": [
+      "developer tools"
+    ]
+  },
+  "googlecalendar": {
+    "authConfigId": "ac_-wSH3FYBAjA_",
+    "name": "Google Calendar",
+    "categories": [
+      "scheduling & booking"
+    ]
+  },
+  "notion": {
+    "authConfigId": "ac_QDECXvzSXICE",
+    "name": "Notion",
+    "categories": [
+      "notes",
+      "documents",
+      "project management"
+    ]
+  },
+  "googlesheets": {
+    "authConfigId": "ac_GxL_gU6AGAHL",
+    "name": "Google Sheets",
+    "categories": [
+      "spreadsheets"
+    ]
+  },
+  "slack": {
+    "authConfigId": "ac_M4-BZX0Vai6E",
+    "name": "Slack",
+    "categories": [
+      "team chat",
+      "team collaboration"
+    ]
+  },
+  "supabase": {
+    "authConfigId": "ac_eT989trkzLia",
+    "name": "Supabase",
+    "categories": [
+      "developer tools",
+      "databases"
+    ]
+  },
+  "outlook": {
+    "authConfigId": "ac_KlJoNdkoZkdP",
+    "name": "Outlook",
+    "categories": [
+      "email",
+      "calendar"
+    ]
+  },
+  "googledrive": {
+    "authConfigId": "ac_v01j-L6R-OGa",
+    "name": "Google Drive",
+    "categories": [
+      "file management & storage"
+    ]
+  },
+  "googledocs": {
+    "authConfigId": "ac_unZysj1AfDd8",
+    "name": "Google Docs",
+    "categories": [
+      "documents"
+    ]
+  },
+  "hubspot": {
+    "authConfigId": "ac_qfHetIVDkvIW",
+    "name": "HubSpot",
+    "categories": [
+      "crm",
+      "marketing automation"
+    ]
+  },
+  "linear": {
+    "authConfigId": "ac_lHchGU2_Ylqw",
+    "name": "Linear",
+    "categories": [
+      "project management",
+      "task management"
+    ]
+  },
+  "airtable": {
+    "authConfigId": "ac_o2_A0qHdVFIJ",
+    "name": "Airtable",
+    "categories": [
+      "productivity",
+      "spreadsheets",
+      "databases"
+    ]
+  },
+  "jira": {
+    "authConfigId": "ac_L4fVM1r2QOfL",
+    "name": "Jira",
+    "categories": [
+      "project management",
+      "task management"
+    ]
+  },
+  "youtube": {
+    "authConfigId": "ac_u7qdCNsS5DSJ",
+    "name": "YouTube",
+    "categories": [
+      "video & audio",
+      "social media accounts"
+    ]
+  },
+  "slackbot": {
+    "authConfigId": "ac_W4EYtB_IkgA_",
+    "name": "Slackbot",
+    "categories": [
+      "team chat",
+      "team collaboration"
+    ]
+  },
+  "bitbucket": {
+    "authConfigId": "ac_EdbuwYPb-jS9",
+    "name": "Bitbucket",
+    "categories": [
+      "developer tools"
+    ]
+  },
+  "googletasks": {
+    "authConfigId": "ac_ZikR5LfPLs1F",
+    "name": "Google Tasks",
+    "categories": [
+      "task management"
+    ]
+  },
+  "discord": {
+    "authConfigId": "ac_71x-yx_1Tn7J",
+    "name": "Discord",
+    "categories": [
+      "team chat",
+      "team collaboration"
+    ]
+  },
+  "figma": {
+    "authConfigId": "ac_iVRLSq44eyxe",
+    "name": "Figma",
+    "categories": [
+      "images & design",
+      "team collaboration"
+    ]
+  },
+  "reddit": {
+    "authConfigId": "ac_dxvXD_a-hAQ4",
+    "name": "Reddit",
+    "categories": [
+      "social media accounts",
+      "social media marketing"
+    ]
+  },
+  "cal": {
+    "authConfigId": "ac_GImxHpR56hPv",
+    "name": "Cal",
+    "categories": [
+      "scheduling & booking",
+      "calendar"
+    ]
+  },
+  "wrike": {
+    "authConfigId": "ac_J24SVEODggNV",
+    "name": "Wrike",
+    "categories": [
+      "project management",
+      "team collaboration"
+    ]
+  },
+  "sentry": {
+    "authConfigId": "ac_0TG318p2DEAE",
+    "name": "Sentry",
+    "categories": [
+      "developer tools",
+      "server monitoring"
+    ]
+  },
+  "microsoft_teams": {
+    "authConfigId": "ac_KJCpZoBW8vpu",
+    "name": "Microsoft Teams",
+    "categories": [
+      "team chat",
+      "team collaboration",
+      "video conferencing"
+    ]
+  },
+  "asana": {
+    "authConfigId": "ac_z0yKGFRPGBMN",
+    "name": "Asana",
+    "categories": [
+      "project management",
+      "task management"
+    ]
+  },
+  "linkedin": {
+    "authConfigId": "ac_A5xiLIMdR0Ft",
+    "name": "LinkedIn",
+    "categories": [
+      "social media accounts",
+      "marketing automation"
+    ]
+  },
+  "google_maps": {
+    "authConfigId": "ac_ISpo47JvNERh",
+    "name": "Google Maps",
+    "categories": [
+      "developer tools"
+    ]
+  },
+  "one_drive": {
+    "authConfigId": "ac_zP7xSsDjiHCz",
+    "name": "OneDrive",
+    "categories": [
+      "file management & storage"
+    ]
+  },
+  "discordbot": {
+    "authConfigId": "ac_-cNwEr0ar91T",
+    "name": "Discord Bot",
+    "categories": [
+      "team chat",
+      "team collaboration"
+    ]
+  },
+  "salesforce": {
+    "authConfigId": "ac_897ILHPKwkZ_",
+    "name": "Salesforce",
+    "categories": [
+      "crm",
+      "contact management"
+    ]
+  },
+  "calendly": {
+    "authConfigId": "ac_n9kJNlwOw2tU",
+    "name": "Calendly",
+    "categories": [
+      "scheduling & booking",
+      "calendar"
+    ]
+  },
+  "trello": {
+    "authConfigId": "ac_dRcnbTpF1t0S",
+    "name": "Trello",
+    "categories": [
+      "project management",
+      "task management"
+    ]
+  },
+  "clickup": {
+    "authConfigId": "ac_I6sS3SWySobi",
+    "name": "ClickUp",
+    "categories": [
+      "productivity",
+      "project management",
+      "task management"
+    ]
+  },
+  "stripe": {
+    "authConfigId": "ac_5N4vXPj4GqsS",
+    "name": "Stripe",
+    "categories": [
+      "payment processing",
+      "ecommerce"
+    ]
+  },
+  "mailchimp": {
+    "authConfigId": "ac_QYKKRrvWDYsI",
+    "name": "Mailchimp",
+    "categories": [
+      "email newsletters",
+      "marketing automation"
+    ]
+  },
+  "attio": {
+    "authConfigId": "ac_CRK-nkPVOBi3",
+    "name": "Attio",
+    "categories": [
+      "crm"
+    ]
+  },
+  "googlemeet": {
+    "authConfigId": "ac__PUIaEWFouFI",
+    "name": "Google Meet",
+    "categories": [
+      "video conferencing"
+    ]
+  },
+  "zoho": {
+    "authConfigId": "ac_cYWg4WVNwlVk",
+    "name": "Zoho",
+    "categories": [
+      "crm",
+      "marketing automation"
+    ]
+  },
+  "dropbox": {
+    "authConfigId": "ac_9B31OIFioExp",
+    "name": "Dropbox",
+    "categories": [
+      "file management & storage"
+    ]
+  },
+  "confluence": {
+    "authConfigId": "ac_KiBUSIb9JQPk",
+    "name": "Confluence",
+    "categories": [
+      "team collaboration",
+      "documents"
+    ]
+  },
+  "googlebigquery": {
+    "authConfigId": "ac_npo6q46_7He7",
+    "name": "Google BigQuery",
+    "categories": [
+      "databases",
+      "analytics"
+    ]
+  },
+  "monday": {
+    "authConfigId": "ac_v-j-b9qmICIk",
+    "name": "Monday",
+    "categories": [
+      "project management",
+      "task management"
+    ]
+  },
+  "whatsapp": {
+    "authConfigId": "ac_3OW4ZGQ9aYhp",
+    "name": "WhatsApp",
+    "categories": [
+      "phone & sms",
+      "communication"
+    ]
+  },
+  "dynamics365": {
+    "authConfigId": "ac_WukA8O5lX_Aj",
+    "name": "Dynamics 365",
+    "categories": [
+      "crm",
+      "project management"
+    ]
+  },
+  "zendesk": {
+    "authConfigId": "ac_j1h_s8lWNqtm",
+    "name": "Zendesk",
+    "categories": [
+      "crm",
+      "customer support"
+    ]
+  },
+  "googlephotos": {
+    "authConfigId": "ac_HaLCU3n-KyLY",
+    "name": "Google Photos",
+    "categories": [
+      "images & design",
+      "file management & storage"
+    ]
+  },
+  "googlesuper": {
+    "authConfigId": "ac_7qxwhYQTbzor",
+    "name": "Google Super",
+    "categories": [
+      "file management & storage",
+      "calendar",
+      "spreadsheets"
+    ]
+  },
+  "zoom": {
+    "authConfigId": "ac_MOtY5n8EN3u3",
+    "name": "Zoom",
+    "categories": [
+      "video conferencing",
+      "team collaboration"
+    ]
+  },
+  "googleads": {
+    "authConfigId": "ac_krsuVmLm5RDN",
+    "name": "Google Ads",
+    "categories": [
+      "ads & conversion"
+    ]
+  },
+  "pagerduty": {
+    "authConfigId": "ac_gfKrKLE6IpjS",
+    "name": "PagerDuty",
+    "categories": [
+      "server monitoring",
+      "notifications"
+    ]
+  },
+  "toneden": {
+    "authConfigId": "ac_UBmMNLeWgyqt",
+    "name": "Toneden",
+    "categories": [
+      "social media marketing",
+      "marketing automation"
+    ]
+  },
+  "miro": {
+    "authConfigId": "ac_K4FUuKc_nxEd",
+    "name": "Miro",
+    "categories": [
+      "team collaboration",
+      "project management"
+    ]
+  },
+  "share_point": {
+    "authConfigId": "ac_NiWZ8UP-VneH",
+    "name": "SharePoint",
+    "categories": [
+      "documents",
+      "team collaboration"
+    ]
+  },
+  "contentful": {
+    "authConfigId": "ac_WrCfHG_Tz_k-",
+    "name": "Contentful",
+    "categories": [
+      "developer tools",
+      "website builders"
+    ]
+  },
+  "apaleo": {
+    "authConfigId": "ac_D96cjHpPKzF2",
+    "name": "Apaleo",
+    "categories": [
+      "scheduling & booking",
+      "accounting"
+    ]
+  },
+  "zoho_books": {
+    "authConfigId": "ac_0q23gqzr98V2",
+    "name": "Zoho Books",
+    "categories": [
+      "accounting"
+    ]
+  },
+  "zoho_inventory": {
+    "authConfigId": "ac_pHaC9DGN7Gdu",
+    "name": "Zoho Inventory",
+    "categories": [
+      "accounting",
+      "ecommerce"
+    ]
+  },
+  "facebook": {
+    "authConfigId": "ac_a4Oij_6wm_1H",
+    "name": "Facebook",
+    "categories": [
+      "social media accounts",
+      "social media marketing"
+    ]
+  },
+  "webex": {
+    "authConfigId": "ac_Sz5wfSTuTKUT",
+    "name": "Webex",
+    "categories": [
+      "video conferencing",
+      "team collaboration"
+    ]
+  },
+  "canva": {
+    "authConfigId": "ac_SabBBCkMIcdf",
+    "name": "Canva",
+    "categories": [
+      "images & design"
+    ]
+  },
+  "linkhut": {
+    "authConfigId": "ac_lqxxW9ZlR10j",
+    "name": "Linkhut",
+    "categories": [
+      "bookmark managers"
+    ]
+  },
+  "timely": {
+    "authConfigId": "ac_B8VhULuPC2SI",
+    "name": "Timely",
+    "categories": [
+      "time tracking software",
+      "productivity"
+    ]
+  },
+  "box": {
+    "authConfigId": "ac_TId9PcT4mdvC",
+    "name": "Box",
+    "categories": [
+      "file management & storage",
+      "documents"
+    ]
+  },
+  "productboard": {
+    "authConfigId": "ac_BTNoJzraW-v_",
+    "name": "Productboard",
+    "categories": [
+      "product management"
+    ]
+  },
+  "blackbaud": {
+    "authConfigId": "ac_bf0-HMctjM2D",
+    "name": "Blackbaud",
+    "categories": [
+      "fundraising",
+      "crm"
+    ]
+  },
+  "freshbooks": {
+    "authConfigId": "ac_xWNedw_QOmCO",
+    "name": "FreshBooks",
+    "categories": [
+      "accounting",
+      "proposal & invoice management"
+    ]
+  },
+  "zoho_bigin": {
+    "authConfigId": "ac_GrdgCS8NUVPV",
+    "name": "Zoho Bigin",
+    "categories": [
+      "crm",
+      "contact management"
+    ]
+  },
+  "gorgias": {
+    "authConfigId": "ac_mcgvw27si3NC",
+    "name": "Gorgias",
+    "categories": [
+      "crm",
+      "customer support"
+    ]
+  },
+  "google_analytics": {
+    "authConfigId": "ac_ngIUEN2t9h9B",
+    "name": "Google Analytics",
+    "categories": [
+      "analytics"
+    ]
+  },
+  "todoist": {
+    "authConfigId": "ac_amtj2lk11SQ1",
+    "name": "Todoist",
+    "categories": [
+      "task management",
+      "productivity"
+    ]
+  },
+  "zoho_desk": {
+    "authConfigId": "ac_C-hn6pNtDRPf",
+    "name": "Zoho Desk",
+    "categories": [
+      "crm",
+      "customer support"
+    ]
+  },
+  "square": {
+    "authConfigId": "ac_0YthFbNP0hOi",
+    "name": "Square",
+    "categories": [
+      "payment processing",
+      "ecommerce"
+    ]
+  },
+  "yandex": {
+    "authConfigId": "ac_toGgswUqNTm3",
+    "name": "Yandex",
+    "categories": [
+      "email"
+    ]
+  },
+  "dialpad": {
+    "authConfigId": "ac_o3hETf4JuucU",
+    "name": "Dialpad",
+    "categories": [
+      "communication",
+      "phone & sms",
+      "video conferencing"
+    ]
+  },
+  "ynab": {
+    "authConfigId": "ac_K0LfjAzPjYcb",
+    "name": "YNAB",
+    "categories": [
+      "accounting"
+    ]
+  },
+  "gumroad": {
+    "authConfigId": "ac_6s0X8orAEx1z",
+    "name": "Gumroad",
+    "categories": [
+      "ecommerce",
+      "payment processing"
+    ]
+  },
+  "servicem8": {
+    "authConfigId": "ac_frR6kkR_KMSR",
+    "name": "Servicem8",
+    "categories": [
+      "scheduling & booking",
+      "proposal & invoice management"
+    ]
+  },
+  "harvest": {
+    "authConfigId": "ac_S_aUrLeBC69F",
+    "name": "Harvest",
+    "categories": [
+      "time tracking software",
+      "proposal & invoice management"
+    ]
+  },
+  "wakatime": {
+    "authConfigId": "ac_EzZLte4fUWzI",
+    "name": "WakaTime",
+    "categories": [
+      "time tracking software",
+      "developer tools"
+    ]
+  },
+  "boldsign": {
+    "authConfigId": "ac__78zyx1iQvlu",
+    "name": "Boldsign",
+    "categories": [
+      "signatures",
+      "documents"
+    ]
+  },
+  "zoho_mail": {
+    "authConfigId": "ac_R4yOCnUnZvwi",
+    "name": "Zoho Mail",
+    "categories": [
+      "email",
+      "team collaboration"
+    ]
+  },
+  "mural": {
+    "authConfigId": "ac_wPRczdJS7hSN",
+    "name": "Mural",
+    "categories": [
+      "team collaboration",
+      "images & design"
+    ]
+  },
+  "intercom": {
+    "authConfigId": "ac_qTSYEEDDxQaL",
+    "name": "Intercom",
+    "categories": [
+      "customer support",
+      "crm"
+    ]
+  },
+  "eventbrite": {
+    "authConfigId": "ac_80tg1WUOCsks",
+    "name": "Eventbrite",
+    "categories": [
+      "event management"
+    ]
+  },
+  "exist": {
+    "authConfigId": "ac_0Vw1xtlL7h5C",
+    "name": "Exist",
+    "categories": [
+      "analytics",
+      "fitness"
+    ]
+  },
+  "zoho_invoice": {
+    "authConfigId": "ac_BVN4FsgR67Of",
+    "name": "Zoho Invoice",
+    "categories": [
+      "proposal & invoice management",
+      "accounting"
+    ]
+  },
+  "stack_exchange": {
+    "authConfigId": "ac_vuAVGbbEHY_f",
+    "name": "Stack Exchange",
+    "categories": [
+      "developer tools"
+    ]
+  },
+  "basecamp": {
+    "authConfigId": "ac_1jGZMbbbs3UQ",
+    "name": "Basecamp",
+    "categories": [
+      "project management",
+      "team collaboration"
+    ]
+  },
+  "capsule_crm": {
+    "authConfigId": "ac_9wIVDsmWdfOt",
+    "name": "Capsule CRM",
+    "categories": [
+      "crm",
+      "contact management"
+    ]
+  },
+  "convex": {
+    "authConfigId": "ac_j0GBuvWZGRGR",
+    "name": "Convex",
+    "categories": [
+      "developer tools"
+    ]
+  },
+  "crowdin": {
+    "authConfigId": "ac_HMVCglvTPJtB",
+    "name": "Crowdin",
+    "categories": [
+      "developer tools",
+      "team collaboration"
+    ]
+  },
+  "dart": {
+    "authConfigId": "ac_4Bp6Ej0_KCyM",
+    "name": "Dart",
+    "categories": [
+      "project management",
+      "artificial intelligence"
+    ]
+  },
+  "digital_ocean": {
+    "authConfigId": "ac_ILt-xWNMMKLb",
+    "name": "DigitalOcean",
+    "categories": [
+      "developer tools",
+      "server monitoring"
+    ]
+  },
+  "dub": {
+    "authConfigId": "ac_495AGYY1sZu2",
+    "name": "Dub",
+    "categories": [
+      "url shortener",
+      "analytics"
+    ]
+  },
+  "excel": {
+    "authConfigId": "ac_kuaM3T9kKckP",
+    "name": "Excel",
+    "categories": [
+      "spreadsheets"
+    ]
+  },
+  "fathom": {
+    "authConfigId": "ac_M3XC6h2WqVTf",
+    "name": "Fathom",
+    "categories": [
+      "ai meeting assistants",
+      "transcription"
+    ]
+  },
+  "freeagent": {
+    "authConfigId": "ac_1cqXGpEeqepS",
+    "name": "Freeagent",
+    "categories": [
+      "accounting"
+    ]
+  },
+  "gitlab": {
+    "authConfigId": "ac_xTwpFo8fCv7s",
+    "name": "GitLab",
+    "categories": [
+      "developer tools"
+    ]
+  },
+  "google_classroom": {
+    "authConfigId": "ac_q_lBEXgp7sqI",
+    "name": "Google Classroom",
+    "categories": [
+      "education"
+    ]
+  },
+  "google_search_console": {
+    "authConfigId": "ac_Cl-1qfUNGHBx",
+    "name": "Google Search Console",
+    "categories": [
+      "analytics"
+    ]
+  },
+  "googleslides": {
+    "authConfigId": "ac_qJF1MKgkwk6S",
+    "name": "Google Slides",
+    "categories": [
+      "documents"
+    ]
+  },
+  "hugging_face": {
+    "authConfigId": "ac_9Kkw-u-ojILK",
+    "name": "Hugging Face",
+    "categories": [
+      "artificial intelligence",
+      "ai models",
+      "developer tools"
+    ]
+  },
+  "instagram": {
+    "authConfigId": "ac_EIwMHXmTCvL1",
+    "name": "Instagram",
+    "categories": [
+      "social media accounts",
+      "social media marketing"
+    ]
+  },
+  "kit": {
+    "authConfigId": "ac_-2ADMm2vZDm3",
+    "name": "Kit",
+    "categories": [
+      "marketing automation",
+      "email newsletters"
+    ]
+  },
+  "moneybird": {
+    "authConfigId": "ac_7xP97eADD75O",
+    "name": "Moneybird",
+    "categories": [
+      "accounting",
+      "proposal & invoice management"
+    ]
+  },
+  "omnisend": {
+    "authConfigId": "ac_3hCAiqmfWgvk",
+    "name": "Omnisend",
+    "categories": [
+      "marketing automation",
+      "email newsletters"
+    ]
+  },
+  "prisma": {
+    "authConfigId": "ac_qdOwvTQUBrN5",
+    "name": "Prisma",
+    "categories": [
+      "databases",
+      "developer tools"
+    ]
+  },
+  "pushbullet": {
+    "authConfigId": "ac_gj7EkFt-_J-i",
+    "name": "Pushbullet",
+    "categories": [
+      "notifications",
+      "file management & storage"
+    ]
+  },
+  "quickbooks": {
+    "authConfigId": "ac_AyuS55UwHogq",
+    "name": "QuickBooks",
+    "categories": [
+      "accounting"
+    ]
+  },
+  "reddit_ads": {
+    "authConfigId": "ac_2EVH6xm2jbHK",
+    "name": "Reddit Ads",
+    "categories": [
+      "marketing",
+      "ads & conversion"
+    ]
+  },
+  "roam": {
+    "authConfigId": "ac_jn8YwuHzUY89",
+    "name": "Roam",
+    "categories": [
+      "communication",
+      "productivity"
+    ]
+  },
+  "shippo": {
+    "authConfigId": "ac_OJ9XW-3wE9if",
+    "name": "Shippo",
+    "categories": [
+      "ecommerce"
+    ]
+  },
+  "splitwise": {
+    "authConfigId": "ac_de5bH1bXC_BT",
+    "name": "Splitwise",
+    "categories": [
+      "payment processing",
+      "accounting"
+    ]
+  },
+  "strava": {
+    "authConfigId": "ac_PE_Ap2AHo30l",
+    "name": "Strava",
+    "categories": [
+      "fitness"
+    ]
+  },
+  "ticketmaster": {
+    "authConfigId": "ac_j6OKwTCNumxk",
+    "name": "Ticketmaster",
+    "categories": [
+      "event management",
+      "lifestyle & entertainment"
+    ]
+  },
+  "ticktick": {
+    "authConfigId": "ac_M7-P5HZoq4LY",
+    "name": "Ticktick",
+    "categories": [
+      "productivity",
+      "task management"
+    ]
+  },
+  "typeform": {
+    "authConfigId": "ac_maV7fLGXjaFe",
+    "name": "Typeform",
+    "categories": [
+      "forms & surveys",
+      "productivity"
+    ]
+  }
+}

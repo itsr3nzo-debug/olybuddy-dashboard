@@ -1,8 +1,17 @@
 /**
- * Centralized Integration Provider Registry
- * Single source of truth for all 22 integrations.
- * OAuth routes, UI components, and disconnect logic all read from here.
+ * Centralized Integration Provider Registry.
+ *
+ * Two sources combine into the final PROVIDERS list:
+ *   1. CURATED (below) — hand-tuned entries with specific descriptions,
+ *      icon colors, and category assignments. ~22 providers our customers
+ *      care about most.
+ *   2. AUTO from composio-registry.json — every other Composio-managed
+ *      toolkit (~100 more), categorized automatically.
+ *
+ * OAuth routes look up via getComposioProvider() in lib/composio.ts.
  */
+
+import composioRegistry from './composio-registry.json'
 
 export interface ProviderOAuthConfig {
   authUrl: string
@@ -14,11 +23,31 @@ export interface ProviderOAuthConfig {
   clientSecretEnv: string
 }
 
+export type ProviderCategory =
+  | 'communication'
+  | 'scheduling'
+  | 'accounting'
+  | 'documents'
+  | 'practice'
+  | 'tax'
+  | 'reporting'
+  | 'crm'
+  | 'payments'
+  | 'productivity'
+  | 'social'
+  | 'storage'
+  | 'meetings'
+  | 'marketing'
+  | 'support'
+  | 'devtools'
+  | 'data'
+  | 'other'
+
 export interface ProviderConfig {
   id: string
   name: string
   description: string
-  category: 'communication' | 'scheduling' | 'accounting' | 'documents' | 'practice' | 'tax' | 'reporting' | 'crm' | 'payments'
+  category: ProviderCategory
   iconColor: string // tailwind dark-mode classes
   available: boolean // true = OAuth wired, false = "Coming Soon"
   oauth?: ProviderOAuthConfig
@@ -33,13 +62,22 @@ export const CATEGORIES = [
   { id: 'scheduling', label: 'Scheduling' },
   { id: 'crm', label: 'CRM' },
   { id: 'documents', label: 'Documents' },
+  { id: 'storage', label: 'File Storage' },
+  { id: 'meetings', label: 'Meetings & Video' },
+  { id: 'marketing', label: 'Marketing' },
+  { id: 'social', label: 'Social' },
+  { id: 'productivity', label: 'Productivity' },
+  { id: 'support', label: 'Customer Support' },
   { id: 'practice', label: 'Practice Management' },
   { id: 'tax', label: 'Tax & Compliance' },
   { id: 'reporting', label: 'Reporting' },
   { id: 'payments', label: 'Payments' },
+  { id: 'devtools', label: 'Developer Tools' },
+  { id: 'data', label: 'Data & Analytics' },
+  { id: 'other', label: 'Other' },
 ]
 
-export const PROVIDERS: ProviderConfig[] = [
+const CURATED_PROVIDERS: ProviderConfig[] = [
   // ═══ Communication ═══
   {
     id: 'gmail',
@@ -302,6 +340,88 @@ export const PROVIDERS: ProviderConfig[] = [
     iconColor: 'bg-violet-900/20 text-violet-400',
     available: true,
   },
+]
+
+// ═══ Auto-generated providers from Composio registry ═══
+// Every Composio-managed toolkit not already in CURATED_PROVIDERS
+// becomes a provider entry, categorized from the toolkit's metadata.
+
+type ComposioRegistryEntry = { authConfigId: string; name: string; categories: string[] }
+const REGISTRY = composioRegistry as Record<string, ComposioRegistryEntry>
+
+// Map dashboard provider IDs to Composio toolkit slugs (mismatches only)
+const PROVIDER_TO_TOOLKIT: Record<string, string> = {
+  google_calendar: 'googlecalendar',
+  google_drive: 'googledrive',
+}
+// Reverse: toolkit slug → curated provider ID
+const TOOLKIT_TO_CURATED_ID = new Map<string, string>()
+for (const p of CURATED_PROVIDERS) {
+  const toolkitSlug = PROVIDER_TO_TOOLKIT[p.id] || p.id
+  TOOLKIT_TO_CURATED_ID.set(toolkitSlug, p.id)
+}
+
+// Categorize a Composio toolkit by inspecting its first category string
+function categorizeFromComposio(rawCats: string[]): ProviderCategory {
+  const c = (rawCats[0] || '').toLowerCase()
+  if (c.includes('crm') || c.includes('contact')) return 'crm'
+  if (c.includes('accounting') || c.includes('invoice')) return 'accounting'
+  if (c.includes('email') && c.includes('newsletter')) return 'marketing'
+  if (c === 'email') return 'communication'
+  if (c.includes('chat') || c.includes('communication') || c.includes('messaging')) return 'communication'
+  if (c.includes('phone') || c.includes('sms')) return 'communication'
+  if (c.includes('calendar') || c.includes('scheduling') || c.includes('booking')) return 'scheduling'
+  if (c.includes('file') || c.includes('storage')) return 'storage'
+  if (c.includes('document') || c.includes('signature') || c.includes('docs')) return 'documents'
+  if (c.includes('video') || c.includes('meeting') || c.includes('conference')) return 'meetings'
+  if (c.includes('social media') || c.includes('social')) return 'social'
+  if (c.includes('marketing') || c.includes('ads')) return 'marketing'
+  if (c.includes('support') || c.includes('helpdesk') || c.includes('customer')) return 'support'
+  if (c.includes('developer') || c.includes('devtools')) return 'devtools'
+  if (c.includes('database') || c.includes('analytics') || c.includes('intelligence') || c.includes('data')) return 'data'
+  if (c.includes('payment')) return 'payments'
+  if (c.includes('project') || c.includes('task') || c.includes('productivity') || c.includes('notes') || c.includes('spreadsheet')) return 'productivity'
+  return 'other'
+}
+
+const CATEGORY_COLORS: Record<ProviderCategory, string> = {
+  communication: 'bg-blue-900/20 text-blue-400',
+  scheduling: 'bg-sky-900/20 text-sky-400',
+  accounting: 'bg-emerald-900/20 text-emerald-400',
+  documents: 'bg-amber-900/20 text-amber-400',
+  storage: 'bg-yellow-900/20 text-yellow-400',
+  meetings: 'bg-cyan-900/20 text-cyan-400',
+  social: 'bg-pink-900/20 text-pink-400',
+  marketing: 'bg-rose-900/20 text-rose-400',
+  support: 'bg-orange-900/20 text-orange-400',
+  crm: 'bg-violet-900/20 text-violet-400',
+  productivity: 'bg-indigo-900/20 text-indigo-400',
+  payments: 'bg-violet-900/20 text-violet-400',
+  practice: 'bg-purple-900/20 text-purple-400',
+  tax: 'bg-red-900/20 text-red-400',
+  reporting: 'bg-amber-900/20 text-amber-400',
+  devtools: 'bg-slate-700/30 text-slate-300',
+  data: 'bg-teal-900/20 text-teal-400',
+  other: 'bg-slate-700/30 text-slate-300',
+}
+
+const AUTO_PROVIDERS: ProviderConfig[] = []
+for (const [slug, entry] of Object.entries(REGISTRY)) {
+  if (TOOLKIT_TO_CURATED_ID.has(slug)) continue // already curated
+  const category = categorizeFromComposio(entry.categories)
+  AUTO_PROVIDERS.push({
+    id: slug,
+    name: entry.name,
+    description: entry.categories.slice(0, 2).join(' · ') || 'Composio integration',
+    category,
+    iconColor: CATEGORY_COLORS[category],
+    available: true,
+  })
+}
+
+export const PROVIDERS: ProviderConfig[] = [
+  ...CURATED_PROVIDERS,
+  ...AUTO_PROVIDERS.sort((a, b) => a.name.localeCompare(b.name)),
 ]
 
 // ═══ Google OAuth (special case — one flow, two integration rows) ═══
