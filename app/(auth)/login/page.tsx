@@ -32,15 +32,22 @@ function LoginForm() {
     }
 
     // Supabase implicit magic-link flow: proxy.ts redirects unauthenticated
-    // root → /login, but preserves the #access_token=... hash. Pick it up here.
+    // root → /login, but preserves the #access_token=... hash. Parse it and
+    // set the session manually so we don't depend on detectSessionInUrl timing.
     if (typeof window !== 'undefined' && window.location.hash.includes('access_token')) {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-        if (event === 'SIGNED_IN') {
-          subscription.unsubscribe()
+      const params = new URLSearchParams(window.location.hash.slice(1))
+      const access_token = params.get('access_token')
+      const refresh_token = params.get('refresh_token')
+      if (access_token && refresh_token) {
+        supabase.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
+          if (error) {
+            setError('Sign-in link expired. Request a new one.')
+            return
+          }
           window.history.replaceState({}, '', '/login')
           router.replace('/dashboard')
-        }
-      })
+        })
+      }
     }
   }, [searchParams, router, supabase])
 
