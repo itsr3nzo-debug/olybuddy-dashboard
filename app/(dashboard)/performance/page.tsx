@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 
-export const metadata: Metadata = { title: 'Performance | Olybuddy' }
+export const metadata: Metadata = { title: 'Performance | Nexley AI' }
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import type { CallLog } from '@/lib/types'

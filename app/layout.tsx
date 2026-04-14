@@ -9,7 +9,7 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swap' })
 
 export const metadata: Metadata = {
-  title: 'Olybuddy | AI Employee Dashboard',
+  title: 'Nexley AI | AI Employee Dashboard',
   description: 'Monitor your AI Employee — calls, leads, and appointments.',
 }
 

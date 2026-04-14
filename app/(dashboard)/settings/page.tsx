@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 
-export const metadata: Metadata = { title: 'Settings | Olybuddy' }
+export const metadata: Metadata = { title: 'Settings | Nexley AI' }
 import { redirect } from 'next/navigation'
 import { PLAN_LABELS, SUBSCRIPTION_STATUS_CONFIG } from '@/lib/constants'
 import { AI_PHONE_DISPLAY } from '@/lib/constants'
@@ -11,13 +11,14 @@ import GreetingEditor from '@/components/settings/GreetingEditor'
 import FaqEditor from '@/components/settings/FaqEditor'
 import NotificationSettings from '@/components/settings/NotificationSettings'
 import HoursGrid from '@/components/settings/HoursGrid'
+import TeamSection from '@/components/settings/TeamSection'
 
 export default async function SettingsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { requireAccess } = await import('@/lib/rbac-guard')
+  const session = await requireAccess('/settings')
 
-  const clientId = user.app_metadata?.client_id
+  const supabase = await createClient()
+  const clientId = session.clientId
 
   let client: {
     id: string; name: string; email: string | null; phone: string | null
@@ -74,7 +75,7 @@ export default async function SettingsPage() {
       {!clientId && (
         <div className="rounded-xl p-4 mb-6 border bg-brand-warning/5 border-brand-warning/20">
           <p className="text-sm text-brand-warning">
-            <strong>Setup required:</strong> Account not linked to a business. Contact Olybuddy to complete onboarding.
+            <strong>Setup required:</strong> Account not linked to a business. Contact Nexley AI to complete onboarding.
           </p>
         </div>
       )}
@@ -181,7 +182,7 @@ export default async function SettingsPage() {
             <h2 className="text-sm font-semibold text-foreground">Account</h2>
           </div>
           <div className="px-6 divide-y divide-border">
-            <SettingRow label="Login email" value={user.email ?? '—'} />
+            <SettingRow label="Login email" value={session.email ?? '—'} />
           </div>
         </section>
 
@@ -189,17 +190,20 @@ export default async function SettingsPage() {
         <section className="rounded-xl border overflow-hidden p-6 bg-card-bg">
           <h2 className="text-sm font-semibold mb-2 text-foreground">Need help?</h2>
           <p className="text-sm mb-4 text-muted-foreground">
-            For advanced configuration, subscription changes, or AI script updates, contact the Olybuddy team.
+            For advanced configuration, subscription changes, or AI script updates, contact the Nexley AI team.
           </p>
           <a
-            href="https://olybuddy.com"
+            href="https://nexley.ai"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 text-sm font-medium text-brand-primary hover:underline"
           >
-            Contact Olybuddy →
+            Contact Nexley AI →
           </a>
         </section>
+
+        {/* Team Members */}
+        <TeamSection />
       </div>
     </div>
   )

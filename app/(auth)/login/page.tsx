@@ -1,18 +1,34 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'motion/react'
 import { createClient } from '@/lib/supabase/client'
 import { Phone, Mail, ArrowRight, Sparkles, Zap } from 'lucide-react'
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  )
+}
+
+function LoginForm() {
   const [email, setEmail] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [demoLoading, setDemoLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    const err = searchParams.get('error')
+    if (err === 'auth_callback_failed') {
+      setError('Your sign-in link has expired or was already used. Please request a new one.')
+    }
+  }, [searchParams])
 
   const supabase = createClient()
 
@@ -66,7 +82,7 @@ export default function LoginPage() {
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-gradient-to-br from-indigo-500 to-indigo-600 shadow-lg shadow-indigo-500/25">
               <Phone size={22} className="text-white" strokeWidth={2.5} />
             </div>
-            <span className="text-3xl font-bold text-white tracking-tight">Olybuddy</span>
+            <span className="text-3xl font-bold text-white tracking-tight">Nexley AI</span>
           </div>
           <p className="text-slate-400 text-sm flex items-center justify-center gap-1.5">
             <Sparkles size={14} className="text-indigo-400" />
@@ -154,8 +170,11 @@ export default function LoginPage() {
           )}
         </motion.div>
 
-        <p className="text-center text-xs mt-6 text-slate-500">
-          Only registered clients can access this dashboard.
+        <p className="text-center text-sm mt-6 text-slate-400">
+          Don&apos;t have an account?{' '}
+          <a href="/signup" className="text-indigo-400 hover:text-indigo-300 font-medium">
+            Sign up
+          </a>
         </p>
       </motion.div>
     </div>

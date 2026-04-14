@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 
-export const metadata: Metadata = { title: 'Money | Olybuddy' }
+export const metadata: Metadata = { title: 'Money | Nexley AI' }
 import { redirect } from 'next/navigation'
 import { COST_PER_CALL_PENCE, COST_PER_FOLLOWUP_PENCE, PLAN_PRICES_PENCE } from '@/lib/constants'
 import { formatCurrency } from '@/lib/format'
@@ -10,11 +10,11 @@ import HeroSaved from '@/components/money/HeroSaved'
 import { Phone, MessageSquare, TrendingUp } from 'lucide-react'
 
 export default async function MoneyPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { requireAccess } = await import('@/lib/rbac-guard')
+  const session = await requireAccess('/money')
 
-  const clientId = user.app_metadata?.client_id
+  const supabase = await createClient()
+  const clientId = session.clientId
 
   let totalAnswered = 0
   let totalFollowUps = 0
@@ -74,7 +74,7 @@ export default async function MoneyPage() {
       {!clientId && (
         <div className="rounded-xl p-4 mb-6 border bg-brand-warning/5 border-brand-warning/20">
           <p className="text-sm text-brand-warning">
-            <strong>Setup required:</strong> Account not linked. Contact Olybuddy.
+            <strong>Setup required:</strong> Account not linked. Contact Nexley AI.
           </p>
         </div>
       )}
@@ -148,7 +148,7 @@ export default async function MoneyPage() {
           </p>
         </div>
         <a
-          href="https://olybuddy.com"
+          href="https://nexley.ai"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-opacity hover:opacity-90 flex-shrink-0 bg-brand-success text-white"

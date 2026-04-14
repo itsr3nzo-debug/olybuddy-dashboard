@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 
-export const metadata: Metadata = { title: 'Overview | Olybuddy' }
+export const metadata: Metadata = { title: 'Overview | Nexley AI' }
 import { redirect } from 'next/navigation'
 import KpiCard, { KpiCardSkeleton } from '@/components/dashboard/KpiCard'
 import CallsChart, { ChartSkeleton } from '@/components/dashboard/CallsChart'
@@ -10,6 +10,7 @@ import DashboardRealtime from '@/components/dashboard/DashboardRealtime'
 import EmptyState from '@/components/shared/EmptyState'
 import HeroRoiCard from '@/components/dashboard/HeroRoiCard'
 import AgentStatusCard from '@/components/dashboard/AgentStatusCard'
+import IntegrationsCta from '@/components/dashboard/IntegrationsCta'
 import WeeklyChallengeCard from '@/components/dashboard/WeeklyChallengeCard'
 import OpportunityDonut from '@/components/dashboard/OpportunityDonut'
 import type { CallLog, AgentStatus } from '@/lib/types'
@@ -112,10 +113,11 @@ export default async function DashboardPage() {
   let oppWon = 0
   let oppLost = 0
   let oppTotalValue = 0
+  let integrationsCount = 0
 
   if (clientId) {
     // Parallel fetch all dashboard data for faster load
-    const [callsRes, prevRes, countRes, bookingsRes, prevBookingsRes, agentRes, oppsRes] = await Promise.all([
+    const [callsRes, prevRes, countRes, bookingsRes, prevBookingsRes, agentRes, oppsRes, integrationsCountRes] = await Promise.all([
       supabase
         .from('call_logs')
         .select('*, contacts(first_name, last_name, phone)')
@@ -154,6 +156,11 @@ export default async function DashboardPage() {
         .from('opportunities')
         .select('stage, value_pence')
         .eq('client_id', clientId),
+      supabase
+        .from('integrations')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', clientId)
+        .eq('status', 'connected'),
     ])
 
     calls = (callsRes.data ?? []) as CallLog[]
@@ -170,6 +177,8 @@ export default async function DashboardPage() {
       agentIsActive = (ac.is_active as boolean) ?? true
       agentLastCallAt = (ac.last_call_at as string) ?? null
     }
+
+    integrationsCount = integrationsCountRes.count ?? 0
 
     // Opportunity pipeline data
     const opps = (oppsRes.data ?? []) as Array<{ stage: string; value_pence: number }>
@@ -214,10 +223,16 @@ export default async function DashboardPage() {
         )}
       </div>
 
+      {clientId && integrationsCount === 0 && (
+        <div className="mb-6">
+          <IntegrationsCta />
+        </div>
+      )}
+
       {!clientId && (
         <div className="rounded-xl p-4 mb-6 border bg-brand-warning/5 border-brand-warning/20">
           <p className="text-sm text-brand-warning">
-            <strong>Setup required:</strong> Your account hasn&apos;t been linked to a business yet. Contact Olybuddy to complete your onboarding.
+            <strong>Setup required:</strong> Your account hasn&apos;t been linked to a business yet. Contact Nexley AI to complete your onboarding.
           </p>
         </div>
       )}

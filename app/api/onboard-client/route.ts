@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
       const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
         email,
         email_confirm: false,
-        app_metadata: { client_id: clientId },
+        app_metadata: { client_id: clientId, role: 'owner' },
       })
 
       if (authErr) {
@@ -144,10 +144,10 @@ export async function POST(request: NextRequest) {
         const { sendSystemEmail } = await import('@/lib/email')
         const result = await sendSystemEmail({
           to: email,
-          subject: `Welcome to Olybuddy — Your AI Employee is ready`,
+          subject: `Welcome to Nexley AI — Your AI Employee is ready`,
           html: `
             <div style="font-family:sans-serif;max-width:500px;margin:0 auto;padding:40px 20px;">
-              <h1 style="font-size:24px;">Welcome to Olybuddy!</h1>
+              <h1 style="font-size:24px;">Welcome to Nexley AI!</h1>
               <p>Your AI Employee is set up and ready to answer calls for <strong>${business_name}</strong>.</p>
               <p>Click below to access your dashboard:</p>
               <a href="${linkData.properties.action_link}" style="display:inline-block;background:#6366f1;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin:16px 0;">

@@ -18,7 +18,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const clientId = user.app_metadata?.client_id;
+  const { getUserSession, hasPermission } = await import("@/lib/rbac");
+  const session = getUserSession(user);
+  if (!hasPermission(session.role, "edit_integrations")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const clientId = session.clientId;
 
   // Return integrations WITHOUT tokens (security)
   const { data, error } = await supabase

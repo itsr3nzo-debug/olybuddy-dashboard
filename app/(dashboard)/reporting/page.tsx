@@ -7,7 +7,7 @@ import { Phone, CheckCircle, Clock, Users, TrendingUp, PoundSterling } from 'luc
 import { formatDuration, formatCurrency } from '@/lib/format'
 import { PIPELINE_STAGES, COST_PER_CALL_PENCE } from '@/lib/constants'
 
-export const metadata: Metadata = { title: 'Reporting | Olybuddy' }
+export const metadata: Metadata = { title: 'Reporting | Nexley AI' }
 
 export default async function ReportingPage() {
   const supabase = await createClient()

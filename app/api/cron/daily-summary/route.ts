@@ -7,10 +7,9 @@ import { sendSms } from "@/lib/twilio";
 // Generates a summary for each active client and sends via SMS/WhatsApp
 
 export async function GET(req: NextRequest) {
-  // Verify cron secret (Vercel Cron sends this header)
-  const authHeader = req.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  // Verify cron secret — fail closed when not configured
+  const cronSecret = req.headers.get("authorization")?.replace("Bearer ", "");
+  if (cronSecret !== process.env.CRON_SECRET || !process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

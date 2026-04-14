@@ -5,7 +5,7 @@ import { formatCurrency } from '@/lib/format'
 import EmptyState from '@/components/shared/EmptyState'
 import { Calendar as CalendarIcon, Clock, ExternalLink } from 'lucide-react'
 
-export const metadata: Metadata = { title: 'Calendar | Olybuddy' }
+export const metadata: Metadata = { title: 'Calendar | Nexley AI' }
 
 export default async function CalendarPage() {
   const supabase = await createClient()

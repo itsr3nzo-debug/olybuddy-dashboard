@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import EmptyState from '@/components/shared/EmptyState'
 import { Star } from 'lucide-react'
 
-export const metadata: Metadata = { title: 'Reviews | Olybuddy' }
+export const metadata: Metadata = { title: 'Reviews | Nexley AI' }
 
 export default function ReviewsPage() {
   return (

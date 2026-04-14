@@ -4,19 +4,16 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { motion, AnimatePresence } from 'motion/react'
-import { Search, LayoutDashboard, Phone, BarChart3, PoundSterling, Settings, Moon, Sun, LogOut, Command, Kanban, MessageSquare, Users, Calendar, ScrollText, FileBarChart } from 'lucide-react'
+import { Search, LayoutDashboard, Phone, Settings, Moon, Sun, LogOut, Command, Kanban, MessageSquare, Calendar, Plug } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const PAGES = [
-  { href: '/dashboard',      label: 'Overview',       icon: LayoutDashboard },
-  { href: '/pipeline',       label: 'Pipeline',        icon: Kanban },
-  { href: '/conversations',  label: 'Inbox',           icon: MessageSquare },
-  { href: '/calls',          label: 'Call Log',         icon: Phone },
-  { href: '/performance',    label: 'Performance',      icon: BarChart3 },
-  { href: '/reporting',      label: 'Reporting',        icon: FileBarChart },
-  { href: '/money',          label: 'Money',            icon: PoundSterling },
+  { href: '/dashboard',      label: 'Dashboard',        icon: LayoutDashboard },
+  { href: '/pipeline',       label: 'Pipeline',         icon: Kanban },
+  { href: '/conversations',  label: 'Inbox',            icon: MessageSquare },
+  { href: '/calls',          label: 'Calls',            icon: Phone },
   { href: '/calendar',       label: 'Calendar',         icon: Calendar },
-  { href: '/agent-logs',     label: 'Agent Logs',       icon: ScrollText },
+  { href: '/integrations',   label: 'Integrations',     icon: Plug },
   { href: '/settings',       label: 'Settings',         icon: Settings },
 ]
 

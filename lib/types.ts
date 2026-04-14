@@ -128,7 +128,7 @@ export interface HoursConfig {
 }
 
 export type AgentStatus = 'online' | 'offline' | 'in_call' | 'idle'
-export type AgentTone = 'formal' | 'friendly' | 'casual'
+export type AgentTone = 'professional' | 'friendly' | 'confident' | 'cheeky' | 'calm' | 'energetic' | 'funny' | 'flirty'
 
 export interface FaqItem {
   question: string

@@ -5,7 +5,7 @@ import ConversationsLayout from '@/components/conversations/ConversationsLayout'
 import EmptyState from '@/components/shared/EmptyState'
 import { MessageSquare } from 'lucide-react'
 
-export const metadata: Metadata = { title: 'Inbox | Olybuddy' }
+export const metadata: Metadata = { title: 'Inbox | Nexley AI' }
 
 export default async function ConversationsPage() {
   const supabase = await createClient()

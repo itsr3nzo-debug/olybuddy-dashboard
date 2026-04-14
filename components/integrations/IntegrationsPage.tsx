@@ -2,66 +2,57 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Search, Plus, X, Mail, Calendar, Receipt, CreditCard, Share2, MessageSquare, Building, Plug } from 'lucide-react'
+import {
+  Search, Plus, X, Mail, Calendar, Receipt, CreditCard,
+  MessageSquare, Building, Plug, Calculator, FileText,
+  BarChart, Users, Clock, Briefcase, Shield, Wallet
+} from 'lucide-react'
+import { PROVIDERS, CATEGORIES, getOAuthProviderId, type ProviderConfig } from '@/lib/integrations-config'
 
-/* ── Integration definitions ─────────────── */
+/* -- Provider icon mapping -- */
 
-interface IntegrationDef {
-  id: string
-  name: string
-  description: string
-  icon: React.ReactNode
-  category: string
-  available: boolean
+const PROVIDER_ICONS: Record<string, React.ReactNode> = {
+  gmail: <Mail className="w-5 h-5" />,
+  outlook: <Mail className="w-5 h-5" />,
+  slack: <MessageSquare className="w-5 h-5" />,
+  microsoft_teams: <MessageSquare className="w-5 h-5" />,
+  google_calendar: <Calendar className="w-5 h-5" />,
+  calendly: <Clock className="w-5 h-5" />,
+  outlook_calendar: <Calendar className="w-5 h-5" />,
+  xero: <Calculator className="w-5 h-5" />,
+  quickbooks: <Calculator className="w-5 h-5" />,
+  sage: <Calculator className="w-5 h-5" />,
+  freeagent: <Calculator className="w-5 h-5" />,
+  dext: <FileText className="w-5 h-5" />,
+  hubdoc: <FileText className="w-5 h-5" />,
+  ignition: <Briefcase className="w-5 h-5" />,
+  brightmanager: <Briefcase className="w-5 h-5" />,
+  pixie: <Briefcase className="w-5 h-5" />,
+  taxcalc: <Shield className="w-5 h-5" />,
+  iris: <Shield className="w-5 h-5" />,
+  fathom: <BarChart className="w-5 h-5" />,
+  spotlight: <BarChart className="w-5 h-5" />,
+  hubspot: <Users className="w-5 h-5" />,
+  stripe: <CreditCard className="w-5 h-5" />,
 }
 
-const CATEGORIES = [
-  { id: 'all', label: 'All integrations' },
-  { id: 'communication', label: 'Communication' },
-  { id: 'scheduling', label: 'Scheduling' },
-  { id: 'accounting', label: 'Accounting' },
-  { id: 'payments', label: 'Payments' },
-  { id: 'social', label: 'Social Media' },
-  { id: 'crm', label: 'CRM' },
-]
+function getProviderIcon(providerId: string): React.ReactNode {
+  return PROVIDER_ICONS[providerId] || <Plug className="w-5 h-5" />
+}
 
-const INTEGRATIONS: IntegrationDef[] = [
-  { id: 'gmail', name: 'Gmail', description: 'Read and send emails on your behalf', icon: <Mail className="w-5 h-5" />, category: 'communication', available: true },
-  { id: 'google_calendar', name: 'Google Calendar', description: 'Two-way appointment sync', icon: <Calendar className="w-5 h-5" />, category: 'scheduling', available: true },
-  { id: 'outlook', name: 'Outlook / Microsoft 365', description: 'Email and calendar integration', icon: <Mail className="w-5 h-5" />, category: 'communication', available: false },
-  { id: 'xero', name: 'Xero', description: 'Invoicing, expenses, and accounting', icon: <Receipt className="w-5 h-5" />, category: 'accounting', available: true },
-  { id: 'quickbooks', name: 'QuickBooks', description: 'Accounting and payroll management', icon: <Receipt className="w-5 h-5" />, category: 'accounting', available: false },
-  { id: 'stripe', name: 'Stripe', description: 'Payment links and subscription billing', icon: <CreditCard className="w-5 h-5" />, category: 'payments', available: true },
-  { id: 'facebook', name: 'Facebook', description: 'Page messages and social posts', icon: <Share2 className="w-5 h-5" />, category: 'social', available: false },
-  { id: 'instagram', name: 'Instagram', description: 'DMs and content management', icon: <Share2 className="w-5 h-5" />, category: 'social', available: false },
-  { id: 'hubspot', name: 'HubSpot', description: 'Marketing, sales, and service platform', icon: <Building className="w-5 h-5" />, category: 'crm', available: false },
-  { id: 'whatsapp_business', name: 'WhatsApp Business API', description: 'Official business messaging', icon: <MessageSquare className="w-5 h-5" />, category: 'communication', available: false },
-]
-
-/* ── Provider icons (colored) ─────────────── */
+/* -- Provider icons (colored) -- */
 
 function ProviderIcon({ provider }: { provider: string }) {
-  const colors: Record<string, string> = {
-    gmail: 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400',
-    google_calendar: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
-    outlook: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
-    xero: 'bg-cyan-50 text-cyan-600 dark:bg-cyan-900/20 dark:text-cyan-400',
-    quickbooks: 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400',
-    stripe: 'bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400',
-    facebook: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400',
-    instagram: 'bg-pink-50 text-pink-600 dark:bg-pink-900/20 dark:text-pink-400',
-    hubspot: 'bg-orange-50 text-orange-600 dark:bg-orange-900/20 dark:text-orange-400',
-    whatsapp_business: 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400',
-  }
-  const def = INTEGRATIONS.find(i => i.id === provider)
+  const config = PROVIDERS.find(p => p.id === provider)
+  const colorClasses = config?.iconColor || 'bg-gray-100 text-gray-600'
   return (
-    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colors[provider] || 'bg-gray-100 text-gray-600'}`}>
-      {def?.icon || <Plug className="w-5 h-5" />}
+    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colorClasses}`}>
+      {getProviderIcon(provider)}
     </div>
   )
 }
 
-/* ── Connected integration row ─────────────── */
+/* -- Connected integration row -- */
 
 interface ConnectedIntegration {
   id: string
@@ -73,8 +64,8 @@ interface ConnectedIntegration {
   created_at: string
 }
 
-function ConnectedRow({ integration, onDisconnect }: { integration: ConnectedIntegration; onDisconnect: (id: string) => void }) {
-  const def = INTEGRATIONS.find(i => i.id === integration.provider)
+function ConnectedRow({ integration, onDisconnect }: { integration: ConnectedIntegration; onDisconnect: (id: string, provider: string) => void }) {
+  const def = PROVIDERS.find(p => p.id === integration.provider)
   return (
     <tr className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
       <td className="py-4 px-4">
@@ -100,11 +91,11 @@ function ConnectedRow({ integration, onDisconnect }: { integration: ConnectedInt
         </span>
       </td>
       <td className="py-4 px-4 text-sm text-gray-500 dark:text-gray-400">
-        {integration.created_at ? new Date(integration.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+        {integration.created_at ? new Date(integration.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '\u2014'}
       </td>
       <td className="py-4 px-4 text-right">
         <button
-          onClick={() => onDisconnect(integration.id)}
+          onClick={() => onDisconnect(integration.id, integration.provider)}
           className="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium transition-colors"
         >
           Disconnect
@@ -114,7 +105,7 @@ function ConnectedRow({ integration, onDisconnect }: { integration: ConnectedInt
   )
 }
 
-/* ── Add integration modal ─────────────── */
+/* -- Add integration modal -- */
 
 function AddIntegrationModal({ open, onClose, connectedProviders }: { open: boolean; onClose: () => void; connectedProviders: Set<string> }) {
   const [category, setCategory] = useState('all')
@@ -122,9 +113,9 @@ function AddIntegrationModal({ open, onClose, connectedProviders }: { open: bool
 
   if (!open) return null
 
-  const filtered = INTEGRATIONS.filter(i => {
-    if (category !== 'all' && i.category !== category) return false
-    if (search && !i.name.toLowerCase().includes(search.toLowerCase())) return false
+  const filtered = PROVIDERS.filter(p => {
+    if (category !== 'all' && p.category !== category) return false
+    if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
 
@@ -142,8 +133,8 @@ function AddIntegrationModal({ open, onClose, connectedProviders }: { open: bool
         </div>
 
         <div className="flex h-[60vh]">
-          {/* Left sidebar — categories */}
-          <div className="w-52 border-r border-gray-200 dark:border-gray-800 py-2 flex-shrink-0">
+          {/* Left sidebar -- categories */}
+          <div className="w-52 border-r border-gray-200 dark:border-gray-800 py-2 flex-shrink-0 overflow-y-auto">
             {CATEGORIES.map(cat => (
               <button
                 key={cat.id}
@@ -159,7 +150,7 @@ function AddIntegrationModal({ open, onClose, connectedProviders }: { open: bool
             ))}
           </div>
 
-          {/* Right side — search + grid */}
+          {/* Right side -- search + grid */}
           <div className="flex-1 overflow-y-auto">
             {/* Search */}
             <div className="p-4 border-b border-gray-200 dark:border-gray-800">
@@ -177,32 +168,33 @@ function AddIntegrationModal({ open, onClose, connectedProviders }: { open: bool
 
             {/* Grid */}
             <div className="grid grid-cols-2 gap-3 p-4">
-              {filtered.map(integration => {
-                const isConnected = connectedProviders.has(integration.id)
+              {filtered.map(provider => {
+                const isConnected = connectedProviders.has(provider.id)
+                const oauthProviderId = getOAuthProviderId(provider.id)
                 return (
                   <a
-                    key={integration.id}
-                    href={integration.available && !isConnected ? `/api/oauth/${integration.id.includes('google') ? 'google' : integration.id}` : undefined}
+                    key={provider.id}
+                    href={provider.available && !isConnected ? `/api/oauth/${oauthProviderId}` : undefined}
                     className={`flex items-start gap-3 p-4 rounded-xl border transition-all ${
                       isConnected
                         ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10 cursor-default'
-                        : integration.available
+                        : provider.available
                         ? 'border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-700 hover:shadow-md cursor-pointer'
                         : 'border-gray-100 dark:border-gray-800 opacity-50 cursor-not-allowed'
                     }`}
                   >
-                    <ProviderIcon provider={integration.id} />
+                    <ProviderIcon provider={provider.id} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="font-medium text-gray-900 dark:text-white text-sm">{integration.name}</p>
+                        <p className="font-medium text-gray-900 dark:text-white text-sm">{provider.name}</p>
                         {isConnected && (
                           <span className="px-1.5 py-0.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded text-[10px] font-semibold uppercase">Connected</span>
                         )}
-                        {!integration.available && !isConnected && (
-                          <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500 rounded text-[10px] font-semibold uppercase">Soon</span>
+                        {!provider.available && !isConnected && (
+                          <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500 rounded text-[10px] font-semibold uppercase">Coming Soon</span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{integration.description}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{provider.description}</p>
                     </div>
                   </a>
                 )
@@ -215,13 +207,38 @@ function AddIntegrationModal({ open, onClose, connectedProviders }: { open: bool
   )
 }
 
-/* ── Main page ─────────────── */
+/* -- Main page -- */
 
 export default function IntegrationsPage() {
   const [integrations, setIntegrations] = useState<ConnectedIntegration[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [error, setError] = useState('')
+
+  // Handle error query params from OAuth redirects
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const err = params.get('error')
+    const provider = params.get('provider')
+    if (err === 'not_configured') {
+      setError(`${provider ? provider.charAt(0).toUpperCase() + provider.slice(1) : 'This integration'} is not set up yet. Contact your admin to configure the API credentials.`)
+      window.history.replaceState({}, '', '/integrations')
+    } else if (err === 'storage_failed') {
+      setError(`Failed to save connection for ${provider || 'this integration'}. Please try again.`)
+      window.history.replaceState({}, '', '/integrations')
+    } else if (err === 'token_exchange_failed') {
+      setError('Connection failed — the provider rejected the authorization. Please try again.')
+      window.history.replaceState({}, '', '/integrations')
+    } else if (err === 'no_access_token') {
+      setError('Connection failed — no access token received. Please try again.')
+      window.history.replaceState({}, '', '/integrations')
+    }
+    const connected = params.get('connected')
+    if (connected) {
+      window.history.replaceState({}, '', '/integrations')
+    }
+  }, [])
 
   useEffect(() => {
     async function load() {
@@ -239,21 +256,37 @@ export default function IntegrationsPage() {
 
   const connectedProviders = new Set(integrations.filter(i => i.status === 'connected').map(i => i.provider))
 
-  const handleDisconnect = async (id: string) => {
+  const handleDisconnect = async (id: string, provider: string) => {
     if (!confirm('Disconnect this integration? Your AI Employee will no longer have access.')) return
-    const supabase = createClient()
-    await supabase.from('integrations').update({ status: 'disconnected', access_token_enc: null, refresh_token_enc: null }).eq('id', id)
-    setIntegrations(prev => prev.filter(i => i.id !== id))
+    // Use the OAuth provider ID for the disconnect endpoint (e.g., gmail -> google)
+    const oauthProviderId = getOAuthProviderId(provider)
+    const res = await fetch(`/api/oauth/${oauthProviderId}/disconnect`, { method: 'POST' })
+    if (res.ok) {
+      // For Google, remove both gmail + google_calendar rows
+      if (oauthProviderId === 'google') {
+        setIntegrations(prev => prev.filter(i => i.provider !== 'gmail' && i.provider !== 'google_calendar'))
+      } else {
+        setIntegrations(prev => prev.filter(i => i.id !== id))
+      }
+    }
   }
 
   const filtered = integrations.filter(i => {
     if (!search) return true
-    const def = INTEGRATIONS.find(d => d.id === i.provider)
+    const def = PROVIDERS.find(p => p.id === i.provider)
     return def?.name.toLowerCase().includes(search.toLowerCase()) || i.account_email?.toLowerCase().includes(search.toLowerCase())
   })
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
+      {/* Error Banner */}
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-between">
+          <p className="text-sm text-red-400">{error}</p>
+          <button onClick={() => setError('')} className="text-red-400 hover:text-red-300 text-xs">Dismiss</button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>

@@ -5,26 +5,34 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Phone, LayoutDashboard, BarChart3, PoundSterling, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Kanban, MessageSquare, Calendar, ScrollText, FileBarChart, Plug } from 'lucide-react'
+import { Phone, LayoutDashboard, BarChart3, PoundSterling, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Kanban, MessageSquare, Calendar, ScrollText, FileBarChart, Plug, Shield } from 'lucide-react'
+import type { UserRole } from '@/lib/rbac'
+import { MEMBER_BLOCKED_PAGES } from '@/lib/rbac'
 
-const navItems = [
-  // Main
-  { href: '/dashboard',      label: 'Overview',       Icon: LayoutDashboard },
+const allNavItems = [
+  // Core
+  { href: '/dashboard',      label: 'Dashboard',      Icon: LayoutDashboard },
   { href: '/pipeline',       label: 'Pipeline',       Icon: Kanban },
   { href: '/conversations',  label: 'Inbox',          Icon: MessageSquare },
-  { href: '/calls',          label: 'Call Log',       Icon: Phone },
-  // Analytics
-  { href: '/performance',    label: 'Performance',    Icon: BarChart3 },
-  { href: '/reporting',      label: 'Reporting',      Icon: FileBarChart },
-  { href: '/money',          label: 'Money',          Icon: PoundSterling },
-  // Tools
+  { href: '/calls',          label: 'Calls',          Icon: Phone },
   { href: '/calendar',       label: 'Calendar',       Icon: Calendar },
+  // Settings
   { href: '/integrations',   label: 'Integrations',   Icon: Plug },
-  { href: '/agent-logs',     label: 'Agent Logs',     Icon: ScrollText },
   { href: '/settings',       label: 'Settings',       Icon: Settings },
 ]
 
-export default function Sidebar({ businessName }: { businessName?: string }) {
+function getNavItems(role: UserRole) {
+  let items = allNavItems
+  if (role === 'member') {
+    items = items.filter(item => !MEMBER_BLOCKED_PAGES.includes(item.href))
+  }
+  if (role === 'super_admin') {
+    items = [{ href: '/admin', label: 'Admin', Icon: Shield }, ...items]
+  }
+  return items
+}
+
+export default function Sidebar({ businessName, role = 'owner' }: { businessName?: string; role?: UserRole }) {
   const pathname = usePathname()
   const router = useRouter()
   const { theme, setTheme } = useTheme()
@@ -68,7 +76,7 @@ export default function Sidebar({ businessName }: { businessName?: string }) {
 
       {/* Nav */}
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ href, label, Icon }) => {
+        {getNavItems(role).map(({ href, label, Icon }) => {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
           return (
             <Link

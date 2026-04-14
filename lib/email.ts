@@ -1,5 +1,5 @@
 /** System email sender — uses Gmail SMTP via Nodemailer
- * For Olybuddy → client emails (weekly reports, onboarding, billing)
+ * For Nexley AI → client emails (weekly reports, onboarding, billing)
  * NOT for client AI Employee → customer emails (that uses client OAuth)
  */
 
@@ -7,9 +7,9 @@ import nodemailer from 'nodemailer'
 
 const SMTP_HOST = process.env.SMTP_HOST ?? 'smtp.gmail.com'
 const SMTP_PORT = parseInt(process.env.SMTP_PORT ?? '587')
-const SMTP_USER = process.env.SMTP_USER ?? 'hello@olybuddy.com'
+const SMTP_USER = process.env.SMTP_USER ?? 'hello@nexley.ai'
 const SMTP_PASS = process.env.SMTP_PASS // App Password or regular password
-const SMTP_FROM = process.env.SMTP_FROM ?? 'Olybuddy <hello@olybuddy.com>'
+const SMTP_FROM = process.env.SMTP_FROM ?? 'Nexley AI <hello@nexley.ai>'
 
 let transporter: nodemailer.Transporter | null = null
 
@@ -96,7 +96,7 @@ export function buildWeeklyReportHtml(data: {
         <div style="width:40px;height:40px;background:#6366f1;border-radius:12px;display:flex;align-items:center;justify-content:center;">
           <span style="color:white;font-size:18px;">📞</span>
         </div>
-        <span style="color:white;font-size:24px;font-weight:700;">Olybuddy</span>
+        <span style="color:white;font-size:24px;font-weight:700;">Nexley AI</span>
       </div>
     </div>
 
@@ -152,7 +152,7 @@ export function buildWeeklyReportHtml(data: {
 
     <!-- Footer -->
     <p style="color:#64748b;font-size:11px;text-align:center;margin-top:24px;">
-      Olybuddy AI Employee · You're receiving this because your AI is active.<br>
+      Nexley AI AI Employee · You're receiving this because your AI is active.<br>
       <a href="${data.dashboardUrl}/settings" style="color:#64748b;">Manage notification preferences</a>
     </p>
   </div>

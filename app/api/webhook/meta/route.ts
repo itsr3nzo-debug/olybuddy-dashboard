@@ -33,7 +33,36 @@ export async function POST(req: NextRequest) {
   const startTime = Date.now();
 
   try {
-    const body = await req.json();
+    // Validate Meta webhook signature (X-Hub-Signature-256)
+    const signature = req.headers.get('x-hub-signature-256');
+    const metaAppSecret = process.env.META_APP_SECRET;
+
+    let body: any;
+
+    if (metaAppSecret) {
+      if (!signature) {
+        console.error('[meta-webhook] Missing X-Hub-Signature-256 header');
+        return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
+      }
+
+      const rawBody = await req.text();
+      const { createHmac } = await import('crypto');
+      const expectedSignature = 'sha256=' + createHmac('sha256', metaAppSecret)
+        .update(rawBody)
+        .digest('hex');
+
+      if (signature !== expectedSignature) {
+        console.error('[meta-webhook] Invalid X-Hub-Signature-256');
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+      }
+
+      // Parse the already-read body
+      body = JSON.parse(rawBody);
+    } else {
+      console.error('[meta-webhook] META_APP_SECRET not configured — rejecting request');
+      return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
+    }
+
     const platform = body.object; // 'page' = Messenger, 'instagram' = Instagram DMs
 
     // Must return 200 within 20 seconds or Meta disables the webhook
@@ -47,8 +76,8 @@ export async function POST(req: NextRequest) {
         // Skip non-message events (deliveries, reads, etc.)
         if (!event.message || event.message.is_echo) continue;
 
-        const senderId = event.sender.id;
-        const recipientId = event.recipient.id;
+        const senderId = String(event.sender?.id ?? '').replace(/[^a-zA-Z0-9_-]/g, '');
+        const recipientId = String(event.recipient?.id ?? '').replace(/[^a-zA-Z0-9_-]/g, '');
         const messageText = event.message.text || '';
         const messageId = event.message.mid;
         const timestamp = event.timestamp;

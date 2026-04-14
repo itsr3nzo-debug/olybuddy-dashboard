@@ -17,7 +17,11 @@ export async function updateBusinessDetails(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
-  const clientId = user.app_metadata?.client_id
+  const { getUserSession, hasPermission } = await import('@/lib/rbac')
+  const session = getUserSession(user)
+  if (!hasPermission(session.role, 'edit_settings')) throw new Error('Permission denied')
+
+  const clientId = session.clientId
   if (!clientId) throw new Error('No client linked')
 
   const name = sanitizeText(formData.get('name'), 200)

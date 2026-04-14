@@ -11,6 +11,25 @@ import { getSupabase } from "@/lib/supabase";
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
 
+  // Validate Twilio webhook authenticity via shared secret
+  const twilioWebhookSecret = process.env.TWILIO_WEBHOOK_SECRET || process.env.INTERNAL_API_KEY;
+  if (twilioWebhookSecret) {
+    const providedSecret = req.headers.get('x-twilio-webhook-secret');
+    if (providedSecret !== twilioWebhookSecret) {
+      console.error('[sms-webhook] Invalid or missing x-twilio-webhook-secret header');
+      return new Response("<Response></Response>", {
+        status: 403,
+        headers: { "Content-Type": "text/xml" },
+      });
+    }
+  } else {
+    console.error('[sms-webhook] No TWILIO_WEBHOOK_SECRET or INTERNAL_API_KEY configured — rejecting request');
+    return new Response("<Response></Response>", {
+      status: 500,
+      headers: { "Content-Type": "text/xml" },
+    });
+  }
+
   try {
     // Twilio sends form-encoded data for SMS
     const formData = await req.formData();

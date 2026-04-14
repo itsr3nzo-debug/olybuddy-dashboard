@@ -1,27 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { randomBytes } from "crypto";
-
-const OAUTH_CONFIGS: Record<string, { authUrl: string; scopes: string; clientIdEnv: string }> = {
-  google: {
-    authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
-    scopes: "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/userinfo.email openid",
-    clientIdEnv: "GOOGLE_CLIENT_ID",
-  },
-  xero: {
-    authUrl: "https://login.xero.com/identity/connect/authorize",
-    scopes: "openid profile email accounting.transactions accounting.contacts offline_access",
-    clientIdEnv: "XERO_CLIENT_ID",
-  },
-};
+import { getOAuthConfig, getOAuthProviderId } from "@/lib/integrations-config";
+import { composio, getComposioProvider } from "@/lib/composio";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ provider: string }> }) {
   const { provider } = await params;
-  const config = OAUTH_CONFIGS[provider];
-
-  if (!config) {
-    return NextResponse.json({ error: `Unsupported provider: ${provider}` }, { status: 400 });
-  }
+  const origin = new URL(req.url).origin;
 
   // Verify authenticated user
   const supabase = createServerClient(
@@ -40,18 +25,61 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  const clientId = process.env[config.clientIdEnv];
+  const clientId = user.app_metadata?.client_id;
   if (!clientId) {
-    return NextResponse.json({ error: `${config.clientIdEnv} not configured` }, { status: 500 });
+    return NextResponse.redirect(new URL(`/integrations?error=no_client_id`, req.url));
   }
 
-  // CSRF protection
+  // ─── Path A: Composio-managed OAuth (Gmail, Calendar, Slack, HubSpot, QuickBooks, Calendly) ───
+  const composioCfg = getComposioProvider(provider);
+  if (composioCfg) {
+    try {
+      const callbackUrl = `${origin}/api/oauth/${provider}/callback`;
+      const connection = await composio.connectedAccounts.initiate(
+        clientId,
+        composioCfg.authConfigId,
+        { callbackUrl }
+      );
+
+      const response = NextResponse.redirect(connection.redirectUrl!);
+      response.cookies.set("composio_connection_id", connection.id, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        maxAge: 600,
+        path: "/",
+      });
+      response.cookies.set("composio_provider", provider, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        maxAge: 600,
+        path: "/",
+      });
+      return response;
+    } catch (e) {
+      console.error(`Composio initiate failed for ${provider}:`, e);
+      return NextResponse.redirect(`${origin}/integrations?error=composio_init_failed&provider=${provider}`);
+    }
+  }
+
+  // ─── Path B: Direct OAuth (Xero, Sage, FreeAgent) ───
+  const config = getOAuthConfig(provider);
+  if (!config) {
+    return NextResponse.json({ error: `Unsupported provider: ${provider}` }, { status: 400 });
+  }
+
+  const dClientId = process.env[config.clientIdEnv];
+  if (!dClientId) {
+    return NextResponse.redirect(new URL(`/integrations?error=not_configured&provider=${provider}`, req.url));
+  }
+
   const state = randomBytes(32).toString("hex");
-  const origin = new URL(req.url).origin;
-  const redirectUri = `${origin}/api/oauth/${provider}/callback`;
+  const oauthProviderId = getOAuthProviderId(provider);
+  const redirectUri = `${origin}/api/oauth/${oauthProviderId}/callback`;
 
   const authParams = new URLSearchParams({
-    client_id: clientId,
+    client_id: dClientId,
     redirect_uri: redirectUri,
     response_type: "code",
     scope: config.scopes,
@@ -65,7 +93,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
     httpOnly: true,
     secure: true,
     sameSite: "lax",
-    maxAge: 600, // 10 minutes
+    maxAge: 600,
     path: "/",
   });
 

@@ -47,7 +47,7 @@ function buildEmailHtml(clientName: string, stats: ReturnType<typeof computeStat
         <!-- Header -->
         <tr>
           <td style="background:#0f172a;padding:32px 40px;">
-            <p style="margin:0;color:#94a3b8;font-size:12px;letter-spacing:.05em;text-transform:uppercase;">Olybuddy</p>
+            <p style="margin:0;color:#94a3b8;font-size:12px;letter-spacing:.05em;text-transform:uppercase;">Nexley AI</p>
             <h1 style="margin:8px 0 0;color:#ffffff;font-size:22px;font-weight:700;">Your Weekly AI Employee Report</h1>
             <p style="margin:6px 0 0;color:#64748b;font-size:14px;">${weekStr}</p>
           </td>
@@ -119,7 +119,7 @@ function buildEmailHtml(clientName: string, stats: ReturnType<typeof computeStat
         <tr>
           <td style="background:#f8fafc;padding:24px 40px;border-top:1px solid #e2e8f0;">
             <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.6;">
-              You're receiving this because your AI Employee is managed by Olybuddy.<br>
+              You're receiving this because your AI Employee is managed by Nexley AI.<br>
               Questions? Reply to this email or message us on WhatsApp.
             </p>
           </td>
@@ -170,14 +170,9 @@ interface CallRow {
 }
 
 export async function GET(req: NextRequest) {
-  // Verify caller — CRON_SECRET is REQUIRED (fail closed)
-  const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) {
-    console.error('CRON_SECRET not set — rejecting cron request')
-    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 })
-  }
-  if (authHeader !== `Bearer ${cronSecret}`) {
+  // Verify cron secret — fail closed when not configured
+  const cronSecret = req.headers.get('authorization')?.replace('Bearer ', '')
+  if (cronSecret !== process.env.CRON_SECRET || !process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

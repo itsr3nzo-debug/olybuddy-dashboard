@@ -38,18 +38,18 @@ export async function POST(req: NextRequest) {
     const stripeSignature = req.headers.get('stripe-signature');
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-    if (webhookSecret && stripeSignature) {
-      if (!verifyStripeSignature(body, stripeSignature, webhookSecret)) {
-        console.error('Stripe signature verification failed');
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-      }
-    } else if (webhookSecret && !stripeSignature) {
-      // Secret configured but no signature sent — reject
+    if (!webhookSecret) {
+      console.error('STRIPE_WEBHOOK_SECRET not configured — rejecting request');
+      return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
+    }
+
+    if (!stripeSignature) {
       return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
     }
-    // If no webhook secret configured, allow (dev/testing mode) but log warning
-    if (!webhookSecret) {
-      console.warn('STRIPE_WEBHOOK_SECRET not set — accepting unverified webhook');
+
+    if (!verifyStripeSignature(body, stripeSignature, webhookSecret)) {
+      console.error('Stripe signature verification failed');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     const event = JSON.parse(body);
@@ -95,38 +95,83 @@ export async function POST(req: NextRequest) {
         const contactId = metadata.contact_id;
         const opportunityId = metadata.opportunity_id;
         const amountPence = session.amount_total;
+        const customerEmail = session.customer_details?.email || session.customer_email;
+        const stripeCustomerId = session.customer;
 
-        // Update opportunity to closed_won
+        // SIGNUP COMPLETION: If this checkout was from /api/signup (has client_id + plan in metadata)
+        if (clientId && metadata.plan) {
+          // 1. Update client: set stripe IDs + activate subscription
+          await supabase
+            .from('clients')
+            .update({
+              subscription_status: 'active',
+              stripe_customer_id: stripeCustomerId,
+              stripe_subscription_id: session.subscription,
+            })
+            .eq('id', clientId);
+
+          // 2. Create auth user if they don't exist yet
+          let alreadyExists = false;
+          if (customerEmail) {
+            // Check if this email already has an auth user
+            const { data: authUsers } = await supabase.auth.admin.listUsers({ perPage: 50 });
+            alreadyExists = authUsers?.users?.some(u => u.email === customerEmail) ?? false;
+          }
+
+          if (!alreadyExists && customerEmail) {
+            const { data: authData } = await supabase.auth.admin.createUser({
+              email: customerEmail,
+              email_confirm: false,
+              app_metadata: { client_id: clientId, role: 'owner' },
+            });
+
+            // 3. Send welcome email with magic link
+            if (authData?.user) {
+              const { data: linkData } = await supabase.auth.admin.generateLink({
+                type: 'magiclink',
+                email: customerEmail,
+                options: { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://olybuddy-dashboard.vercel.app'}/auth/callback` },
+              });
+
+              if (linkData?.properties?.action_link) {
+                try {
+                  const { sendSystemEmail } = await import('@/lib/email');
+                  await sendSystemEmail({
+                    to: customerEmail,
+                    subject: 'Welcome to Nexley AI — Your AI Employee is ready',
+                    html: `<p>Hi ${metadata.business_name || 'there'},</p>
+                      <p>Payment confirmed! Click below to set up your AI Employee:</p>
+                      <p><a href="${linkData.properties.action_link}" style="background:#2563EB;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Access Your Dashboard</a></p>
+                      <p>— The Nexley AI Team</p>`,
+                  });
+                } catch { /* email failure is non-fatal */ }
+              }
+            }
+          }
+        }
+
+        // Update opportunity to closed_won (if this was a payment for a deal)
         if (opportunityId) {
           await supabase
             .from('opportunities')
-            .update({
-              stage: 'won',
-              closed_at: new Date().toISOString(),
-            })
+            .update({ stage: 'won', closed_at: new Date().toISOString() })
             .eq('id', opportunityId);
         }
 
         // Log activity
-        if (contactId) {
+        if (contactId && clientId) {
           await supabase.from('activities').insert({
             client_id: clientId,
             contact_id: contactId,
             opportunity_id: opportunityId,
             activity_type: 'payment',
-            title: `Payment received: £${(amountPence / 100).toFixed(2)}`,
-            description: `Stripe checkout completed. Session: ${session.id}`,
+            title: `Payment received: £${((amountPence || 0) / 100).toFixed(2)}`,
             performed_by: 'system',
             is_automated: true,
-            metadata: {
-              stripe_session_id: session.id,
-              amount_pence: amountPence,
-              customer_email: session.customer_details?.email,
-            },
+            metadata: { stripe_session_id: session.id, amount_pence: amountPence },
           });
         }
 
-        // Mark event processed
         await supabase
           .from('stripe_events')
           .update({ processed: true, processed_at: new Date().toISOString() })
@@ -156,6 +201,21 @@ export async function POST(req: NextRequest) {
             .from('clients')
             .update({ subscription_status: status })
             .eq('id', client.id);
+
+          // Deactivate agent when subscription is cancelled or paused
+          if (status === 'cancelled' || status === 'paused') {
+            await supabase
+              .from('agent_config')
+              .update({ is_active: false, agent_status: 'offline' })
+              .eq('client_id', client.id);
+          }
+          // Reactivate on active
+          if (status === 'active') {
+            await supabase
+              .from('agent_config')
+              .update({ is_active: true, agent_status: 'online' })
+              .eq('client_id', client.id);
+          }
         }
 
         await supabase

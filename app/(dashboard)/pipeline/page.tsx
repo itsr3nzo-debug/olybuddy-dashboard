@@ -5,7 +5,7 @@ import KanbanBoard from '@/components/pipeline/KanbanBoard'
 import EmptyState from '@/components/shared/EmptyState'
 import { Kanban } from 'lucide-react'
 
-export const metadata: Metadata = { title: 'Pipeline | Olybuddy' }
+export const metadata: Metadata = { title: 'Pipeline | Nexley AI' }
 
 export default async function PipelinePage() {
   const supabase = await createClient()
@@ -38,7 +38,7 @@ export default async function PipelinePage() {
       {!clientId && (
         <div className="rounded-xl p-4 mb-6 border bg-brand-warning/5 border-brand-warning/20">
           <p className="text-sm text-brand-warning">
-            <strong>Setup required:</strong> Account not linked. Contact Olybuddy.
+            <strong>Setup required:</strong> Account not linked. Contact Nexley AI.
           </p>
         </div>
       )}

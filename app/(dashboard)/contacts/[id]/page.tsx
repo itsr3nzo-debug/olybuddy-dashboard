@@ -9,7 +9,7 @@ import TranscriptBubbles from '@/components/shared/TranscriptBubbles'
 import { Phone, Mail, Building2, Tag, Clock, MessageSquare, TrendingUp, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 
-export const metadata: Metadata = { title: 'Contact | Olybuddy' }
+export const metadata: Metadata = { title: 'Contact | Nexley AI' }
 
 export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

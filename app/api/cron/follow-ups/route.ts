@@ -8,9 +8,9 @@ import { logMessage } from "@/lib/conversation";
 // Checks for stale contacts and sends automated follow-ups
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  // Verify cron secret — fail closed when not configured
+  const cronSecret = req.headers.get("authorization")?.replace("Bearer ", "");
+  if (cronSecret !== process.env.CRON_SECRET || !process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
