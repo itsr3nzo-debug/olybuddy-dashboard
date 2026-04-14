@@ -39,6 +39,22 @@ export const COMPOSIO_PROVIDERS: Record<
     toolkit: "microsoft_teams",
     authConfigEnv: "COMPOSIO_AUTH_CONFIG_MICROSOFT_TEAMS",
   },
+  sage: {
+    toolkit: "sage",
+    authConfigEnv: "COMPOSIO_AUTH_CONFIG_SAGE",
+  },
+  freeagent: {
+    toolkit: "freeagent",
+    authConfigEnv: "COMPOSIO_AUTH_CONFIG_FREEAGENT",
+  },
+  fathom: {
+    toolkit: "fathom",
+    authConfigEnv: "COMPOSIO_AUTH_CONFIG_FATHOM",
+  },
+  stripe: {
+    toolkit: "stripe",
+    authConfigEnv: "COMPOSIO_AUTH_CONFIG_STRIPE",
+  },
 };
 
 export function getComposioProvider(id: string) {

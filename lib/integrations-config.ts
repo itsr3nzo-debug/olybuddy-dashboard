@@ -263,7 +263,7 @@ export const PROVIDERS: ProviderConfig[] = [
     description: 'Visual financial reporting and analysis',
     category: 'reporting',
     iconColor: 'bg-violet-900/20 text-violet-400',
-    available: false,
+    available: true,
   },
   {
     id: 'spotlight',
@@ -300,7 +300,7 @@ export const PROVIDERS: ProviderConfig[] = [
     description: 'Payment processing and subscription billing',
     category: 'payments',
     iconColor: 'bg-violet-900/20 text-violet-400',
-    available: false, // Stripe connects via webhook, not OAuth — managed by admin
+    available: true,
   },
 ]
 
