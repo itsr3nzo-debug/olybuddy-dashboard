@@ -1,6 +1,7 @@
 /** Shared API authentication for agent endpoints */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { timingSafeEqual } from 'crypto'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type UntypedSupabase = SupabaseClient<any, any, any>
@@ -13,11 +14,21 @@ export type AuthResult =
   | { authenticated: true; clientId: string; supabase: UntypedSupabase }
   | { authenticated: false; error: string; status: number }
 
+/** Constant-time string comparison */
+function safeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b))
+}
+
+/** UUID v4 format check */
+function isValidUuid(s: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
+}
+
 /**
  * Authenticate an agent API request.
- * Supports two auth methods:
- *   1. x-api-key header (for agents) — requires client_id in query param or body
- *   2. Supabase session cookie (for dashboard UI) — reads client_id from app_metadata
+ * Uses x-api-key header (for agents) — requires client_id in query param or body.
+ * Validates client_id exists in the database to prevent operating on phantom clients.
  */
 export async function authenticateAgentRequest(
   request: Request,
@@ -25,9 +36,8 @@ export async function authenticateAgentRequest(
 ): Promise<AuthResult> {
   const apiKey = request.headers.get('x-api-key')
 
-  // Method 1: API key auth (for agents like Light)
   if (apiKey) {
-    if (!INTERNAL_API_KEY || apiKey !== INTERNAL_API_KEY) {
+    if (!INTERNAL_API_KEY || !safeCompare(apiKey, INTERNAL_API_KEY)) {
       return { authenticated: false, error: 'Invalid API key', status: 401 }
     }
 
@@ -39,9 +49,24 @@ export async function authenticateAgentRequest(
       return { authenticated: false, error: 'client_id required for API key auth', status: 400 }
     }
 
+    // Validate UUID format
+    if (!isValidUuid(clientId)) {
+      return { authenticated: false, error: 'Invalid client_id format', status: 400 }
+    }
+
+    // Verify client actually exists in the database
+    const { data: client, error: clientErr } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('id', clientId)
+      .single()
+
+    if (clientErr || !client) {
+      return { authenticated: false, error: 'Client not found', status: 404 }
+    }
+
     return { authenticated: true, clientId, supabase }
   }
 
-  // Method 2: No auth provided
   return { authenticated: false, error: 'Authentication required (x-api-key header)', status: 401 }
 }

@@ -3,12 +3,19 @@ import { NextResponse } from 'next/server'
 import { sendSms } from '@/lib/twilio'
 import { followUpAfterCall, missedCallFollowUp, consultationBooked } from '@/lib/sms-templates'
 import { normalizePhone } from '@/lib/phone'
+import { timingSafeEqual } from 'crypto'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const WEBHOOK_SECRET = process.env.ELEVENLABS_WEBHOOK_SECRET
-const APEX_CLIENT_ID = process.env.APEX_CLIENT_ID ?? 'aaaaaaaa-0000-0000-0000-000000000001'
-const DEFAULT_TO_NUMBER = process.env.TWILIO_FROM_NUMBER ?? '+447863768330'
+const APEX_CLIENT_ID = process.env.APEX_CLIENT_ID
+const DEFAULT_TO_NUMBER = process.env.TWILIO_FROM_NUMBER
+
+/** Constant-time string comparison to prevent timing attacks */
+function safeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b))
+}
 
 function estimateJobValue(reason: string): number {
   const r = (reason || '').toLowerCase()
@@ -33,7 +40,7 @@ export async function POST(request: Request) {
     console.error('ELEVENLABS_WEBHOOK_SECRET not set — rejecting webhook')
     return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
   }
-  if (authHeader !== WEBHOOK_SECRET) {
+  if (!authHeader || !safeCompare(authHeader, WEBHOOK_SECRET)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -71,8 +78,8 @@ export async function POST(request: Request) {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
     // MULTI-TENANT: Look up client_id from agent_id
-    let clientId = APEX_CLIENT_ID
-    let clientBusinessName = 'Olybuddy'
+    let clientId = APEX_CLIENT_ID ?? null
+    let clientBusinessName = 'Nexley AI'
 
     const agentId = data.agent_id ?? metadata.agent_id ?? null
     if (agentId) {
@@ -86,6 +93,11 @@ export async function POST(request: Request) {
         clientId = config.client_id
         clientBusinessName = config.business_name ?? 'our company'
       }
+    }
+
+    if (!clientId) {
+      console.error('No client_id resolved — set APEX_CLIENT_ID or ensure agent_id maps to a client')
+      return NextResponse.json({ success: false, reason: 'no_client_id' }, { status: 400 })
     }
 
     // Parse name
@@ -143,7 +155,7 @@ export async function POST(request: Request) {
         external_call_id: conversationId,
         direction: 'inbound',
         from_number: phone,
-        to_number: metadata.phone_call?.to_number ?? DEFAULT_TO_NUMBER,
+        to_number: metadata.phone_call?.to_number ?? DEFAULT_TO_NUMBER ?? null,
         status,
         duration_seconds: duration ? Math.round(duration) : null,
         started_at: new Date(Date.now() - (duration ?? 0) * 1000).toISOString(),
@@ -161,13 +173,14 @@ export async function POST(request: Request) {
       .single()
 
     if (callErr) {
-      console.error('Call log error:', callErr)
+      console.error('Call log insert failed:', callErr)
+      return NextResponse.json({ success: false, error: `Call log failed: ${callErr.message}` }, { status: 500 })
     }
 
     // Check if this is a replay (call_log already existed with older created_at)
     const isReplay = callLog && new Date(callLog.created_at).getTime() < Date.now() - 60000
 
-    // Step 3: Opportunity with dedup — use upsert pattern to avoid race condition
+    // Step 3: Opportunity — insert, handle duplicate gracefully
     let opportunityDeduplicated = false
     const { data: existingOpp } = await supabase
       .from('opportunities')
@@ -178,7 +191,7 @@ export async function POST(request: Request) {
       .limit(1)
 
     if (!existingOpp || existingOpp.length === 0) {
-      await supabase.from('opportunities').insert({
+      const { error: oppErr } = await supabase.from('opportunities').insert({
         client_id: clientId,
         contact_id: contactId,
         title: reason || `Call from ${callerName || phone}`,
@@ -187,6 +200,11 @@ export async function POST(request: Request) {
         assigned_to: 'ai-employee',
         metadata: { reason, wants_consultation: wantsConsultation },
       })
+      // If a concurrent request already inserted, treat as dedup (not an error)
+      if (oppErr) {
+        console.warn('Opportunity insert race (non-fatal):', oppErr.message)
+        opportunityDeduplicated = true
+      }
     } else {
       opportunityDeduplicated = true
     }

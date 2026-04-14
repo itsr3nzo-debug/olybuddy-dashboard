@@ -40,14 +40,19 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const body = await request.json()
+  let body: Record<string, unknown>
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
   const { contact_id, ...updates } = body
 
   if (!contact_id) {
     return NextResponse.json({ error: 'contact_id required' }, { status: 400 })
   }
 
-  const auth = await authenticateAgentRequest(request, body.client_id)
+  const auth = await authenticateAgentRequest(request, body.client_id as string | undefined)
   if (!auth.authenticated) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
   }
@@ -79,13 +84,14 @@ export async function PATCH(request: Request) {
 
   // Log activity if pipeline stage changed
   if (safeUpdates.pipeline_stage) {
-    await supabase.from('activities').insert({
+    const { error: activityErr } = await supabase.from('activities').insert({
       client_id: clientId,
       contact_id,
       activity_type: 'stage_change',
       description: `Pipeline stage updated to ${safeUpdates.pipeline_stage} (via agent API)`,
       metadata: { source: 'agent_api', updates: safeUpdates },
     })
+    if (activityErr) console.error('Activity log failed (non-fatal):', activityErr.message)
   }
 
   return NextResponse.json({ success: true, contact: data })

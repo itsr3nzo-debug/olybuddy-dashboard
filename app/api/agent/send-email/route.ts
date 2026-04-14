@@ -3,14 +3,22 @@ import { authenticateAgentRequest } from '@/lib/api-auth'
 import { sendClientEmail, getClientEmailConfig } from '@/lib/client-email'
 
 export async function POST(request: Request) {
-  const body = await request.json()
-  const { to, subject, message, contact_id } = body
+  let body: Record<string, unknown>
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+  const { to, subject, message, contact_id } = body as { to?: string; subject?: string; message?: string; contact_id?: string }
 
   if (!to || !subject || !message) {
     return NextResponse.json({ error: 'to, subject, and message required' }, { status: 400 })
   }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+    return NextResponse.json({ error: 'Invalid email format' }, { status: 400 })
+  }
 
-  const auth = await authenticateAgentRequest(request, body.client_id)
+  const auth = await authenticateAgentRequest(request, body.client_id as string | undefined)
   if (!auth.authenticated) {
     return NextResponse.json({ error: auth.error }, { status: auth.status })
   }

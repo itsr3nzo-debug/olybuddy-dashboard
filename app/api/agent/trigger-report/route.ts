@@ -14,11 +14,10 @@ export async function POST(request: Request) {
   // Call the weekly report endpoint internally
   try {
     const headers: Record<string, string> = {}
-    if (CRON_SECRET) {
-      headers['Authorization'] = `Bearer ${CRON_SECRET}`
+    if (!CRON_SECRET) {
+      return NextResponse.json({ error: 'CRON_SECRET not configured — cannot trigger report' }, { status: 500 })
     }
-    // Vercel Cron user-agent fallback
-    headers['User-Agent'] = 'vercel-cron/manual-trigger'
+    headers['Authorization'] = `Bearer ${CRON_SECRET}`
 
     const res = await fetch(`${SITE_URL}/api/cron/weekly-report`, {
       method: 'GET',

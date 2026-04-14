@@ -77,6 +77,19 @@ export async function updateAgent(agentId: string, systemPrompt: string, firstMe
   }
 }
 
+export async function deleteAgent(agentId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE_URL}/convai/agents/${agentId}`, {
+      method: 'DELETE',
+      headers: { 'xi-api-key': API_KEY },
+    })
+    return res.ok
+  } catch (e) {
+    console.error('ElevenLabs DELETE agent error:', e)
+    return false
+  }
+}
+
 export async function createAgent(templateAgentId: string, name: string): Promise<string | null> {
   try {
     // Get the template agent config to clone its settings

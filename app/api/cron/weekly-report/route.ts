@@ -170,21 +170,15 @@ interface CallRow {
 }
 
 export async function GET(req: NextRequest) {
-  // Verify this is called by Vercel Cron (or manually with the secret)
-  // Auth: Vercel Cron sets Authorization header automatically when CRON_SECRET is configured
+  // Verify caller — CRON_SECRET is REQUIRED (fail closed)
   const authHeader = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
-  // Fail closed: if CRON_SECRET is set, require it. If not set, only allow from Vercel (check user-agent)
-  if (cronSecret) {
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-  } else {
-    // Allow Vercel Cron (user-agent contains "vercel-cron") or reject
-    const ua = req.headers.get('user-agent') ?? ''
-    if (!ua.toLowerCase().includes('vercel-cron')) {
-      return NextResponse.json({ error: 'Unauthorized — set CRON_SECRET env var' }, { status: 401 })
-    }
+  if (!cronSecret) {
+    console.error('CRON_SECRET not set — rejecting cron request')
+    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 })
+  }
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const supabase = getServiceClient()

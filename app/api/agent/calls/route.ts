@@ -9,10 +9,10 @@ export async function GET(request: Request) {
 
   const { clientId, supabase } = auth
   const url = new URL(request.url)
-  const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '20'), 100)
-  const offset = parseInt(url.searchParams.get('offset') ?? '0')
-  const status = url.searchParams.get('status') // completed, failed, no_answer, etc.
-  const days = parseInt(url.searchParams.get('days') ?? '30')
+  const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') ?? '20') || 20, 1), 100)
+  const offset = Math.max(parseInt(url.searchParams.get('offset') ?? '0') || 0, 0)
+  const status = url.searchParams.get('status')
+  const days = Math.min(Math.max(parseInt(url.searchParams.get('days') ?? '30') || 30, 1), 365)
 
   const since = new Date()
   since.setDate(since.getDate() - days)

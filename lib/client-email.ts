@@ -12,14 +12,84 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
 interface ClientEmailConfig {
   provider: 'gmail' | 'outlook' | 'smtp'
   email: string
-  // For Gmail: OAuth2 access token
+  clientId?: string
   accessToken?: string
   refreshToken?: string
-  // For generic SMTP
   smtpHost?: string
   smtpPort?: number
   smtpUser?: string
   smtpPass?: string
+}
+
+/** Refresh an expired OAuth token and save the new one back to Supabase */
+async function refreshOAuthToken(config: ClientEmailConfig): Promise<string | null> {
+  if (!config.refreshToken || !config.clientId) return null
+
+  try {
+    let tokenUrl: string
+    let tokenBody: URLSearchParams
+
+    if (config.provider === 'gmail') {
+      tokenUrl = 'https://oauth2.googleapis.com/token'
+      tokenBody = new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID ?? '',
+        client_secret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+        refresh_token: config.refreshToken,
+        grant_type: 'refresh_token',
+      })
+    } else if (config.provider === 'outlook') {
+      const tenantId = process.env.MICROSOFT_TENANT_ID ?? 'common'
+      tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`
+      tokenBody = new URLSearchParams({
+        client_id: process.env.MICROSOFT_CLIENT_ID ?? '',
+        client_secret: process.env.MICROSOFT_CLIENT_SECRET ?? '',
+        refresh_token: config.refreshToken,
+        grant_type: 'refresh_token',
+      })
+    } else {
+      return null
+    }
+
+    const resp = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: tokenBody,
+    })
+
+    if (!resp.ok) {
+      console.error(`Token refresh failed for ${config.provider}:`, await resp.text())
+      return null
+    }
+
+    const data = await resp.json()
+    const newAccessToken = data.access_token as string
+
+    // Save refreshed token back to Supabase
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    const { data: existing } = await supabase
+      .from('agent_config')
+      .select('notification_prefs')
+      .eq('client_id', config.clientId)
+      .single()
+
+    if (existing) {
+      const prefs = (existing.notification_prefs ?? {}) as Record<string, unknown>
+      const emailConfig = (prefs.email_config ?? {}) as Record<string, unknown>
+      emailConfig.access_token = newAccessToken
+      if (data.refresh_token) emailConfig.refresh_token = data.refresh_token
+      prefs.email_config = emailConfig
+
+      await supabase
+        .from('agent_config')
+        .update({ notification_prefs: prefs })
+        .eq('client_id', config.clientId)
+    }
+
+    return newAccessToken
+  } catch (e) {
+    console.error('Token refresh error:', e)
+    return null
+  }
 }
 
 export async function sendClientEmail(
@@ -33,9 +103,17 @@ export async function sendClientEmail(
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
     let transporter: nodemailer.Transporter
+    // Add clientId to config for token refresh
+    config.clientId = clientId
 
-    if (config.provider === 'gmail' && config.accessToken) {
-      // Gmail via OAuth2
+    if (config.provider === 'gmail' && (config.accessToken || config.refreshToken)) {
+      // Try existing token, refresh if needed
+      let token = config.accessToken
+      if (!token && config.refreshToken) {
+        token = await refreshOAuthToken(config) ?? undefined
+      }
+      if (!token) return { success: false, error: 'Gmail token expired and refresh failed' }
+
       transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
         port: 465,
@@ -43,11 +121,16 @@ export async function sendClientEmail(
         auth: {
           type: 'OAuth2',
           user: config.email,
-          accessToken: config.accessToken,
+          accessToken: token,
         },
       })
-    } else if (config.provider === 'outlook' && config.accessToken) {
-      // Outlook via OAuth2
+    } else if (config.provider === 'outlook' && (config.accessToken || config.refreshToken)) {
+      let token = config.accessToken
+      if (!token && config.refreshToken) {
+        token = await refreshOAuthToken(config) ?? undefined
+      }
+      if (!token) return { success: false, error: 'Outlook token expired and refresh failed' }
+
       transporter = nodemailer.createTransport({
         host: 'smtp.office365.com',
         port: 587,
@@ -55,7 +138,7 @@ export async function sendClientEmail(
         auth: {
           type: 'OAuth2',
           user: config.email,
-          accessToken: config.accessToken,
+          accessToken: token,
         },
       })
     } else if (config.smtpHost && config.smtpUser && config.smtpPass) {
@@ -73,13 +156,28 @@ export async function sendClientEmail(
       return { success: false, error: 'No valid email configuration found' }
     }
 
-    const result = await transporter.sendMail({
-      from: config.email,
-      to,
-      subject,
-      text: body,
-      html: html ?? body,
-    })
+    let result: nodemailer.SentMessageInfo
+    try {
+      result = await transporter.sendMail({ from: config.email, to, subject, text: body, html: html ?? body })
+    } catch (sendErr: unknown) {
+      // If auth failed, try refreshing the token once and retry
+      const errMsg = sendErr instanceof Error ? sendErr.message : ''
+      if ((config.provider === 'gmail' || config.provider === 'outlook') && config.refreshToken &&
+          (errMsg.includes('Invalid credentials') || errMsg.includes('auth') || errMsg.includes('535'))) {
+        const newToken = await refreshOAuthToken(config)
+        if (!newToken) return { success: false, error: `Token refresh failed after send error: ${errMsg}` }
+
+        const retryTransporter = nodemailer.createTransport({
+          host: config.provider === 'gmail' ? 'smtp.gmail.com' : 'smtp.office365.com',
+          port: config.provider === 'gmail' ? 465 : 587,
+          secure: config.provider === 'gmail',
+          auth: { type: 'OAuth2', user: config.email, accessToken: newToken },
+        })
+        result = await retryTransporter.sendMail({ from: config.email, to, subject, text: body, html: html ?? body })
+      } else {
+        throw sendErr
+      }
+    }
 
     // Log to comms_log for dashboard tracking
     try {

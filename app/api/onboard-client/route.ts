@@ -89,7 +89,14 @@ export async function POST(request: NextRequest) {
     })
 
     if (configErr) {
+      // Clean up: delete the client row AND the orphaned ElevenLabs agent
       await supabase.from('clients').delete().eq('id', clientId)
+      if (agentId && agentId !== TEMPLATE_AGENT_ID) {
+        try {
+          const { deleteAgent } = await import('@/lib/elevenlabs')
+          await deleteAgent(agentId)
+        } catch { /* best effort cleanup */ }
+      }
       return NextResponse.json({ error: `Config creation failed: ${configErr.message}` }, { status: 500 })
     }
 
