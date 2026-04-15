@@ -215,8 +215,9 @@ export default function IntegrationsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
-  // Handle error query params from OAuth redirects
+  // Handle error / success query params from OAuth redirects
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const err = params.get('error')
@@ -233,10 +234,17 @@ export default function IntegrationsPage() {
     } else if (err === 'no_access_token') {
       setError('Connection failed — no access token received. Please try again.')
       window.history.replaceState({}, '', '/integrations')
+    } else if (err === 'composio_init_failed' || err === 'composio_callback_failed') {
+      setError(`Couldn't connect ${provider || 'that integration'} — please try again. If it keeps failing, contact support.`)
+      window.history.replaceState({}, '', '/integrations')
     }
     const connected = params.get('connected')
     if (connected) {
+      const pretty = connected.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+      setSuccess(`✅ ${pretty} connected — your AI Employee can use it now.`)
       window.history.replaceState({}, '', '/integrations')
+      // Auto-dismiss after 6 seconds
+      setTimeout(() => setSuccess(''), 6000)
     }
   }, [])
 
@@ -279,6 +287,14 @@ export default function IntegrationsPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
+      {/* Success Banner */}
+      {success && (
+        <div className="mb-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between">
+          <p className="text-sm text-emerald-400">{success}</p>
+          <button onClick={() => setSuccess('')} className="text-emerald-400 hover:text-emerald-300 text-xs">Dismiss</button>
+        </div>
+      )}
+
       {/* Error Banner */}
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-between">
