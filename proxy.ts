@@ -6,7 +6,7 @@ const MEMBER_BLOCKED = ['/settings', '/integrations']
 // Pages only for 'super_admin'
 const ADMIN_ONLY = ['/admin']
 // Public pages that don't require auth
-const PUBLIC_PATHS = ['/login', '/signup', '/auth', '/security']
+const PUBLIC_PATHS = ['/login', '/signup', '/auth', '/security', '/forgot-password', '/reset-password']
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })

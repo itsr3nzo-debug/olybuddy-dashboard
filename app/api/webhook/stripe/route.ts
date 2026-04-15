@@ -118,36 +118,25 @@ export async function POST(req: NextRequest) {
             alreadyExists = authUsers?.users?.some(u => u.email === customerEmail) ?? false;
           }
 
-          if (!alreadyExists && customerEmail) {
-            const { data: authData } = await supabase.auth.admin.createUser({
-              email: customerEmail,
-              email_confirm: false,
-              app_metadata: { client_id: clientId, role: 'owner' },
-            });
-
-            // 3. Send welcome email with magic link
-            if (authData?.user) {
-              const { data: linkData } = await supabase.auth.admin.generateLink({
-                type: 'magiclink',
-                email: customerEmail,
-                options: { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://olybuddy-dashboard.vercel.app'}/auth/callback` },
+          // NOTE: auth user was already created in /api/signup with the customer's
+          // chosen password — we don't create / send a magic link here. Just send
+          // the payment-confirmed email.
+          if (customerEmail) {
+            try {
+              const { sendSystemEmail } = await import('@/lib/email');
+              await sendSystemEmail({
+                to: customerEmail,
+                subject: 'Payment confirmed — Your AI Employee is ready',
+                html: `<p>Hi ${metadata.business_name || 'there'},</p>
+                  <p>Payment received. Sign in with the password you set at signup:</p>
+                  <p><a href="${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://olybuddy-dashboard.vercel.app'}/login" style="background:#2563EB;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Sign in</a></p>
+                  <p>Forgot it? Use <a href="${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://olybuddy-dashboard.vercel.app'}/forgot-password">reset password</a>.</p>
+                  <p>— The Nexley AI Team</p>`,
               });
-
-              if (linkData?.properties?.action_link) {
-                try {
-                  const { sendSystemEmail } = await import('@/lib/email');
-                  await sendSystemEmail({
-                    to: customerEmail,
-                    subject: 'Welcome to Nexley AI — Your AI Employee is ready',
-                    html: `<p>Hi ${metadata.business_name || 'there'},</p>
-                      <p>Payment confirmed! Click below to set up your AI Employee:</p>
-                      <p><a href="${linkData.properties.action_link}" style="background:#2563EB;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Access Your Dashboard</a></p>
-                      <p>— The Nexley AI Team</p>`,
-                  });
-                } catch { /* email failure is non-fatal */ }
-              }
-            }
+            } catch { /* email failure is non-fatal */ }
           }
+          // Suppress unused variable warning from original check
+          void alreadyExists;
         }
 
         // Update opportunity to closed_won (if this was a payment for a deal)

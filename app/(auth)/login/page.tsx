@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'motion/react'
 import { createClient } from '@/lib/supabase/client'
-import { Phone, Mail, ArrowRight, Sparkles, Zap } from 'lucide-react'
+import { Phone, Mail, Lock, ArrowRight, Sparkles } from 'lucide-react'
 
 export default function LoginPage() {
   return (
@@ -16,10 +16,9 @@ export default function LoginPage() {
 
 function LoginForm() {
   const [email, setEmail] = useState('')
-  const [submitted, setSubmitted] = useState(false)
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [demoLoading, setDemoLoading] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -28,16 +27,17 @@ function LoginForm() {
   useEffect(() => {
     const err = searchParams.get('error')
     if (err === 'auth_callback_failed') {
-      setError('Your sign-in link has expired or was already used. Please request a new one.')
+      setError('Your sign-in link has expired or was already used.')
     } else if (err === 'session_expired') {
       setError('Your session timed out for security. Sign in again to continue.')
     } else if (err === 'unauthorized') {
-      setError('You don\'t have access to that page.')
+      setError("You don't have access to that page.")
+    } else if (err === 'password_reset_sent') {
+      setError('If an account exists for that email, a reset link has been sent. Check your inbox.')
     }
 
-    // Supabase implicit magic-link flow: proxy.ts redirects unauthenticated
-    // root → /login, but preserves the #access_token=... hash. Parse it and
-    // set the session manually so we don't depend on detectSessionInUrl timing.
+    // Legacy magic-link hash handler — still works for users coming from
+    // old links OR the password-reset flow (which uses the same hash format).
     if (typeof window !== 'undefined' && window.location.hash.includes('access_token')) {
       const params = new URLSearchParams(window.location.hash.slice(1))
       const access_token = params.get('access_token')
@@ -60,32 +60,42 @@ function LoginForm() {
     setLoading(true)
     setError('')
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    })
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
-      setError(error.message)
+      // Don't leak whether the email exists
+      setError(error.message.includes('Invalid login') ? 'Invalid email or password.' : error.message)
       setLoading(false)
     } else {
-      setSubmitted(true)
-      setLoading(false)
+      router.replace('/dashboard')
     }
+  }
+
+  // Fallback: users who signed up before password-auth was enabled, or who
+  // just prefer magic links, can get a one-time sign-in link sent here.
+  async function handleMagicLinkFallback() {
+    if (!email) {
+      setError('Enter your email first to receive a sign-in link.')
+      return
+    }
+    setLoading(true)
+    setError('')
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    })
+    setLoading(false)
+    if (error) setError(error.message)
+    else setError(`If an account exists for ${email}, a sign-in link has been sent.`)
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#0a0e1a]">
-      {/* Animated background gradient orbs */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-indigo-500/20 blur-[100px] animate-pulse" />
         <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-emerald-500/15 blur-[100px] animate-pulse" style={{ animationDelay: '1s' }} />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-indigo-600/10 blur-[120px]" />
       </div>
-
-      {/* Grid pattern overlay */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(99,102,241,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(99,102,241,0.03)_1px,transparent_1px)] bg-[size:64px_64px]" />
 
       <motion.div
@@ -94,7 +104,6 @@ function LoginForm() {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md mx-4 relative z-10"
       >
-        {/* Logo */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -113,7 +122,6 @@ function LoginForm() {
           </p>
         </motion.div>
 
-        {/* Card with glassmorphism */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -121,76 +129,80 @@ function LoginForm() {
           className="rounded-2xl p-8 shadow-2xl border border-white/[0.08] backdrop-blur-xl"
           style={{ background: 'rgba(30, 41, 59, 0.7)' }}
         >
-          {!submitted ? (
-            <>
-              <h1 className="text-xl font-semibold mb-1 text-white">Sign in</h1>
-              <p className="text-sm mb-6 text-slate-400">
-                We&apos;ll send a magic link to your email — no password needed.
-              </p>
+          <h1 className="text-xl font-semibold mb-1 text-white">Sign in</h1>
+          <p className="text-sm mb-6 text-slate-400">Email and password.</p>
 
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1.5 text-slate-300">
-                    Email address
-                  </label>
-                  <div className="relative">
-                    <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      required
-                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-white/10 text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all bg-white/5 text-white placeholder:text-slate-500"
-                    />
-                  </div>
-                </div>
-
-                {error && (
-                  <motion.p
-                    initial={{ opacity: 0, y: -5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-sm px-3 py-2 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20"
-                  >
-                    {error}
-                  </motion.p>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading || !email}
-                  className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                  ) : (
-                    <>
-                      Send magic link
-                      <ArrowRight size={16} />
-                    </>
-                  )}
-                </button>
-
-                {/* Demo login removed for production — was exposing test credentials */}
-              </form>
-            </>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3 }}
-              className="text-center py-4"
-            >
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-indigo-500/10 border border-indigo-500/20">
-                <Mail size={28} className="text-indigo-400" />
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1.5 text-slate-300">Email</label>
+              <div className="relative">
+                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  required
+                  autoComplete="email"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-white/10 text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all bg-white/5 text-white placeholder:text-slate-500"
+                />
               </div>
-              <h2 className="text-lg font-semibold mb-2 text-white">Check your email</h2>
-              <p className="text-sm text-slate-400">
-                We sent a magic link to <strong className="text-white">{email}</strong>.<br />
-                Click it to sign in — link expires in 1 hour.
-              </p>
-            </motion.div>
-          )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1.5 text-slate-300">Password</label>
+              <div className="relative">
+                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Your password"
+                  required
+                  autoComplete="current-password"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-white/10 text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all bg-white/5 text-white placeholder:text-slate-500"
+                />
+              </div>
+              <div className="mt-1.5 text-right">
+                <a href="/forgot-password" className="text-xs text-indigo-400 hover:text-indigo-300">
+                  Forgot password?
+                </a>
+              </div>
+            </div>
+
+            {error && (
+              <motion.p
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-sm px-3 py-2 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20"
+              >
+                {error}
+              </motion.p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading || !email || !password}
+              className="w-full py-3 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              ) : (
+                <>
+                  Sign in <ArrowRight size={16} />
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleMagicLinkFallback}
+              disabled={loading || !email}
+              className="w-full py-2.5 rounded-xl text-xs text-slate-400 hover:text-slate-200 border border-white/5 hover:border-white/10 transition-all disabled:opacity-50"
+            >
+              Email me a sign-in link instead
+            </button>
+          </form>
         </motion.div>
 
         <p className="text-center text-sm mt-6 text-slate-400">

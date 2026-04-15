@@ -46,14 +46,23 @@ export async function POST(req: NextRequest) {
   await recordSignupAttempt(ip, supabase)
 
   const body = await req.json()
-  const { business_name, contact_name, email, phone, industry, services, location, plan, personality } = body
+  const { business_name, contact_name, email, password, phone, industry, services, location, plan, personality } = body
 
   // Input validation
-  if (!business_name || !email || !industry || !plan) {
+  if (!business_name || !email || !password || !industry || !plan) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: 'Invalid email format' }, { status: 400 })
+  }
+  if (typeof password !== 'string' || password.length < 10) {
+    return NextResponse.json({ error: 'Password must be at least 10 characters' }, { status: 400 })
+  }
+  if (!/\d/.test(password)) {
+    return NextResponse.json({ error: 'Password must contain at least one number' }, { status: 400 })
+  }
+  if (password.length > 200) {
+    return NextResponse.json({ error: 'Password too long' }, { status: 400 })
   }
   if (!VALID_PLANS.includes(plan)) {
     return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
@@ -143,35 +152,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to set up your AI Employee. Please try again.' }, { status: 500 })
   }
 
-  // TRIAL: create auth user and send magic link immediately
+  // Create Supabase auth user with the password UPFRONT (works for both trial
+  // and paid flows). For paid: user can log in immediately; dashboard shows
+  // "payment pending" banner until the Stripe webhook flips subscription_status.
+  const { error: authErr } = await supabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true, // no email verification step — they chose their password so we trust them
+    app_metadata: { client_id: clientId, role: 'owner' },
+  })
+
+  if (authErr) {
+    // Most likely duplicate email race — client row exists but user doesn't
+    console.error('[signup] Failed to create auth user:', authErr.message)
+    return NextResponse.json({ error: authErr.message || 'Failed to create account.' }, { status: 500 })
+  }
+
+  // TRIAL: welcome email (no login link needed — they know their password)
   if (plan === 'trial') {
-    const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
-      email,
-      email_confirm: false,
-      app_metadata: { client_id: clientId, role: 'owner' },
-    })
-
-    if (authErr) {
-      return NextResponse.json({ error: 'Failed to create account. Please try again.' }, { status: 500 })
-    }
-
-    const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
-      type: 'magiclink',
-      email,
-      options: { redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback` },
-    })
-
-    if (linkErr || !linkData?.properties?.action_link) {
-      return NextResponse.json({ error: 'Account created but failed to send login link. Try signing in at /login.' }, { status: 500 })
-    }
-
     try {
       await sendSystemEmail({
         to: email,
         subject: 'Welcome to Nexley AI — Your AI Employee is ready',
         html: `<p>Hi ${contact_name || 'there'},</p>
-          <p>Your 5-day trial is active! Click below to set up your AI Employee:</p>
-          <p><a href="${linkData.properties.action_link}" style="background:#2563EB;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Access Your Dashboard</a></p>
+          <p>Your 5-day trial is active. Sign in with the password you just chose:</p>
+          <p><a href="${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://olybuddy-dashboard.vercel.app'}/login" style="background:#2563EB;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Sign in</a></p>
           <p>Your trial runs until ${new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB')}.</p>
           <p>— The Nexley AI Team</p>`,
       })

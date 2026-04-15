@@ -37,6 +37,7 @@ function SignupWizard() {
   const [step, setStep] = useState(1)
   const [form, setForm] = useState({
     email: '',
+    password: '',
     business_name: '',
     contact_name: '',
     phone: '',
@@ -56,7 +57,7 @@ function SignupWizard() {
   }
 
   function canProceed(): boolean {
-    if (step === 1) return !!form.email && form.email.includes('@')
+    if (step === 1) return !!form.email && form.email.includes('@') && !!form.password && form.password.length >= 10 && /\d/.test(form.password)
     if (step === 2) return !!form.business_name && !!form.industry
     if (step === 3) return !!form.personality
     if (step === 4) return !!form.plan
@@ -122,16 +123,16 @@ function SignupWizard() {
           >
             <Check size={40} className="text-green-400" />
           </motion.div>
-          <h1 className="text-3xl font-bold text-white mb-3">Check your email!</h1>
+          <h1 className="text-3xl font-bold text-white mb-3">You&apos;re in!</h1>
           <p className="text-slate-400 mb-6">
-            We&apos;ve sent a magic link to <span className="text-white font-medium">{form.email}</span>.
-            Click it to access your dashboard and meet your AI Employee.
+            Account created for <span className="text-white font-medium">{form.email}</span>.
+            Sign in with the password you just chose to meet your AI Employee.
           </p>
           <button
             onClick={() => router.push('/login')}
-            className="text-indigo-400 hover:text-indigo-300 text-sm font-medium"
+            className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-6 py-2.5 rounded-lg text-sm"
           >
-            Go to sign in
+            Sign in now →
           </button>
         </motion.div>
       </div>
@@ -202,9 +203,27 @@ function SignupWizard() {
                         placeholder="you@business.co.uk"
                         autoFocus
                         className="w-full pl-10 pr-4 py-3.5 rounded-xl border border-white/10 text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all bg-white/5 text-white placeholder:text-slate-500"
-                        onKeyDown={e => e.key === 'Enter' && canProceed() && next()}
                       />
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1.5">Password</label>
+                    <input
+                      type="password"
+                      value={form.password}
+                      onChange={e => update('password', e.target.value)}
+                      placeholder="Minimum 10 characters, include a number"
+                      minLength={10}
+                      autoComplete="new-password"
+                      className="w-full px-4 py-3.5 rounded-xl border border-white/10 text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all bg-white/5 text-white placeholder:text-slate-500"
+                      onKeyDown={e => e.key === 'Enter' && canProceed() && next()}
+                    />
+                    {form.password && form.password.length < 10 && (
+                      <p className="text-xs text-amber-400 mt-1.5">{10 - form.password.length} more character{10 - form.password.length === 1 ? '' : 's'} needed</p>
+                    )}
+                    {form.password && form.password.length >= 10 && !/\d/.test(form.password) && (
+                      <p className="text-xs text-amber-400 mt-1.5">Add at least one number</p>
+                    )}
                   </div>
                 </div>
 
