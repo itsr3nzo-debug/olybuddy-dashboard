@@ -165,7 +165,7 @@ export default async function SettingsPage() {
                 ) : '—'
               }
             />
-            <SettingRow label="Plan" value={PLAN_LABELS[client?.subscription_plan ?? ''] ?? 'Starter'} />
+            <SettingRow label="Plan" value={PLAN_LABELS[client?.subscription_plan ?? ''] ?? 'AI Employee'} />
             {client?.subscription_status === 'trial' && client?.trial_ends_at && (
               <SettingRow label="Trial ends" value={new Date(client.trial_ends_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} />
             )}
