@@ -113,15 +113,39 @@ export async function POST(req: NextRequest) {
 
         // SIGNUP COMPLETION: If this checkout was from /api/signup (has client_id + plan in metadata)
         if (clientId && metadata.plan) {
-          // Update client: set stripe IDs + activate subscription
+          // Update client: set stripe IDs + activate subscription.
+          // Reset vps_status to 'pending' so the Mac-side provision-queue-poller
+          // will pick this client up and run nexley-provision.sh for them.
+          // (Trials set vps_status='pending' at signup; paid plans leave it as
+          // 'pending' too but only provision AFTER payment clears here.)
           await supabase
             .from('clients')
             .update({
               subscription_status: 'active',
               stripe_customer_id: stripeCustomerId,
               stripe_subscription_id: session.subscription,
+              vps_status: 'pending',
             })
             .eq('id', clientId);
+
+          // Telegram notification to ops so someone knows a new paid customer is
+          // waiting for VPS provisioning. If the poller is running, provisioning
+          // starts within ~60s; otherwise ops can drain the queue manually.
+          try {
+            const botToken = process.env.TELEGRAM_BOT_TOKEN;
+            const chatId = process.env.TELEGRAM_CHAT_ID;
+            if (botToken && chatId) {
+              const msg = `🎉 New paid signup: ${metadata.business_name || clientId}\n` +
+                          `Plan: ${metadata.plan} · £${((amountPence || 0) / 100).toFixed(2)}\n` +
+                          `Email: ${customerEmail}\n` +
+                          `vps_status=pending — poller will provision shortly.`;
+              await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: chatId, text: msg }),
+              });
+            }
+          } catch { /* telegram failure is non-fatal */ }
 
           // Auth user was already created in /api/signup with the customer's
           // chosen password — just send the payment-confirmed email.
