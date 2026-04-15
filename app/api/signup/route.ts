@@ -35,7 +35,9 @@ async function recordSignupAttempt(ip: string, supabase: any) {
 }
 
 const VALID_PLANS = ['trial', 'starter', 'pro', 'enterprise']
-const VALID_INDUSTRIES = ['accountant','landscaper','electrician','plumber','builder','roofer','gardener','fencing','paving','decking','tree-surgeon','cleaner','dental','estate-agent','solicitor','recruitment','hair-salon','dog-groomer']
+// Industry is a user-chosen string — not from a closed enum. We only guard
+// against empty/oversized input. The provisioning step falls back to a
+// generic template if the industry has no specific Layer 2 file.
 
 export async function POST(req: NextRequest) {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
@@ -69,8 +71,8 @@ export async function POST(req: NextRequest) {
   if (!VALID_PLANS.includes(plan)) {
     return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
   }
-  if (!VALID_INDUSTRIES.includes(industry)) {
-    return NextResponse.json({ error: 'Invalid industry' }, { status: 400 })
+  if (typeof industry !== 'string' || industry.length === 0 || industry.length > 60) {
+    return NextResponse.json({ error: 'Industry must be a short label (1–60 chars)' }, { status: 400 })
   }
   if (typeof business_name !== 'string' || business_name.length > 200) {
     return NextResponse.json({ error: 'Business name too long' }, { status: 400 })
