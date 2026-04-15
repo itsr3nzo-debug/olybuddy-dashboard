@@ -9,19 +9,14 @@ interface PersonalityPickerProps {
 }
 
 const PERSONALITIES = [
-  { value: 'professional', label: 'Professional', emoji: '\uD83D\uDC54', description: 'Polished & formal. Builds trust.' },
-  { value: 'friendly', label: 'Friendly', emoji: '\uD83D\uDE0A', description: 'Warm & approachable. Like a mate.' },
-  { value: 'confident', label: 'Confident', emoji: '\uD83D\uDCAA', description: 'Direct & efficient. No-nonsense.' },
-  { value: 'cheeky', label: 'Cheeky', emoji: '\uD83D\uDE0F', description: 'Witty banter. Bit of charm.' },
-  { value: 'calm', label: 'Calm', emoji: '\uD83E\uDDD8', description: 'Reassuring & patient. Never flustered.' },
-  { value: 'energetic', label: 'Energetic', emoji: '\u26A1', description: 'Enthusiastic & upbeat. High-energy.' },
-  { value: 'funny', label: 'Funny', emoji: '\uD83D\uDE02', description: 'Jokes and personality. Memorable.' },
-  { value: 'flirty', label: 'Flirty', emoji: '\uD83D\uDE18', description: 'Charming & playful. Smooth talker.' },
+  { value: 'optimistic', label: 'Optimistic', emoji: '🌟', description: 'Warm, upbeat & positive. Customers love it.' },
+  { value: 'neutral', label: 'Neutral', emoji: '⚖️', description: 'Professional & balanced. Straight to the point.' },
+  { value: 'analytical', label: 'Analytical', emoji: '🧠', description: 'Detail-focused & thorough. Asks the right questions.' },
 ]
 
 export default function PersonalityPicker({ selected, onSelect, industry }: PersonalityPickerProps) {
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 gap-3">
       {PERSONALITIES.map((p, i) => {
         const isSelected = selected === p.value
 

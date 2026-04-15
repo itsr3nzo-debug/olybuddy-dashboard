@@ -114,7 +114,7 @@ export default function IndustryPicker({ selected, onSelect }: IndustryPickerPro
             </>
           ) : (
             <>
-              More trades... <ChevronDown className="h-4 w-4" />
+              More industries... <ChevronDown className="h-4 w-4" />
             </>
           )}
         </motion.button>
