@@ -82,6 +82,7 @@ export default function IndustryPicker({ selected, onSelect }: IndustryPickerPro
             MORE_INDUSTRIES.map((industry, i) => (
               <motion.div
                 key={industry.value}
+                className="w-full"
                 initial={{ opacity: 0, scale: 0.8, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.8, y: 20 }}
@@ -139,7 +140,7 @@ function IndustryCard({
       onClick={() => onSelect(industry.value)}
       whileTap={{ scale: 0.97 }}
       className={`
-        relative flex min-h-[72px] items-center gap-3 rounded-xl border px-4 py-3
+        relative flex w-full min-h-[72px] items-center gap-3 rounded-xl border px-4 py-3
         backdrop-blur transition-all duration-200
         ${
           isSelected
