@@ -251,7 +251,7 @@ function SignupWizard() {
             {step === 2 && (
               <div className="max-w-2xl mx-auto">
                 <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-2">
-                  What&apos;s your trade?
+                  What&apos;s your industry?
                 </h2>
                 <p className="text-slate-400 text-center mb-6">
                   We&apos;ll customise your AI Employee with industry-specific knowledge.
@@ -346,12 +346,12 @@ function SignupWizard() {
             )}
 
             {step === 4 && (
-              <div className="max-w-3xl mx-auto">
+              <div className="max-w-5xl mx-auto">
                 <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-2">
-                  Choose your plan
+                  Hire your AI Employee
                 </h2>
-                <p className="text-slate-400 text-center mb-6">
-                  Start with a trial or go straight to a monthly plan.
+                <p className="text-slate-400 text-center mb-8">
+                  No long contracts. Cancel anytime.
                 </p>
 
                 <PlanCards
@@ -405,9 +405,11 @@ function SignupWizard() {
               {loading ? (
                 'Processing...'
               ) : form.plan === 'trial' ? (
-                <>Start 5-day trial<ArrowRight size={16} /></>
+                <>Try Nexley AI — 5 days<ArrowRight size={16} /></>
+              ) : form.plan === 'voice' ? (
+                <>Hire AI Employee + Voice<ArrowRight size={16} /></>
               ) : (
-                <>Continue to payment<ArrowRight size={16} /></>
+                <>Hire your AI Employee<ArrowRight size={16} /></>
               )}
             </button>
           )}

@@ -27,7 +27,7 @@ async function recordSignupAttempt(ip: string, supabase: any) {
   await supabase.from('rate_limit_events').insert({ key: `signup:${ip}` })
 }
 
-const VALID_PLANS = ['trial', 'starter', 'pro', 'enterprise']
+const VALID_PLANS = ['trial', 'employee', 'voice']
 // Industry is a user-chosen string — not from a closed enum. We only guard
 // against empty/oversized input. The provisioning step falls back to a
 // generic template if the industry has no specific Layer 2 file.

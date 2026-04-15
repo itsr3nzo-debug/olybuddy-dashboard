@@ -19,35 +19,48 @@ export const stripe = {
 // Map plan slugs to Stripe Price IDs (set in env vars after creating in Stripe Dashboard)
 export const PLAN_PRICES: Record<string, string | undefined> = {
   trial: process.env.STRIPE_PRICE_TRIAL,
-  starter: process.env.STRIPE_PRICE_STARTER,
-  pro: process.env.STRIPE_PRICE_PRO,
-  enterprise: process.env.STRIPE_PRICE_ENTERPRISE,
+  employee: process.env.STRIPE_PRICE_EMPLOYEE,
+  voice: process.env.STRIPE_PRICE_VOICE,
 }
 
-export const PLAN_DETAILS: Record<string, { name: string; price: string; period: string; features: string[] }> = {
+export const PLAN_DETAILS: Record<string, { name: string; subtitle: string; price: string; period: string; features: string[] }> = {
   trial: {
     name: '5-Day Trial',
+    subtitle: 'See the results before you commit',
     price: '£20',
     period: 'one-time',
-    features: ['AI WhatsApp Employee', '24/7 lead capture', 'Automated follow-ups', '5-day full access'],
+    features: [
+      'Full AI WhatsApp Employee',
+      '24/7 lead capture & responses',
+      'Automated follow-ups',
+      'CRM dashboard access',
+    ],
   },
-  starter: {
-    name: 'Starter',
-    price: '£99',
+  employee: {
+    name: 'AI Employee',
+    subtitle: 'Your always-on AI team member',
+    price: '£599',
     period: '/month',
-    features: ['AI WhatsApp Employee', '24/7 lead capture', 'Automated follow-ups', 'CRM dashboard', 'Weekly reports'],
+    features: [
+      'AI WhatsApp & message handling',
+      '24/7 lead capture & follow-up',
+      'CRM dashboard & reports',
+      'Appointment booking',
+      'Monthly performance review',
+    ],
   },
-  pro: {
-    name: 'Pro',
-    price: '£199',
+  voice: {
+    name: 'AI Employee + Voice',
+    subtitle: 'Every message and every call, handled',
+    price: '£999',
     period: '/month',
-    features: ['Everything in Starter', 'Voice call handling', 'Gmail + Calendar sync', 'Quote generation', 'Priority support'],
-  },
-  enterprise: {
-    name: 'Enterprise',
-    price: '£399',
-    period: '/month',
-    features: ['Everything in Pro', 'Custom integrations', 'Multi-user team', 'Dedicated account manager', 'SLA guarantee'],
+    features: [
+      'Everything in AI Employee',
+      'Answers every inbound call',
+      'Handles call enquiries & bookings',
+      'Never misses an out-of-hours call',
+      'Priority support',
+    ],
   },
 }
 
@@ -58,6 +71,8 @@ export const PERSONALITIES = [
 ]
 
 export const INDUSTRIES = [
+  { value: 'accountant', label: 'Accountant' },
+  { value: 'solicitor', label: 'Solicitor' },
   { value: 'landscaper', label: 'Landscaper' },
   { value: 'electrician', label: 'Electrician' },
   { value: 'plumber', label: 'Plumber' },
