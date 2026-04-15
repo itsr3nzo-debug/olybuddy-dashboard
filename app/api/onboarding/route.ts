@@ -21,7 +21,7 @@ export async function GET() {
 
     const { data: client } = await adminDb
       .from('clients')
-      .select('id, name, email, phone, onboarding_completed, onboarding_step, services_text, contact_name')
+      .select('id, name, email, phone, onboarding_completed, onboarding_step, services_text, contact_name, dpa_accepted_at')
       .eq('id', session.clientId)
       .single()
 
@@ -39,6 +39,7 @@ export async function GET() {
       greeting_message: config?.greeting_message ?? '',
       onboarding_completed: client?.onboarding_completed ?? false,
       onboarding_step: client?.onboarding_step ?? 1,
+      dpa_accepted_at: client?.dpa_accepted_at ?? null,
     })
   } catch (e) {
     console.error('GET /api/onboarding error:', e)
@@ -83,7 +84,7 @@ export async function PATCH(request: Request) {
       }
 
       case 2: {
-        // Integrations — just advance step
+        // Integrations — just advance step (guard enforced client-side: ≥1 required)
         await adminDb
           .from('clients')
           .update({ onboarding_step: 3 })
@@ -92,6 +93,16 @@ export async function PATCH(request: Request) {
       }
 
       case 3: {
+        // DPA click-to-sign — required for UK GDPR Article 28 compliance
+        const dpaAcceptedAt = data?.dpa_accepted_at ?? new Date().toISOString()
+        await adminDb
+          .from('clients')
+          .update({ dpa_accepted_at: dpaAcceptedAt, onboarding_step: 4 })
+          .eq('id', clientId)
+        break
+      }
+
+      case 4: {
         // Save greeting and mark onboarding complete
         const { greeting_message } = data
         if (greeting_message) {
@@ -103,7 +114,7 @@ export async function PATCH(request: Request) {
 
         await adminDb
           .from('clients')
-          .update({ onboarding_completed: true, onboarding_step: 3 })
+          .update({ onboarding_completed: true, onboarding_step: 4 })
           .eq('id', clientId)
         break
       }
