@@ -64,18 +64,26 @@ export async function POST(req: NextRequest) {
       payload_preview: JSON.stringify(event).substring(0, 500),
     });
 
-    // Dedup check — skip if already processed
-    const { data: existing } = await supabase
+    // Dedup check — skip if already processed.
+    // Use maybeSingle() so 0 rows returns null (not an error).
+    // A UNIQUE constraint on stripe_event_id is the hard guard against races.
+    const { data: existing, error: dedupErr } = await supabase
       .from('stripe_events')
       .select('id')
       .eq('stripe_event_id', eventId)
-      .single();
+      .maybeSingle();
+
+    if (dedupErr) {
+      console.error('Dedup check failed:', dedupErr);
+      return NextResponse.json({ error: 'Database error' }, { status: 500 });
+    }
 
     if (existing) {
       return NextResponse.json({ status: 'duplicate', eventId });
     }
 
-    // Store the event
+    // Store the event — UNIQUE constraint on stripe_event_id handles concurrent
+    // duplicate webhooks at the DB level (second insert fails, returns 409).
     const { error: insertError } = await supabase.from('stripe_events').insert({
       stripe_event_id: eventId,
       event_type: eventType,
@@ -83,7 +91,12 @@ export async function POST(req: NextRequest) {
     });
 
     if (insertError) {
+      // 23505 = unique_violation — another worker already processed this event
+      if (insertError.code === '23505') {
+        return NextResponse.json({ status: 'duplicate', eventId });
+      }
       console.error('Failed to store stripe event:', insertError);
+      return NextResponse.json({ error: 'Failed to store event' }, { status: 500 });
     }
 
     // Process based on event type
@@ -100,7 +113,7 @@ export async function POST(req: NextRequest) {
 
         // SIGNUP COMPLETION: If this checkout was from /api/signup (has client_id + plan in metadata)
         if (clientId && metadata.plan) {
-          // 1. Update client: set stripe IDs + activate subscription
+          // Update client: set stripe IDs + activate subscription
           await supabase
             .from('clients')
             .update({
@@ -110,17 +123,8 @@ export async function POST(req: NextRequest) {
             })
             .eq('id', clientId);
 
-          // 2. Create auth user if they don't exist yet
-          let alreadyExists = false;
-          if (customerEmail) {
-            // Check if this email already has an auth user
-            const { data: authUsers } = await supabase.auth.admin.listUsers({ perPage: 50 });
-            alreadyExists = authUsers?.users?.some(u => u.email === customerEmail) ?? false;
-          }
-
-          // NOTE: auth user was already created in /api/signup with the customer's
-          // chosen password — we don't create / send a magic link here. Just send
-          // the payment-confirmed email.
+          // Auth user was already created in /api/signup with the customer's
+          // chosen password — just send the payment-confirmed email.
           if (customerEmail) {
             try {
               const { sendSystemEmail } = await import('@/lib/email');
@@ -135,8 +139,6 @@ export async function POST(req: NextRequest) {
               });
             } catch { /* email failure is non-fatal */ }
           }
-          // Suppress unused variable warning from original check
-          void alreadyExists;
         }
 
         // Update opportunity to closed_won (if this was a payment for a deal)

@@ -7,31 +7,24 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 // Rate limiting via Supabase (works on serverless — no in-memory state)
-// 10 attempts per 15 min window. Previous 3/10min was too tight — legitimate
-// users hitting an "Invalid industry" error couldn't retry 3 times.
+// 10 attempts per 15 min window per IP.
 const RATE_LIMIT = 10
 const RATE_WINDOW_MINUTES = 15
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function checkRateLimit(ip: string, supabase: any): Promise<boolean> {
   const windowStart = new Date(Date.now() - RATE_WINDOW_MINUTES * 60 * 1000).toISOString()
-  // Count recent signups from this IP (using webhook_log as a lightweight rate limit table)
   const { count } = await supabase
-    .from('webhook_log')
+    .from('rate_limit_events')
     .select('id', { count: 'exact', head: true })
-    .eq('source', 'signup_rate_limit')
-    .eq('endpoint', ip)
+    .eq('key', `signup:${ip}`)
     .gte('created_at', windowStart)
   return (count ?? 0) < RATE_LIMIT
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function recordSignupAttempt(ip: string, supabase: any) {
-  await supabase.from('webhook_log').insert({
-    source: 'signup_rate_limit',
-    endpoint: ip,
-    status_code: 200,
-  })
+  await supabase.from('rate_limit_events').insert({ key: `signup:${ip}` })
 }
 
 const VALID_PLANS = ['trial', 'starter', 'pro', 'enterprise']
@@ -151,7 +144,7 @@ export async function POST(req: NextRequest) {
 
   if (configErr) {
     console.error('[signup] Failed to create agent_config:', configErr)
-    // Clean up the orphan client row
+    // Rollback: delete orphan client row (auth user not created yet at this point)
     await supabase.from('clients').delete().eq('id', clientId)
     return NextResponse.json({ error: 'Failed to set up your AI Employee. Please try again.' }, { status: 500 })
   }
@@ -167,8 +160,10 @@ export async function POST(req: NextRequest) {
   })
 
   if (authErr) {
-    // Most likely duplicate email race — client row exists but user doesn't
+    // Rollback: remove client + agent_config so the user can retry with the same email
     console.error('[signup] Failed to create auth user:', authErr.message)
+    await supabase.from('agent_config').delete().eq('client_id', clientId)
+    await supabase.from('clients').delete().eq('id', clientId)
     return NextResponse.json({ error: authErr.message || 'Failed to create account.' }, { status: 500 })
   }
 

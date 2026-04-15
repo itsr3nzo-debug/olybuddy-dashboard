@@ -27,6 +27,7 @@ function ResetPasswordForm() {
     // Supabase password-reset email lands here with #access_token=… hash.
     // Claim the session so we can call updateUser() below.
     if (typeof window === 'undefined') return
+    let isMounted = true
     const supabase = createClient()
     const hash = window.location.hash
     if (hash.includes('access_token')) {
@@ -35,20 +36,23 @@ function ResetPasswordForm() {
       const refresh_token = p.get('refresh_token')
       if (access_token && refresh_token) {
         supabase.auth.setSession({ access_token, refresh_token }).then(({ error }) => {
+          if (!isMounted) return
           if (error) setError('Reset link expired or already used. Request a new one.')
           else {
             setReady(true)
             window.history.replaceState({}, '', '/reset-password')
           }
         })
-        return
+        return () => { isMounted = false }
       }
     }
     // User hit /reset-password directly without a valid link → send back
     supabase.auth.getUser().then(({ data }) => {
+      if (!isMounted) return
       if (data.user) setReady(true)
       else setError('You need to click the reset link from your email first.')
     })
+    return () => { isMounted = false }
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -77,7 +81,9 @@ function ResetPasswordForm() {
     setDone(true)
     // Invalidate all OTHER sessions so an attacker who stole the old password
     // gets kicked out on next request.
-    try { await fetch('/api/auth/revoke-other-sessions', { method: 'POST' }) } catch {}
+    try { await fetch('/api/auth/revoke-other-sessions', { method: 'POST' }) } catch (err) {
+      console.warn('Failed to revoke other sessions:', err)
+    }
     setTimeout(() => router.replace('/dashboard'), 1500)
   }
 
