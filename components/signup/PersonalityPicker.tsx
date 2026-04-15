@@ -10,7 +10,7 @@ interface PersonalityPickerProps {
 
 const PERSONALITIES = [
   { value: 'optimistic', label: 'Optimistic', emoji: '🌟', description: 'Warm, upbeat & positive. Customers love it.' },
-  { value: 'neutral', label: 'Neutral', emoji: '⚖️', description: 'Professional & balanced. Straight to the point.' },
+  { value: 'balanced', label: 'Balanced', emoji: '⚖️', description: 'Professional & balanced. Straight to the point.' },
   { value: 'analytical', label: 'Analytical', emoji: '🧠', description: 'Detail-focused & thorough. Asks the right questions.' },
 ]
 
