@@ -2,11 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Building2, Plug, MessageSquare, ChevronRight, ChevronLeft, Check, Loader2 } from 'lucide-react'
+import Link from 'next/link'
+import { Building2, Plug, MessageSquare, ChevronRight, ChevronLeft, Check, Loader2, Shield } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import { PROVIDERS, CATEGORIES } from '@/lib/integrations-config'
 
 const STEP_META = [
   { icon: Building2, label: 'Business Details' },
   { icon: Plug, label: 'Integrations' },
+  { icon: Shield, label: 'Terms & DPA' },
   { icon: MessageSquare, label: 'AI Greeting' },
 ]
 
@@ -31,6 +35,10 @@ export default function OnboardingPage() {
   const [phone, setPhone] = useState('')
   const [servicesText, setServicesText] = useState('')
   const [greeting, setGreeting] = useState('')
+  const [dpaAccepted, setDpaAccepted] = useState(false)
+  const [connectedCount, setConnectedCount] = useState(0)
+  const [search, setSearch] = useState('')
+  const [activeCategory, setActiveCategory] = useState('all')
 
   useEffect(() => {
     fetch('/api/onboarding')
@@ -53,6 +61,23 @@ export default function OnboardingPage() {
       .catch(() => router.replace('/dashboard'))
   }, [router])
 
+  // Live-poll connected integration count so the user sees the counter rise
+  // without leaving the page while the OAuth dance happens in another tab.
+  useEffect(() => {
+    if (step !== 2) return
+    let mounted = true
+    const supabase = createClient()
+    async function check() {
+      const { count } = await supabase.from('integrations')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'connected')
+      if (mounted && count !== null) setConnectedCount(count)
+    }
+    check()
+    const id = setInterval(check, 4000)
+    return () => { mounted = false; clearInterval(id) }
+  }, [step])
+
   const [error, setError] = useState('')
 
   async function saveStep(stepNum: number): Promise<boolean> {
@@ -61,7 +86,8 @@ export default function OnboardingPage() {
     const payloads: Record<number, object> = {
       1: { name, contact_name: contactName, phone, services_text: servicesText },
       2: {},
-      3: { greeting_message: greeting },
+      3: { dpa_accepted_at: new Date().toISOString() },
+      4: { greeting_message: greeting },
     }
     try {
       const res = await fetch('/api/onboarding', {
@@ -83,14 +109,34 @@ export default function OnboardingPage() {
   }
 
   async function handleNext() {
+    // Validation per step
+    if (step === 2 && connectedCount === 0) {
+      setError('Connect at least one integration so your AI Employee has tools to work with.')
+      return
+    }
+    if (step === 3 && !dpaAccepted) {
+      setError('Please accept the Data Processing Agreement to continue.')
+      return
+    }
     const saved = await saveStep(step)
     if (!saved) return
-    if (step < 3) {
+    if (step < 4) {
       setStep(step + 1)
     } else {
       router.replace('/dashboard')
     }
   }
+
+  // 6 prioritized integrations shown by default, rest behind "Show all"
+  const onboardingProviders = PROVIDERS.filter(p => p.available)
+  const filteredProviders = onboardingProviders.filter(p => {
+    if (activeCategory !== 'all' && p.category !== activeCategory) return false
+    if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !p.description?.toLowerCase().includes(search.toLowerCase())) return false
+    return true
+  })
+  const PRIORITY_IDS = ['gmail', 'google_calendar', 'outlook', 'quickbooks', 'hubspot', 'slack']
+  const priorityProviders = filteredProviders.filter(p => PRIORITY_IDS.includes(p.id))
+  const otherProviders = filteredProviders.filter(p => !PRIORITY_IDS.includes(p.id))
 
   if (loading) {
     return (
@@ -171,43 +217,127 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Step 2: Integrations */}
+        {/* Step 2: Integrations — all 118 with search + categories, REQUIRED ≥1 */}
         {step === 2 && (
-          <div className="space-y-5">
+          <div className="space-y-4">
             <div>
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <Plug size={20} className="text-brand-primary" />
-                Connect Integrations
+                Connect at least one integration
               </h2>
-              <p className="text-sm text-muted-foreground mt-1">Connect the tools your AI Employee will use. Skip any you don&apos;t need yet.</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Your AI Employee needs tools to work with — pick the apps you actually use.
+                {connectedCount > 0
+                  ? <span className="text-emerald-400"> · ✅ {connectedCount} connected</span>
+                  : <span className="text-amber-400"> · 0 connected — pick at least one to continue</span>}
+              </p>
             </div>
-            <div className="grid gap-2.5">
-              {[
-                { id: 'gmail', name: 'Gmail', blurb: 'Read and send emails', color: 'bg-red-900/20 text-red-400' },
-                { id: 'google_calendar', name: 'Google Calendar', blurb: 'Auto-book appointments', color: 'bg-blue-900/20 text-blue-400' },
-                { id: 'quickbooks', name: 'QuickBooks', blurb: 'Invoices and accounting', color: 'bg-emerald-900/20 text-emerald-400' },
-                { id: 'hubspot', name: 'HubSpot', blurb: 'CRM and pipeline', color: 'bg-orange-900/20 text-orange-400' },
-                { id: 'slack', name: 'Slack', blurb: 'Team notifications', color: 'bg-purple-900/20 text-purple-400' },
-                { id: 'calendly', name: 'Calendly', blurb: 'Client booking links', color: 'bg-sky-900/20 text-sky-400' },
-              ].map((p) => (
+
+            <input
+              type="search"
+              placeholder="Search 100+ integrations: Notion, Pipedrive, Dropbox, Salesforce…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full px-3 py-2 bg-background border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/50"
+            />
+
+            <div className="flex flex-wrap gap-1.5">
+              {CATEGORIES.slice(0, 12).map(cat => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setActiveCategory(cat.id)}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                    activeCategory === cat.id
+                      ? 'bg-brand-primary text-white border-brand-primary'
+                      : 'bg-background border-muted text-muted-foreground hover:border-brand-primary/30'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid gap-2 max-h-[420px] overflow-y-auto pr-1">
+              {priorityProviders.length > 0 && !search && activeCategory === 'all' && (
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground mt-2 mb-1">Most popular</p>
+              )}
+              {priorityProviders.map((p) => (
                 <a key={p.id} href={`/api/oauth/${p.id}`}
-                  className="flex items-center gap-3 p-3.5 bg-background border rounded-lg hover:border-brand-primary/50 transition-colors group">
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${p.color}`}>
-                    <Plug size={16} />
+                  className="flex items-center gap-3 p-3 bg-background border rounded-lg hover:border-brand-primary/50 transition-colors group">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${p.iconColor}`}>
+                    <Plug size={14} />
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium group-hover:text-brand-primary transition-colors">Connect {p.name}</p>
-                    <p className="text-xs text-muted-foreground">{p.blurb}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate group-hover:text-brand-primary transition-colors">{p.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{p.description}</p>
                   </div>
-                  <ChevronRight size={16} className="text-muted-foreground" />
+                  <ChevronRight size={14} className="text-muted-foreground" />
                 </a>
               ))}
+              {otherProviders.length > 0 && (
+                <>
+                  {priorityProviders.length > 0 && !search && activeCategory === 'all' && (
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground mt-3 mb-1">Everything else ({otherProviders.length})</p>
+                  )}
+                  {otherProviders.map((p) => (
+                    <a key={p.id} href={`/api/oauth/${p.id}`}
+                      className="flex items-center gap-3 p-3 bg-background border rounded-lg hover:border-brand-primary/50 transition-colors group">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${p.iconColor}`}>
+                        <Plug size={14} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate group-hover:text-brand-primary transition-colors">{p.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{p.description}</p>
+                      </div>
+                      <ChevronRight size={14} className="text-muted-foreground" />
+                    </a>
+                  ))}
+                </>
+              )}
+              {filteredProviders.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-8">No matches. Try a different search.</p>
+              )}
             </div>
           </div>
         )}
 
-        {/* Step 3: AI Greeting */}
+        {/* Step 3: DPA */}
         {step === 3 && (
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Shield size={20} className="text-brand-primary" />
+                Data Processing Agreement
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Required by UK GDPR. Nexley AI processes data on your instruction —
+                this DPA documents the security measures, sub-processors, and your rights.
+              </p>
+            </div>
+            <div className="bg-background border rounded-lg p-4 space-y-2 text-sm">
+              <p className="font-medium">By accepting, you confirm:</p>
+              <ul className="text-muted-foreground space-y-1 ml-5 list-disc">
+                <li>You are an authorised representative of {name || 'your business'}</li>
+                <li>You&apos;ve reviewed our <Link href="/security" target="_blank" className="text-brand-primary hover:underline">security posture</Link> and the <Link href="/legal/DPA-template.md" target="_blank" className="text-brand-primary hover:underline">full DPA</Link></li>
+                <li>Sub-processors (Supabase, Composio, Vercel, Hetzner, Anthropic) are accepted</li>
+                <li>You can request a counter-signed copy at <a href="mailto:legal@nexley.ai" className="text-brand-primary hover:underline">legal@nexley.ai</a></li>
+              </ul>
+            </div>
+            <label className="flex items-start gap-3 p-3 bg-background border rounded-lg cursor-pointer hover:border-brand-primary/50">
+              <input
+                type="checkbox"
+                checked={dpaAccepted}
+                onChange={e => setDpaAccepted(e.target.checked)}
+                className="mt-0.5 accent-brand-primary"
+              />
+              <span className="text-sm">I accept the Nexley AI Data Processing Agreement</span>
+            </label>
+          </div>
+        )}
+
+        {/* Step 4: AI Greeting */}
+        {step === 4 && (
           <div className="space-y-5">
             <div>
               <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -244,11 +374,11 @@ export default function OnboardingPage() {
               <ChevronLeft size={16} /> Back
             </button>
           ) : <div />}
-          <button onClick={handleNext} disabled={saving}
-            className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white rounded-lg text-sm font-medium hover:bg-brand-primary/90 transition-colors disabled:opacity-50">
+          <button onClick={handleNext} disabled={saving || (step === 2 && connectedCount === 0) || (step === 3 && !dpaAccepted)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white rounded-lg text-sm font-medium hover:bg-brand-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             {saving && <Loader2 size={14} className="animate-spin" />}
-            {step === 3 ? 'Finish Setup' : step === 2 ? 'Skip for now' : 'Continue'}
-            {step < 3 && !saving && <ChevronRight size={16} />}
+            {step === 4 ? 'Finish Setup' : 'Continue'}
+            {step < 4 && !saving && <ChevronRight size={16} />}
           </button>
         </div>
       </div>

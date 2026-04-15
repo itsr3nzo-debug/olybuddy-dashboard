@@ -25,6 +25,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
+  // RBAC — only owners + super_admins can connect/disconnect integrations.
+  const role = user.app_metadata?.role ?? "member";
+  if (role !== "owner" && role !== "super_admin") {
+    return NextResponse.redirect(new URL(`/integrations?error=unauthorized`, req.url));
+  }
+
   const clientId = user.app_metadata?.client_id;
   if (!clientId) {
     return NextResponse.redirect(new URL(`/integrations?error=no_client_id`, req.url));

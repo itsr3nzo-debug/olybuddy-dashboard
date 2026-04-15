@@ -62,6 +62,7 @@ interface ConnectedIntegration {
   account_name: string | null
   last_synced_at: string | null
   created_at: string
+  error_message?: string | null
 }
 
 function ConnectedRow({ integration, onDisconnect }: { integration: ConnectedIntegration; onDisconnect: (id: string, provider: string) => void }) {
@@ -253,7 +254,7 @@ export default function IntegrationsPage() {
       const supabase = createClient()
       const { data } = await supabase
         .from('integrations')
-        .select('id, provider, status, account_email, account_name, last_synced_at, created_at')
+        .select('id, provider, status, account_email, account_name, last_synced_at, created_at, error_message')
         .order('created_at', { ascending: false })
 
       setIntegrations(data || [])
@@ -292,6 +293,24 @@ export default function IntegrationsPage() {
         <div className="mb-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between">
           <p className="text-sm text-emerald-400">{success}</p>
           <button onClick={() => setSuccess('')} className="text-emerald-400 hover:text-emerald-300 text-xs">Dismiss</button>
+        </div>
+      )}
+
+      {/* Expired-token re-link banner */}
+      {integrations.some(i => i.status === 'expired' || i.status === 'error') && (
+        <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+          <p className="text-sm text-amber-300 font-medium">Some integrations need re-authorising</p>
+          <ul className="mt-1 text-xs text-amber-300/80 space-y-0.5">
+            {integrations.filter(i => i.status === 'expired' || i.status === 'error').map(i => (
+              <li key={i.id} className="flex items-center justify-between">
+                <span>· {i.provider.replace(/_/g, ' ')} {i.error_message ? `\u2014 ${i.error_message.slice(0, 80)}` : ''}</span>
+                <a href={`/api/oauth/${getOAuthProviderId(i.provider)}`}
+                   className="ml-3 px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-[11px]">
+                  Reconnect
+                </a>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

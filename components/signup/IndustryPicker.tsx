@@ -38,17 +38,19 @@ interface IndustryItem {
 }
 
 const TOP_INDUSTRIES: IndustryItem[] = [
+  // Accountants surfaced first — Nexley's primary vertical going forward.
+  { value: 'accountant', label: 'Accountant', icon: Scale },
+  { value: 'solicitor', label: 'Solicitor', icon: Scale },
   { value: 'plumber', label: 'Plumber', icon: Wrench },
   { value: 'electrician', label: 'Electrician', icon: Zap },
   { value: 'builder', label: 'Builder', icon: Hammer },
   { value: 'landscaper', label: 'Landscaper', icon: Trees },
   { value: 'roofer', label: 'Roofer', icon: Home },
   { value: 'cleaner', label: 'Cleaner', icon: Sparkles },
-  { value: 'hair-salon', label: 'Hair Salon', icon: Scissors },
-  { value: 'solicitor', label: 'Solicitor', icon: Scale },
 ]
 
 const MORE_INDUSTRIES: IndustryItem[] = [
+  { value: 'hair-salon', label: 'Hair Salon', icon: Scissors },
   { value: 'gardener', label: 'Gardener', icon: Flower2 },
   { value: 'fencing', label: 'Fencing', icon: Fence },
   { value: 'paving', label: 'Paving', icon: LayoutGrid },

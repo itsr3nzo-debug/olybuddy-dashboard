@@ -29,6 +29,10 @@ function LoginForm() {
     const err = searchParams.get('error')
     if (err === 'auth_callback_failed') {
       setError('Your sign-in link has expired or was already used. Please request a new one.')
+    } else if (err === 'session_expired') {
+      setError('Your session timed out for security. Sign in again to continue.')
+    } else if (err === 'unauthorized') {
+      setError('You don\'t have access to that page.')
     }
 
     // Supabase implicit magic-link flow: proxy.ts redirects unauthenticated

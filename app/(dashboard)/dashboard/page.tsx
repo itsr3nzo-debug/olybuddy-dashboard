@@ -11,6 +11,7 @@ import EmptyState from '@/components/shared/EmptyState'
 import HeroRoiCard from '@/components/dashboard/HeroRoiCard'
 import AgentStatusCard from '@/components/dashboard/AgentStatusCard'
 import IntegrationsCta from '@/components/dashboard/IntegrationsCta'
+import VpsHeartbeatBadge from '@/components/dashboard/VpsHeartbeatBadge'
 import WeeklyChallengeCard from '@/components/dashboard/WeeklyChallengeCard'
 import OpportunityDonut from '@/components/dashboard/OpportunityDonut'
 import type { CallLog, AgentStatus } from '@/lib/types'
@@ -211,7 +212,9 @@ export default async function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Overview</h1>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
+            Overview <VpsHeartbeatBadge />
+          </h1>
           <p className="text-sm mt-1 text-muted-foreground">
             Last 7 days · {allTimeCalls} calls handled all time
           </p>
