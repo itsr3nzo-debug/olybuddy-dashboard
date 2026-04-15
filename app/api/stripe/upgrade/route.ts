@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
   const upgradePlan = 'employee'
   const priceId = PLAN_PRICES[upgradePlan]
 
-  if (!priceId) {
+  if (!priceId || priceId.startsWith('price_PLACEHOLDER')) {
     return NextResponse.redirect(new URL('/dashboard?error=stripe_not_configured', req.url))
   }
 
