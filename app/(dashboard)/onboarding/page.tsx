@@ -109,11 +109,7 @@ export default function OnboardingPage() {
   }
 
   async function handleNext() {
-    // Validation per step
-    if (step === 2 && connectedCount === 0) {
-      setError('Connect at least one integration so your AI Employee has tools to work with.')
-      return
-    }
+    // Validation per step (integrations step is optional — skip allowed)
     if (step === 3 && !dpaAccepted) {
       setError('Please accept the Data Processing Agreement to continue.')
       return
@@ -217,19 +213,17 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Step 2: Integrations — all 118 with search + categories, REQUIRED ≥1 */}
+        {/* Step 2: Integrations — all 118 with search + categories, optional */}
         {step === 2 && (
           <div className="space-y-4">
             <div>
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <Plug size={20} className="text-brand-primary" />
-                Connect at least one integration
+                Connect integrations <span className="text-xs font-normal text-muted-foreground">(optional)</span>
               </h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Your AI Employee needs tools to work with — pick the apps you actually use.
-                {connectedCount > 0
-                  ? <span className="text-emerald-400"> · ✅ {connectedCount} connected</span>
-                  : <span className="text-amber-400"> · 0 connected — pick at least one to continue</span>}
+                Pick the apps you actually use — or skip and add them later from Settings.
+                {connectedCount > 0 && <span className="text-emerald-400"> · ✅ {connectedCount} connected</span>}
               </p>
             </div>
 
@@ -374,7 +368,7 @@ export default function OnboardingPage() {
               <ChevronLeft size={16} /> Back
             </button>
           ) : <div />}
-          <button onClick={handleNext} disabled={saving || (step === 2 && connectedCount === 0) || (step === 3 && !dpaAccepted)}
+          <button onClick={handleNext} disabled={saving || (step === 3 && !dpaAccepted)}
             className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white rounded-lg text-sm font-medium hover:bg-brand-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             {saving && <Loader2 size={14} className="animate-spin" />}
             {step === 4 ? 'Finish Setup' : 'Continue'}
