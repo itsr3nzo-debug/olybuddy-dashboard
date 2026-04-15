@@ -39,8 +39,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', req.url))
   }
 
-  // Default upgrade to 'starter' plan
-  const upgradePlan = 'starter'
+  // Default upgrade to 'employee' plan (AI Employee base tier)
+  const upgradePlan = 'employee'
   const priceId = PLAN_PRICES[upgradePlan]
 
   if (!priceId) {

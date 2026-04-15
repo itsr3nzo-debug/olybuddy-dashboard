@@ -20,7 +20,7 @@ export default async function MoneyPage() {
   let totalFollowUps = 0
   let totalBookingsValue = 0
   let memberSince = ''
-  let monthlySpend = 19900
+  let monthlySpend = 59900
 
   if (clientId) {
     const { count } = await supabase
@@ -51,7 +51,7 @@ export default async function MoneyPage() {
       .single()
     if (client) {
       memberSince = client.created_at
-      monthlySpend = PLAN_PRICES_PENCE[client.subscription_plan] ?? 19900
+      monthlySpend = PLAN_PRICES_PENCE[client.subscription_plan] ?? 59900
     }
   }
 

@@ -22,16 +22,16 @@ export const DIRECTION_CONFIG: Record<string, { label: string; className: string
 
 export const PLAN_PRICES_PENCE: Record<string, number> = {
   free: 0,
-  starter: 9900,
-  pro: 19900,
-  enterprise: 39900,
+  trial: 2000,
+  employee: 59900,
+  voice: 99900,
 }
 
 export const PLAN_LABELS: Record<string, string> = {
   free: 'Free',
-  starter: 'Starter — £99/mo',
-  pro: 'Pro — £199/mo',
-  enterprise: 'Enterprise — £399/mo',
+  trial: '5-Day Trial — £20',
+  employee: 'AI Employee — £599/mo',
+  voice: 'AI Employee + Voice — £999/mo',
 }
 
 export const PIPELINE_STAGES = [

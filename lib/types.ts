@@ -10,7 +10,7 @@ export interface Client {
   website: string | null
   industry: string | null
   subscription_status: 'trial' | 'active' | 'paused' | 'cancelled'
-  subscription_plan: 'free' | 'starter' | 'pro' | 'enterprise'
+  subscription_plan: 'free' | 'trial' | 'employee' | 'voice'
   stripe_customer_id: string | null
   created_at: string
   updated_at: string

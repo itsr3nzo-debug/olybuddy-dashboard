@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { business_name, email, phone, industry = 'general', plan = 'starter' } = body
+    const { business_name, email, phone, industry = 'general', plan = 'employee' } = body
 
     if (!business_name || !email) {
       return NextResponse.json({ error: 'business_name and email are required' }, { status: 400 })

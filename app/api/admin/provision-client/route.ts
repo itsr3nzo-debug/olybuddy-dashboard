@@ -10,7 +10,7 @@ interface ProvisionRequest {
   hours: Record<string, { open: string; close: string }>;
   phone: string; // Client's personal phone (for notifications)
   escalationPhone?: string;
-  planTier: "starter" | "pro" | "enterprise";
+  planTier: "trial" | "employee" | "voice";
   greetingMessage?: string;
   businessDescription?: string;
 }
