@@ -188,8 +188,8 @@ export async function POST(req: NextRequest) {
 
   // PAID: create Stripe Checkout session
   const priceId = PLAN_PRICES[plan]
-  if (!priceId) {
-    return NextResponse.json({ error: 'Invalid plan or Stripe not configured' }, { status: 400 })
+  if (!priceId || priceId.startsWith('price_PLACEHOLDER')) {
+    return NextResponse.json({ error: 'This plan isn\'t available yet. Please start with the 5-day trial — we\'ll have paid plans live shortly.' }, { status: 400 })
   }
 
   const { getStripe } = await import('@/lib/stripe')
