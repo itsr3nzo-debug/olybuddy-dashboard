@@ -18,6 +18,7 @@ import IndustryPicker from '@/components/signup/IndustryPicker'
 import PersonalityPicker from '@/components/signup/PersonalityPicker'
 import WhatsAppPreview from '@/components/signup/WhatsAppPreview'
 import PlanCards from '@/components/signup/PlanCards'
+import { createClient } from '@/lib/supabase/client'
 
 const STEP_LABELS = ['Get Started', 'Your Business', "AI Personality", 'Choose Plan']
 
@@ -97,8 +98,21 @@ function SignupWizard() {
       }
 
       if (data.success) {
-        setSuccess(true)
-        setLoading(false)
+        // Auto-sign-in with the password they just set so they land straight
+        // in /dashboard instead of being bounced to /login
+        const supabase = createClient()
+        const { error: signInErr } = await supabase.auth.signInWithPassword({
+          email: form.email,
+          password: form.password,
+        })
+        if (signInErr) {
+          // Fall back to "You're in" screen with a link to /login
+          setSuccess(true)
+          setLoading(false)
+          return
+        }
+        // Session cookie set — go straight to onboarding (new users) or dashboard
+        router.replace('/onboarding')
       }
     } catch {
       setError('Network error. Please check your connection.')
