@@ -45,7 +45,7 @@ function SignupWizard() {
     location: '',
     industry: '',
     services: '',
-    personality: 'friendly',
+    personality: 'optimistic',
     plan: 'trial',
   })
   const [loading, setLoading] = useState(false)

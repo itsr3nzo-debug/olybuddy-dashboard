@@ -52,14 +52,9 @@ export const PLAN_DETAILS: Record<string, { name: string; price: string; period:
 }
 
 export const PERSONALITIES = [
-  { value: 'professional', label: 'Professional', emoji: '👔', description: 'Polished & formal. Builds trust.' },
-  { value: 'friendly', label: 'Friendly', emoji: '😊', description: 'Warm & approachable. Like a mate.' },
-  { value: 'confident', label: 'Confident', emoji: '💪', description: 'Direct & efficient. No-nonsense.' },
-  { value: 'cheeky', label: 'Cheeky', emoji: '😏', description: 'Witty banter. Bit of charm.' },
-  { value: 'calm', label: 'Calm', emoji: '🧘', description: 'Reassuring & patient. Never flustered.' },
-  { value: 'energetic', label: 'Energetic', emoji: '⚡', description: 'Enthusiastic & upbeat. High-energy.' },
-  { value: 'funny', label: 'Funny', emoji: '😂', description: 'Jokes and personality. Memorable.' },
-  { value: 'flirty', label: 'Flirty', emoji: '😘', description: 'Charming & playful. Smooth talker.' },
+  { value: 'optimistic', label: 'Optimistic', emoji: '🌟', description: 'Warm, upbeat & positive. Customers love it.' },
+  { value: 'balanced', label: 'Balanced', emoji: '⚖️', description: 'Professional & balanced. Straight to the point.' },
+  { value: 'analytical', label: 'Analytical', emoji: '🧠', description: 'Detail-focused & thorough. Asks the right questions.' },
 ]
 
 export const INDUSTRIES = [

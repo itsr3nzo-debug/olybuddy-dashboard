@@ -88,7 +88,7 @@ export async function updateAgentConfig(formData: FormData) {
   }
 
   const toneVal = formData.get('tone') as string | null
-  if (toneVal !== null && ['formal', 'friendly', 'casual'].includes(toneVal)) {
+  if (toneVal !== null && ['optimistic', 'balanced', 'analytical'].includes(toneVal)) {
     updates.tone = toneVal
   }
 

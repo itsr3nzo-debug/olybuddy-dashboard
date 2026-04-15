@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       agent_name: 'Ava',
       agent_status: 'online',
       is_active: true,
-      tone: 'friendly',
+      tone: 'optimistic',
       hours: defaultHours,
       services: [],
       faqs: [],

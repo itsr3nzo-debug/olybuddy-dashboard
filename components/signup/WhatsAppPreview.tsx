@@ -12,7 +12,7 @@ interface WhatsAppPreviewProps {
 
 export default function WhatsAppPreview({ industry, personality }: WhatsAppPreviewProps) {
   const [conversation, setConversation] = useState(() =>
-    getPreviewConversation(industry || 'plumber', personality || 'friendly')
+    getPreviewConversation(industry || 'plumber', personality || 'optimistic')
   )
   const [isTyping, setIsTyping] = useState(false)
   const [showResponse, setShowResponse] = useState(true)
@@ -29,7 +29,7 @@ export default function WhatsAppPreview({ industry, personality }: WhatsAppPrevi
     setIsTyping(true)
 
     const timer = setTimeout(() => {
-      setConversation(getPreviewConversation(industry || 'plumber', personality || 'friendly'))
+      setConversation(getPreviewConversation(industry || 'plumber', personality || 'optimistic'))
       setIsTyping(false)
       setShowResponse(true)
     }, 800)

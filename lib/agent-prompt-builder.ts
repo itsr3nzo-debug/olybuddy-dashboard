@@ -39,12 +39,12 @@ export function buildAgentPrompt(config: Partial<AgentConfig>): string {
   const name = config.agent_name ?? 'Ava'
   const business = config.business_name ?? 'our company'
   const description = config.business_description ?? ''
-  const tone = config.tone ?? 'friendly'
+  const tone = config.tone ?? 'optimistic'
 
   const toneInstructions: Record<string, string> = {
-    formal: 'Be professional and formal. Use proper English. Address callers as Sir or Madam.',
-    friendly: 'Be warm, friendly, and approachable. Use a conversational tone. Be helpful and enthusiastic.',
-    casual: 'Be relaxed and casual. Use everyday language. Be personable and down-to-earth.',
+    optimistic: 'Be warm, upbeat and positive. Lead with enthusiasm and reassurance. Use encouraging language that makes customers feel good about their enquiry.',
+    balanced: 'Be professional and balanced. Get straight to the point without unnecessary filler. Keep responses clear, concise and helpful.',
+    analytical: 'Be detail-focused and thorough. Ask the right clarifying questions before giving answers. Dig into specifics rather than making assumptions.',
   }
 
   const sections: string[] = [
@@ -52,7 +52,7 @@ export function buildAgentPrompt(config: Partial<AgentConfig>): string {
     description ? `About the business: ${description}` : '',
     '',
     `## Tone`,
-    toneInstructions[tone] ?? toneInstructions.friendly,
+    toneInstructions[tone] ?? toneInstructions.optimistic,
     '',
   ]
 

@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
     agent_name: 'Ava',
     agent_status: 'offline',
     is_active: false,
-    tone: personality || 'friendly',
+    tone: personality || 'optimistic',
     greeting_message: `Hey! I'm the AI assistant for ${business_name}. How can I help you today?`,
   })
 
