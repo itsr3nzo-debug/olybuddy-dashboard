@@ -7,8 +7,10 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 // Rate limiting via Supabase (works on serverless — no in-memory state)
-const RATE_LIMIT = 3
-const RATE_WINDOW_MINUTES = 10
+// 10 attempts per 15 min window. Previous 3/10min was too tight — legitimate
+// users hitting an "Invalid industry" error couldn't retry 3 times.
+const RATE_LIMIT = 10
+const RATE_WINDOW_MINUTES = 15
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function checkRateLimit(ip: string, supabase: any): Promise<boolean> {
@@ -33,7 +35,7 @@ async function recordSignupAttempt(ip: string, supabase: any) {
 }
 
 const VALID_PLANS = ['trial', 'starter', 'pro', 'enterprise']
-const VALID_INDUSTRIES = ['landscaper','electrician','plumber','builder','roofer','gardener','fencing','paving','decking','tree-surgeon','cleaner','dental','estate-agent','solicitor','recruitment','hair-salon','dog-groomer']
+const VALID_INDUSTRIES = ['accountant','landscaper','electrician','plumber','builder','roofer','gardener','fencing','paving','decking','tree-surgeon','cleaner','dental','estate-agent','solicitor','recruitment','hair-salon','dog-groomer']
 
 export async function POST(req: NextRequest) {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
