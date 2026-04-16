@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Search, Plus, X, Plug } from 'lucide-react'
+import { Search, Plus, Plug } from 'lucide-react'
 import { PROVIDERS, CATEGORIES, getOAuthProviderId, type ProviderConfig } from '@/lib/integrations-config'
 import ProviderIcon from '@/components/integrations/ProviderIcon'
+import { Badge, StatusBadge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 /* -- Connected integration row -- */
 
@@ -66,8 +68,6 @@ function AddIntegrationModal({ open, onClose, connectedProviders }: { open: bool
   const [category, setCategory] = useState('all')
   const [search, setSearch] = useState('')
 
-  if (!open) return null
-
   const filtered = PROVIDERS.filter(p => {
     if (category !== 'all' && p.category !== category) return false
     if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false
@@ -75,29 +75,23 @@ function AddIntegrationModal({ open, onClose, connectedProviders }: { open: bool
   })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add integration</h2>
-          </div>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
+      <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden p-0 gap-0">
+        <DialogHeader className="px-6 py-4 border-b border-border">
+          <DialogTitle>Add integration</DialogTitle>
+        </DialogHeader>
 
         <div className="flex h-[60vh]">
-          {/* Left sidebar -- categories */}
-          <div className="w-52 border-r border-gray-200 dark:border-gray-800 py-2 flex-shrink-0 overflow-y-auto">
+          {/* Categories sidebar */}
+          <div className="w-52 border-r border-border py-2 flex-shrink-0 overflow-y-auto">
             {CATEGORIES.map(cat => (
               <button
                 key={cat.id}
                 onClick={() => setCategory(cat.id)}
                 className={`w-full text-left px-4 py-2 text-sm transition-colors ${
                   category === cat.id
-                    ? 'text-gray-900 dark:text-white font-medium bg-gray-100 dark:bg-gray-800'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                    ? 'text-foreground font-medium bg-muted'
+                    : 'text-muted-foreground hover:bg-muted/50'
                 }`}
               >
                 {cat.label}
@@ -105,23 +99,21 @@ function AddIntegrationModal({ open, onClose, connectedProviders }: { open: bool
             ))}
           </div>
 
-          {/* Right side -- search + grid */}
+          {/* Search + grid */}
           <div className="flex-1 overflow-y-auto">
-            {/* Search */}
-            <div className="p-4 border-b border-gray-200 dark:border-gray-800">
+            <div className="p-4 border-b border-border">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
                   type="text"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search integrations..."
-                  className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                  className="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring outline-none"
                 />
               </div>
             </div>
 
-            {/* Grid */}
             <div className="grid grid-cols-2 gap-3 p-4">
               {filtered.map(provider => {
                 const isConnected = connectedProviders.has(provider.id)
@@ -132,24 +124,20 @@ function AddIntegrationModal({ open, onClose, connectedProviders }: { open: bool
                     href={provider.available && !isConnected ? `/api/oauth/${oauthProviderId}` : undefined}
                     className={`flex items-start gap-3 p-4 rounded-xl border transition-all ${
                       isConnected
-                        ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10 cursor-default'
+                        ? 'border-emerald-500/30 bg-emerald-500/5 cursor-default'
                         : provider.available
-                        ? 'border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-700 hover:shadow-md cursor-pointer'
-                        : 'border-gray-100 dark:border-gray-800 opacity-50 cursor-not-allowed'
+                        ? 'border-border hover:border-brand-primary/50 hover:shadow-md cursor-pointer'
+                        : 'border-border opacity-50 cursor-not-allowed'
                     }`}
                   >
                     <ProviderIcon provider={provider} size={40} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="font-medium text-gray-900 dark:text-white text-sm">{provider.name}</p>
-                        {isConnected && (
-                          <span className="px-1.5 py-0.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded text-[10px] font-semibold uppercase">Connected</span>
-                        )}
-                        {!provider.available && !isConnected && (
-                          <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500 rounded text-[10px] font-semibold uppercase">Coming Soon</span>
-                        )}
+                        <p className="font-medium text-foreground text-sm">{provider.name}</p>
+                        {isConnected && <Badge label="Connected" variant="success" />}
+                        {!provider.available && !isConnected && <Badge label="Coming Soon" variant="neutral" />}
                       </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{provider.description}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{provider.description}</p>
                     </div>
                   </a>
                 )
@@ -157,8 +145,8 @@ function AddIntegrationModal({ open, onClose, connectedProviders }: { open: bool
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
