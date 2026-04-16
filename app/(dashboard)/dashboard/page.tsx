@@ -113,12 +113,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   let calls: CallLog[] = []
   let prevCalls: CallLog[] = []
   let allTimeCalls = 0
+  let messagesThisPeriod = 0
+  let prevMessages = 0
+  let allTimeMessages = 0
+  let newContacts = 0
+  let followUpsSent = 0
   let bookingsThisWeek = 0
   let prevBookings = 0
   let agentName = 'Ava'
   let agentStatus: AgentStatus = 'online'
   let agentIsActive = true
   let agentLastCallAt: string | null = null
+  let subscriptionPlan = 'trial'
   let oppOpen = 0
   let oppWon = 0
   let oppLost = 0
@@ -127,7 +133,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   if (clientId) {
     // Parallel fetch all dashboard data for faster load
-    const [callsRes, prevRes, countRes, bookingsRes, prevBookingsRes, agentRes, oppsRes, integrationsCountRes] = await Promise.all([
+    const [callsRes, prevRes, countRes, bookingsRes, prevBookingsRes, agentRes, oppsRes, integrationsCountRes, clientRes, msgsRes, prevMsgsRes, allMsgsRes, newContactsRes, followUpsRes] = await Promise.all([
       supabase
         .from('call_logs')
         .select('*, contacts(first_name, last_name, phone)')
@@ -171,13 +177,56 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         .select('id', { count: 'exact', head: true })
         .eq('client_id', clientId)
         .eq('status', 'connected'),
+      // Client subscription plan (for voice plan gating)
+      supabase
+        .from('clients')
+        .select('subscription_plan')
+        .eq('id', clientId)
+        .single(),
+      // WhatsApp/SMS messages this period
+      supabase
+        .from('comms_log')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', clientId)
+        .gte('sent_at', sevenDaysAgo.toISOString()),
+      // Previous period messages
+      supabase
+        .from('comms_log')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', clientId)
+        .gte('sent_at', prevWeekStart.toISOString())
+        .lt('sent_at', sevenDaysAgo.toISOString()),
+      // All-time messages
+      supabase
+        .from('comms_log')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', clientId),
+      // New contacts this period
+      supabase
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', clientId)
+        .gte('created_at', sevenDaysAgo.toISOString()),
+      // Follow-ups sent
+      supabase
+        .from('comms_log')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', clientId)
+        .eq('direction', 'outbound')
+        .gte('sent_at', sevenDaysAgo.toISOString()),
     ])
 
     calls = (callsRes.data ?? []) as CallLog[]
     prevCalls = (prevRes.data ?? []) as CallLog[]
     allTimeCalls = countRes.count ?? 0
+    messagesThisPeriod = msgsRes.count ?? 0
+    prevMessages = prevMsgsRes.count ?? 0
+    allTimeMessages = allMsgsRes.count ?? 0
+    newContacts = newContactsRes.count ?? 0
+    followUpsSent = followUpsRes.count ?? 0
     bookingsThisWeek = bookingsRes.count ?? 0
     prevBookings = prevBookingsRes.count ?? 0
+    subscriptionPlan = (clientRes.data as { subscription_plan: string } | null)?.subscription_plan ?? 'trial'
 
     // Agent config (gracefully handle missing columns from migration)
     const ac = agentRes.data as Record<string, unknown> | null
@@ -205,8 +254,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const missed = calls.filter(c => c.status === 'no_answer' || c.status === 'failed').length
   const prevAnswered = prevCalls.filter((c: CallLog) => c.status === 'completed').length
 
-  const savedPounds = answered * 15
-  const prevSavedPounds = prevAnswered * 15
+  const totalConversations = messagesThisPeriod + calls.length
+  const prevTotalConversations = prevMessages + prevCalls.length
+  const isVoicePlan = subscriptionPlan === 'voice'
+
+  // Money saved: messages × £5 + calls × £15 + bookings × £50
+  const savedPounds = messagesThisPeriod * 5 + answered * 15 + bookingsThisWeek * 50
+  const prevSavedPounds = prevMessages * 5 + prevAnswered * 15 + prevBookings * 50
 
   const streak = calcMissedStreak([...calls, ...prevCalls])
 
@@ -225,7 +279,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             Overview <VpsHeartbeatBadge />
           </h1>
           <p className="text-sm mt-1 text-muted-foreground">
-            {periodLabel} · {allTimeCalls} calls handled all time
+            {periodLabel} · {allTimeMessages + allTimeCalls} conversations all time
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -276,19 +330,19 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       }>
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
           <KpiCard
-            label="Calls Handled"
-            value={calls.length}
-            sub={`${answered} answered`}
+            label="Conversations"
+            value={totalConversations}
+            sub={`${messagesThisPeriod} messages · ${calls.length} calls`}
             color="accent"
             animate
-            trend={trendPct(calls.length, prevCalls.length)}
+            trend={trendPct(totalConversations, prevTotalConversations)}
             icon={<Phone size={16} />}
             sparklineData={callsSparkline}
           />
           <KpiCard
             label="Bookings Made"
             value={bookingsThisWeek}
-            sub="from call → demo"
+            sub="appointments booked"
             color="default"
             animate
             trend={trendPct(bookingsThisWeek, prevBookings)}
@@ -298,7 +352,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             label="Money Saved"
             value={savedPounds}
             prefix="£"
-            sub="vs hiring a receptionist"
+            sub="vs hiring an admin"
             color="success"
             animate
             trend={trendPct(savedPounds, prevSavedPounds)}
@@ -306,23 +360,34 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             sparklineData={savedSparkline}
           />
           <KpiCard
-            label="Missed Calls"
-            value={missed}
-            sub={missed === 0 ? 'Perfect week!' : 'AI will follow up'}
-            color={missed > 0 ? 'danger' : 'success'}
+            label="Leads Captured"
+            value={newContacts}
+            sub="new contacts this period"
+            color="accent"
             animate
             icon={<XCircle size={16} />}
-            sparklineData={missedSparkline}
           />
         </div>
       </Suspense>
 
       {/* Secondary KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <KpiCard label="Avg Call Duration" value={avgDurationStr(calls)} sub="completed calls only" />
-        <KpiCard label="Inbound Calls" value={calls.filter(c => c.direction === 'inbound').length} sub="customers calling in" />
-        <KpiCard label="Calls Today" value={calls.filter(c => c.started_at && new Date(c.started_at).toDateString() === today).length} sub="so far today" />
+        <KpiCard label="Follow-ups Sent" value={followUpsSent} sub="automated chase messages" />
+        <KpiCard label="Active Today" value={calls.filter(c => c.started_at && new Date(c.started_at).toDateString() === today).length + (messagesThisPeriod > 0 ? 1 : 0)} sub="conversations today" />
+        <KpiCard label="Integrations" value={integrationsCount} sub="apps connected" />
       </div>
+
+      {/* Voice Agent Section — only for £999/mo Voice plan */}
+      {isVoicePlan && calls.length > 0 && (
+        <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-5 mb-6">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-violet-400 mb-3">Voice Agent</h3>
+          <div className="grid grid-cols-3 gap-4">
+            <KpiCard label="Calls Handled" value={calls.length} sub={`${answered} answered`} color="accent" />
+            <KpiCard label="Missed Calls" value={missed} sub={missed === 0 ? 'Perfect!' : 'AI will follow up'} color={missed > 0 ? 'danger' : 'success'} />
+            <KpiCard label="Avg Duration" value={avgDurationStr(calls)} sub="completed calls only" />
+          </div>
+        </div>
+      )}
 
       {/* Weekly Challenge */}
       <WeeklyChallengeCard lastWeekCalls={prevCalls.length} thisWeekCalls={calls.length} />
@@ -349,8 +414,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         ) : clientId ? (
           <EmptyState
             icon={<Phone size={24} />}
-            title="No calls yet"
-            description={`Your AI Employee is standing by. Call ${AI_PHONE_DISPLAY} to see your first call appear here.`}
+            title="No activity yet"
+            description="Your AI Employee is live on WhatsApp. Send a message to see conversations appear here."
           />
         ) : null}
       </Suspense>

@@ -11,7 +11,7 @@ const PAGES = [
   { href: '/dashboard',      label: 'Dashboard',        icon: LayoutDashboard },
   { href: '/pipeline',       label: 'Pipeline',         icon: Kanban },
   { href: '/conversations',  label: 'Inbox',            icon: MessageSquare },
-  { href: '/calls',          label: 'Calls',            icon: Phone },
+  { href: '/calls',          label: 'Conversations',     icon: MessageSquare },
   { href: '/calendar',       label: 'Calendar',         icon: Calendar },
   { href: '/integrations',   label: 'Integrations',     icon: Plug },
   { href: '/settings',       label: 'Settings',         icon: Settings },

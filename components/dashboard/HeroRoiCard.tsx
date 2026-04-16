@@ -32,7 +32,7 @@ export default function HeroRoiCard({ savedPounds }: HeroRoiCardProps) {
           <div className="text-white font-bold text-3xl sm:text-4xl lg:text-5xl tracking-tight">
             <AnimatedNumber target={savedPounds} prefix="£" duration={1200} />
           </div>
-          <p className="text-green-200/80 text-xs mt-1.5">vs hiring a receptionist at £15/call</p>
+          <p className="text-green-200/80 text-xs mt-1.5">vs hiring an admin assistant (messages £5 · calls £15 · bookings £50)</p>
         </div>
         <div className="hidden sm:flex items-center justify-center w-14 h-14 rounded-2xl bg-white/10">
           <span className="text-2xl">💰</span>

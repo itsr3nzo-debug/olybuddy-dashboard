@@ -93,7 +93,7 @@ export default async function SettingsPage() {
 
         <Section title="AI Employee" description="Your AI team member configuration">
           <div className="divide-y divide-border -mx-5 sm:-mx-6">
-            <SettingRow label="Calls handled (all time)" value={totalCalls.toLocaleString()} />
+            <SettingRow label="Conversations handled (all time)" value={totalCalls.toLocaleString()} />
             <SettingRow label="Voice" value="Ava (British female)" />
             <SettingRow label="Provider" value="ElevenLabs" />
             <SettingRow label="Inbound number" value={AI_PHONE_DISPLAY} mono />
@@ -112,7 +112,7 @@ export default async function SettingsPage() {
           <FaqEditor initialFaqs={Array.isArray(config?.faqs) ? (config.faqs as { question: string; answer: string }[]) : []} />
         </Section>
 
-        <Section title="Notifications" description="How you get alerted about calls and bookings">
+        <Section title="Notifications" description="How you get alerted about messages and bookings">
           <NotificationSettings initialPrefs={(config?.notification_prefs as { email?: boolean; telegram?: boolean }) ?? {}} />
         </Section>
 

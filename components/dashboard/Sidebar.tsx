@@ -14,7 +14,7 @@ const allNavItems = [
   { href: '/dashboard',      label: 'Dashboard',      Icon: LayoutDashboard },
   { href: '/pipeline',       label: 'Pipeline',       Icon: Kanban },
   { href: '/conversations',  label: 'Inbox',          Icon: MessageSquare },
-  { href: '/calls',          label: 'Calls',          Icon: Phone },
+  { href: '/calls',          label: 'Conversations',  Icon: ScrollText },
   { href: '/calendar',       label: 'Calendar',       Icon: Calendar },
   // Settings
   { href: '/integrations',   label: 'Integrations',   Icon: Plug },

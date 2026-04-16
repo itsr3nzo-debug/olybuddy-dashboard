@@ -2,14 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Phone, Kanban, MessageSquare, Calendar } from 'lucide-react'
+import { LayoutDashboard, Kanban, MessageSquare, Calendar, ScrollText } from 'lucide-react'
 import type { UserRole } from '@/lib/rbac'
 
 const tabs = [
   { href: '/dashboard',      label: 'Home',     Icon: LayoutDashboard },
   { href: '/pipeline',       label: 'Pipeline', Icon: Kanban },
   { href: '/conversations',  label: 'Inbox',    Icon: MessageSquare },
-  { href: '/calls',          label: 'Calls',    Icon: Phone },
+  { href: '/calls',          label: 'Activity', Icon: ScrollText },
   { href: '/calendar',       label: 'Calendar', Icon: Calendar },
 ]
 

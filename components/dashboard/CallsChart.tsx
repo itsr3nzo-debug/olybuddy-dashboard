@@ -16,7 +16,7 @@ export default function CallsChart({ data }: CallsChartProps) {
     <div className="rounded-xl p-4 sm:p-5 border bg-card-bg">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Call Volume — Last 7 Days</h2>
+          <h2 className="text-sm font-semibold text-foreground">Activity — Last 7 Days</h2>
           {peak && peak.calls > 0 && (
             <p className="text-xs text-muted-foreground mt-0.5">Peak: {peak.date} ({peak.calls} calls)</p>
           )}

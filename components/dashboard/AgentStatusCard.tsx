@@ -15,8 +15,8 @@ interface AgentStatusCardProps {
 }
 
 const STATUS_CONFIG: Record<AgentStatus, { label: string; dotClass: string; icon: React.ReactNode; description: string }> = {
-  online:  { label: 'Online',  dotClass: 'bg-brand-success', icon: <Wifi size={14} />,      description: 'Ready for calls' },
-  in_call: { label: 'On a call', dotClass: 'bg-brand-primary', icon: <PhoneCall size={14} />,  description: 'Handling a call right now' },
+  online:  { label: 'Online',  dotClass: 'bg-brand-success', icon: <Wifi size={14} />,      description: 'Handling messages' },
+  in_call: { label: 'Processing', dotClass: 'bg-brand-primary', icon: <PhoneCall size={14} />,  description: 'Working on a conversation' },
   idle:    { label: 'Idle',    dotClass: 'bg-brand-warning', icon: <Phone size={14} />,      description: 'Standing by' },
   offline: { label: 'Offline', dotClass: 'bg-brand-danger',  icon: <WifiOff size={14} />,    description: 'Not currently active' },
 }

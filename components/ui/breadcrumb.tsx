@@ -8,7 +8,7 @@ const LABELS: Record<string, string> = {
   dashboard: 'Overview',
   pipeline: 'Pipeline',
   inbox: 'Inbox',
-  calls: 'Calls',
+  calls: 'Conversations',
   calendar: 'Calendar',
   integrations: 'Integrations',
   settings: 'Settings',

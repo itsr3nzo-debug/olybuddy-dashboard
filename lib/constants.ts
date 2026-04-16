@@ -1,6 +1,8 @@
 /* ── Olybuddy Constants ────────────────────────────── */
 
-export const COST_PER_CALL_PENCE = 1500      // £15/call (receptionist equivalent)
+export const COST_PER_CALL_PENCE = 1500      // £15/call (receptionist equivalent — voice plan only)
+export const COST_PER_MESSAGE_PENCE = 500    // £5/message handled (vs hiring admin to reply)
+export const COST_PER_BOOKING_PENCE = 5000   // £50/booking made (vs admin scheduling time)
 export const COST_PER_FOLLOWUP_PENCE = 200   // £2/follow-up (admin time saved)
 
 export const AI_PHONE_NUMBER = '+44 7863 768330'

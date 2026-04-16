@@ -68,8 +68,8 @@ export default function CallsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Call Log</h1>
-          <p className="text-sm mt-1 text-muted-foreground">Every call your AI Employee handled</p>
+          <h1 className="text-2xl font-bold text-foreground">Conversations</h1>
+          <p className="text-sm mt-1 text-muted-foreground">Every conversation your AI Employee handled</p>
         </div>
       </div>
 
@@ -120,10 +120,10 @@ export default function CallsPage() {
         ) : calls.length === 0 ? (
           <EmptyState
             icon={<Phone size={24} />}
-            title="No calls found"
+            title="No conversations yet"
             description={search || statusFilter !== 'all'
               ? 'Try adjusting your filters.'
-              : 'Calls will appear here once your AI Employee starts handling them.'}
+              : 'Conversations will appear here once your AI Employee starts handling messages.'}
           />
         ) : (
           <>
@@ -132,7 +132,7 @@ export default function CallsPage() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-muted/50">
-                    {['Caller', 'Direction', 'Duration', 'Status', 'Date & Time', 'Summary'].map(h => (
+                    {['Contact', 'Direction', 'Duration', 'Status', 'Date & Time', 'Summary'].map(h => (
                       <th key={h} className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         {h}
                       </th>
