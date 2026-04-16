@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 export const metadata: Metadata = { title: 'Settings | Nexley AI' }
 import { redirect } from 'next/navigation'
 import { PLAN_LABELS, SUBSCRIPTION_STATUS_CONFIG } from '@/lib/constants'
+import { StatusBadge } from '@/components/ui/badge'
 import { AI_PHONE_DISPLAY } from '@/lib/constants'
 import type { AgentConfig, HoursConfig } from '@/lib/types'
 import BusinessForm from '@/components/settings/BusinessForm'
@@ -157,13 +158,7 @@ export default async function SettingsPage() {
           <div className="px-6 divide-y divide-border">
             <SettingRow
               label="Status"
-              value={
-                statusInfo ? (
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusInfo.className}`}>
-                    {statusInfo.label}
-                  </span>
-                ) : '—'
-              }
+              value={<StatusBadge status={client?.subscription_status ?? 'active'} />}
             />
             <SettingRow label="Plan" value={PLAN_LABELS[client?.subscription_plan ?? ''] ?? 'AI Employee'} />
             {client?.subscription_status === 'trial' && client?.trial_ends_at && (

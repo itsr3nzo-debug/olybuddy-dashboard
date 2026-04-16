@@ -8,6 +8,7 @@ import { STATUS_CONFIG, DIRECTION_CONFIG } from '@/lib/constants'
 import TranscriptBubbles from '@/components/shared/TranscriptBubbles'
 import EmptyState from '@/components/shared/EmptyState'
 import { ChevronRight, Phone, Search, MessageSquare, Send, X } from 'lucide-react'
+import { StatusBadge, DirectionBadge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import dynamic from 'next/dynamic'
 
@@ -203,24 +204,26 @@ export default function CallsPage() {
             </div>
 
             {/* Pagination */}
-            {calls.length === PAGE_SIZE && (
-              <div className="flex items-center justify-between px-5 py-3 border-t border-border">
-                <button
-                  onClick={() => setPage(p => Math.max(0, p - 1))}
-                  disabled={page === 0}
-                  className="px-3 py-1.5 rounded-lg text-sm border disabled:opacity-40 transition-colors bg-card-bg text-foreground border-border"
-                >
-                  Previous
-                </button>
-                <span className="text-sm text-muted-foreground">Page {page + 1}</span>
-                <button
-                  onClick={() => setPage(p => p + 1)}
-                  className="px-3 py-1.5 rounded-lg text-sm border transition-colors bg-card-bg text-foreground border-border"
-                >
-                  Next
-                </button>
-              </div>
-            )}
+            <div className="flex items-center justify-between px-5 py-3 border-t border-border">
+              <button
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="px-3 py-1.5 rounded-lg text-sm border disabled:opacity-40 transition-colors bg-card-bg text-foreground border-border hover:bg-muted"
+              >
+                Previous
+              </button>
+              <span className="text-sm text-muted-foreground">
+                {calls.length} results · Page {page + 1}
+                {search && <span className="ml-1">for &ldquo;{search}&rdquo;</span>}
+              </span>
+              <button
+                onClick={() => setPage(p => p + 1)}
+                disabled={calls.length < PAGE_SIZE}
+                className="px-3 py-1.5 rounded-lg text-sm border disabled:opacity-40 transition-colors bg-card-bg text-foreground border-border hover:bg-muted"
+              >
+                Next
+              </button>
+            </div>
           </>
         )}
       </div>
@@ -254,17 +257,13 @@ function CallRow({ call, caller, sc, dc, isExpanded, hasDetail, onToggle }: {
           </div>
         </td>
         <td className="px-5 py-3.5">
-          {dc && <span className={`text-xs font-medium capitalize ${dc.className}`}>{dc.label}</span>}
+          <DirectionBadge direction={call.direction} />
         </td>
         <td className="px-5 py-3.5 text-sm text-muted-foreground">
           {formatDuration(call.duration_seconds)}
         </td>
         <td className="px-5 py-3.5">
-          {sc && (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${sc.className}`}>
-              {sc.label}
-            </span>
-          )}
+          <StatusBadge status={call.status} />
         </td>
         <td className="px-5 py-3.5 text-sm text-muted-foreground">
           {formatDateTime(call.started_at)}
