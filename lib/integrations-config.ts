@@ -91,10 +91,12 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
   {
     id: 'outlook',
     name: 'Outlook',
-    description: 'Microsoft 365 email integration',
+    description: 'Microsoft 365 email — read, send, and manage emails',
     category: 'communication',
     iconColor: 'bg-blue-900/20 text-blue-400',
     available: true,
+    oauthProvider: 'microsoft',
+    createsDualRows: ['outlook', 'outlook_calendar'],
   },
   {
     id: 'slack',
@@ -116,10 +118,11 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
   {
     id: 'microsoft_teams',
     name: 'Microsoft Teams',
-    description: 'Enterprise communication and collaboration',
+    description: 'Team messaging, channels, and collaboration',
     category: 'communication',
     iconColor: 'bg-indigo-900/20 text-indigo-400',
     available: true,
+    oauthProvider: 'microsoft',
   },
 
   // ═══ Scheduling ═══
@@ -150,11 +153,11 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
   {
     id: 'outlook_calendar',
     name: 'Outlook Calendar',
-    description: 'Microsoft 365 calendar integration',
+    description: 'Microsoft 365 calendar — sync appointments automatically',
     category: 'scheduling',
     iconColor: 'bg-blue-900/20 text-blue-400',
-    available: false,
-    oauthProvider: 'outlook',
+    available: true,
+    oauthProvider: 'microsoft',
   },
 
   // ═══ Accounting ═══
@@ -233,6 +236,24 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     category: 'documents',
     iconColor: 'bg-green-900/20 text-green-400',
     available: true,
+  },
+  {
+    id: 'one_drive',
+    name: 'OneDrive',
+    description: 'Microsoft 365 cloud storage — access and manage files',
+    category: 'storage',
+    iconColor: 'bg-blue-900/20 text-blue-400',
+    available: true,
+    oauthProvider: 'microsoft',
+  },
+  {
+    id: 'share_point',
+    name: 'SharePoint',
+    description: 'Microsoft 365 team sites and document libraries',
+    category: 'documents',
+    iconColor: 'bg-teal-900/20 text-teal-400',
+    available: true,
+    oauthProvider: 'microsoft',
   },
   {
     id: 'dext',
@@ -450,6 +471,21 @@ export const GOOGLE_OAUTH_CONFIG: ProviderOAuthConfig = {
   clientSecretEnv: 'GOOGLE_CLIENT_SECRET',
 }
 
+// ═══ Microsoft OAuth (special case — one flow, multiple integration rows) ═══
+// One Azure AD app registration → Outlook + Teams + Calendar + OneDrive + SharePoint
+// Create an app at https://entra.microsoft.com → App registrations
+// Add redirect URI: {NEXT_PUBLIC_SITE_URL}/api/oauth/microsoft/callback
+// Set MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET in Vercel env vars
+export const MICROSOFT_OAUTH_CONFIG: ProviderOAuthConfig = {
+  authUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+  tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+  userinfoUrl: 'https://graph.microsoft.com/v1.0/me',
+  revokeUrl: 'https://graph.microsoft.com/v1.0/me/revokeSignInSessions',
+  scopes: 'openid profile email offline_access Mail.ReadWrite Mail.Send Calendars.ReadWrite Files.ReadWrite.All Chat.ReadWrite User.Read',
+  clientIdEnv: 'MICROSOFT_CLIENT_ID',
+  clientSecretEnv: 'MICROSOFT_CLIENT_SECRET',
+}
+
 // ═══ Helpers ═══
 
 export function getProvider(id: string): ProviderConfig | undefined {
@@ -457,12 +493,17 @@ export function getProvider(id: string): ProviderConfig | undefined {
 }
 
 export function getOAuthConfig(providerId: string): ProviderOAuthConfig | undefined {
-  // Google is special — gmail and google_calendar share one OAuth flow
   const provider = getProvider(providerId)
   if (!provider) return undefined
 
+  // Google suite shares one OAuth flow
   if (provider.oauthProvider === 'google' || providerId === 'google') {
     return GOOGLE_OAUTH_CONFIG
+  }
+
+  // Microsoft suite shares one OAuth flow
+  if (provider.oauthProvider === 'microsoft' || providerId === 'microsoft') {
+    return MICROSOFT_OAUTH_CONFIG
   }
 
   return provider.oauth

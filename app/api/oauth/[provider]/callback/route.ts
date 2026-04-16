@@ -40,7 +40,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
       const admin = getSupabase();
       const providerConfig = getProvider(provider);
       const isGoogle = provider === "google" || providerConfig?.oauthProvider === "google";
-      const rows = isGoogle ? ["gmail", "google_calendar"] : [provider];
+      const isMicrosoft = provider === "microsoft" || providerConfig?.oauthProvider === "microsoft";
+      const rows = isGoogle ? ["gmail", "google_calendar"]
+                 : isMicrosoft ? ["outlook", "outlook_calendar", "microsoft_teams", "one_drive", "share_point"]
+                 : [provider];
 
       for (const p of rows) {
         const { error } = await admin.from("integrations").upsert(
@@ -200,6 +203,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
           accountEmail = info.user || "";
           accountName = info.hub_domain || "";
           metadata.hubId = info.hub_id;
+        } else if (provider === "microsoft" || providerConfig?.oauthProvider === "microsoft") {
+          // Microsoft Graph /me response
+          accountEmail = info.mail || info.userPrincipalName || "";
+          accountName = info.displayName || "";
         } else {
           // Generic: try common field names
           accountEmail = info.email || info.user_email || info.login || "";
@@ -237,11 +244,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
   // Use service role client for writes (bypasses RLS)
   const adminSupabase = getSupabase();
 
-  // For Google: create TWO integration rows (gmail + google_calendar)
-  // Check the provider config for createsDualRows
+  // For Google/Microsoft: create MULTIPLE integration rows from one OAuth flow
   const providerConfig = getProvider(provider);
   const isGoogle = provider === "google" || providerConfig?.oauthProvider === "google";
-  const providers = isGoogle ? ["gmail", "google_calendar"] : [provider];
+  const isMicrosoft = provider === "microsoft" || providerConfig?.oauthProvider === "microsoft";
+  const providers = isGoogle ? ["gmail", "google_calendar"]
+                   : isMicrosoft ? ["outlook", "outlook_calendar", "microsoft_teams", "one_drive", "share_point"]
+                   : [provider];
 
   for (const p of providers) {
     const { error: upsertErr } = await adminSupabase.from("integrations").upsert(
