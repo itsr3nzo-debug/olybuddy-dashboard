@@ -17,6 +17,7 @@ import OpportunityDonut from '@/components/dashboard/OpportunityDonut'
 import type { CallLog, AgentStatus } from '@/lib/types'
 import { Phone, Calendar, PoundSterling, XCircle } from 'lucide-react'
 import { AI_PHONE_DISPLAY } from '@/lib/constants'
+import { TimePeriodSelector } from '@/components/ui/time-period-selector'
 
 /* ── Helpers ─────────────────────────────────────── */
 
@@ -89,17 +90,25 @@ function trendPct(curr: number, prev: number): number | undefined {
 
 /* ── Page ────────────────────────────────────────── */
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const clientId = user.app_metadata?.client_id
+  const params = await searchParams
+  const periodKey = params.period || '7d'
+  const periodDays = periodKey === '30d' ? 30 : periodKey === '90d' ? 90 : periodKey === 'all' ? 365 : 7
+  const periodLabel = periodKey === '30d' ? 'Last 30 days' : periodKey === '90d' ? 'Last 90 days' : periodKey === 'all' ? 'All time' : 'Last 7 days'
 
-  const sevenDaysAgo = new Date()
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-  const prevWeekStart = new Date(sevenDaysAgo)
-  prevWeekStart.setDate(prevWeekStart.getDate() - 7)
+  const periodStart = new Date()
+  periodStart.setDate(periodStart.getDate() - periodDays)
+  const prevPeriodStart = new Date(periodStart)
+  prevPeriodStart.setDate(prevPeriodStart.getDate() - periodDays)
+
+  // Legacy aliases for existing code
+  const sevenDaysAgo = periodStart
+  const prevWeekStart = prevPeriodStart
 
   let calls: CallLog[] = []
   let prevCalls: CallLog[] = []
@@ -216,14 +225,17 @@ export default async function DashboardPage() {
             Overview <VpsHeartbeatBadge />
           </h1>
           <p className="text-sm mt-1 text-muted-foreground">
-            Last 7 days · {allTimeCalls} calls handled all time
+            {periodLabel} · {allTimeCalls} calls handled all time
           </p>
         </div>
-        {streak > 0 && (
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium bg-card-bg ${streak >= 7 ? 'text-brand-success' : 'text-muted-foreground'}`}>
-            🔥 {streak} day{streak === 1 ? '' : 's'} without a missed call
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {streak > 0 && (
+            <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium bg-card-bg ${streak >= 7 ? 'text-brand-success' : 'text-muted-foreground'}`}>
+              🔥 {streak}d streak
+            </div>
+          )}
+          <TimePeriodSelector value={periodKey} onChange={() => {}} />
+        </div>
       </div>
 
       {clientId && integrationsCount === 0 && (
