@@ -2,55 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import {
-  Search, Plus, X, Mail, Calendar, Receipt, CreditCard,
-  MessageSquare, Building, Plug, Calculator, FileText,
-  BarChart, Users, Clock, Briefcase, Shield, Wallet
-} from 'lucide-react'
+import { Search, Plus, X, Plug } from 'lucide-react'
 import { PROVIDERS, CATEGORIES, getOAuthProviderId, type ProviderConfig } from '@/lib/integrations-config'
-
-/* -- Provider icon mapping -- */
-
-const PROVIDER_ICONS: Record<string, React.ReactNode> = {
-  gmail: <Mail className="w-5 h-5" />,
-  outlook: <Mail className="w-5 h-5" />,
-  slack: <MessageSquare className="w-5 h-5" />,
-  microsoft_teams: <MessageSquare className="w-5 h-5" />,
-  google_calendar: <Calendar className="w-5 h-5" />,
-  calendly: <Clock className="w-5 h-5" />,
-  outlook_calendar: <Calendar className="w-5 h-5" />,
-  xero: <Calculator className="w-5 h-5" />,
-  quickbooks: <Calculator className="w-5 h-5" />,
-  sage: <Calculator className="w-5 h-5" />,
-  freeagent: <Calculator className="w-5 h-5" />,
-  dext: <FileText className="w-5 h-5" />,
-  hubdoc: <FileText className="w-5 h-5" />,
-  ignition: <Briefcase className="w-5 h-5" />,
-  brightmanager: <Briefcase className="w-5 h-5" />,
-  pixie: <Briefcase className="w-5 h-5" />,
-  taxcalc: <Shield className="w-5 h-5" />,
-  iris: <Shield className="w-5 h-5" />,
-  fathom: <BarChart className="w-5 h-5" />,
-  spotlight: <BarChart className="w-5 h-5" />,
-  hubspot: <Users className="w-5 h-5" />,
-  stripe: <CreditCard className="w-5 h-5" />,
-}
-
-function getProviderIcon(providerId: string): React.ReactNode {
-  return PROVIDER_ICONS[providerId] || <Plug className="w-5 h-5" />
-}
-
-/* -- Provider icons (colored) -- */
-
-function ProviderIcon({ provider }: { provider: string }) {
-  const config = PROVIDERS.find(p => p.id === provider)
-  const colorClasses = config?.iconColor || 'bg-gray-100 text-gray-600'
-  return (
-    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colorClasses}`}>
-      {getProviderIcon(provider)}
-    </div>
-  )
-}
+import ProviderIcon from '@/components/integrations/ProviderIcon'
 
 /* -- Connected integration row -- */
 
@@ -71,7 +25,7 @@ function ConnectedRow({ integration, onDisconnect }: { integration: ConnectedInt
     <tr className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
       <td className="py-4 px-4">
         <div className="flex items-center gap-3">
-          <ProviderIcon provider={integration.provider} />
+          <ProviderIcon provider={def || { id: integration.provider, name: integration.provider, iconColor: 'bg-gray-700/30 text-gray-300' }} size={40} />
           <div>
             <p className="font-medium text-gray-900 dark:text-white text-sm">{def?.name || integration.provider}</p>
             <p className="text-xs text-gray-500 dark:text-gray-400">{integration.account_email || def?.description}</p>
@@ -184,7 +138,7 @@ function AddIntegrationModal({ open, onClose, connectedProviders }: { open: bool
                         : 'border-gray-100 dark:border-gray-800 opacity-50 cursor-not-allowed'
                     }`}
                   >
-                    <ProviderIcon provider={provider.id} />
+                    <ProviderIcon provider={provider} size={40} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-gray-900 dark:text-white text-sm">{provider.name}</p>

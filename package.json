@@ -37,6 +37,7 @@
     "@types/nodemailer": "^8.0.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "simple-icons": "^16.16.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

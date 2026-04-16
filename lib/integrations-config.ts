@@ -49,6 +49,7 @@ export interface ProviderConfig {
   description: string
   category: ProviderCategory
   iconColor: string // tailwind dark-mode classes
+  iconUrl?: string // path to brand SVG in /public/integrations/
   available: boolean // true = OAuth wired, false = "Coming Soon"
   oauth?: ProviderOAuthConfig
   createsDualRows?: string[] // e.g., Google creates ['gmail', 'google_calendar']
@@ -419,9 +420,38 @@ for (const [slug, entry] of Object.entries(REGISTRY)) {
   })
 }
 
+// Brand icon mapping — SVG files live in /public/integrations/{filename}.svg
+// Provider IDs use underscores (google_calendar) but filenames use hyphens (google-calendar.svg)
+const ICON_MAP: Record<string, string> = {
+  gmail: 'gmail', outlook: 'outlook', slack: 'slack',
+  microsoft_teams: 'microsoft-teams', google_calendar: 'google-calendar',
+  calendly: 'calendly', outlook_calendar: 'outlook-calendar',
+  xero: 'xero', quickbooks: 'quickbooks', sage: 'sage', freeagent: 'freeagent',
+  google_drive: 'google-drive', dext: 'dext', hubdoc: 'hubdoc',
+  ignition: 'ignition', brightmanager: 'brightmanager', pixie: 'pixie',
+  taxcalc: 'taxcalc', iris: 'iris',
+  fathom: 'fathom', spotlight: 'spotlight',
+  hubspot: 'hubspot', stripe: 'stripe',
+  // Top auto-generated from Composio
+  notion: 'notion', github: 'github', googlesheets: 'google-sheets',
+  pipedrive: 'pipedrive', airtable: 'airtable', asana: 'asana',
+  trello: 'trello', salesforce: 'salesforce', dropbox: 'dropbox',
+  zoom: 'zoom', linear: 'linear', jira: 'jira', mailchimp: 'mailchimp',
+  googledrive: 'google-drive', googlecalendar: 'google-calendar',
+  googlemeet: 'google-meet', linkedin: 'linkedin',
+}
+
+function applyIcons(providers: ProviderConfig[]): ProviderConfig[] {
+  return providers.map(p => {
+    const iconFile = ICON_MAP[p.id]
+    if (iconFile) return { ...p, iconUrl: `/integrations/${iconFile}.svg` }
+    return p
+  })
+}
+
 export const PROVIDERS: ProviderConfig[] = [
-  ...CURATED_PROVIDERS,
-  ...AUTO_PROVIDERS.sort((a, b) => a.name.localeCompare(b.name)),
+  ...applyIcons(CURATED_PROVIDERS),
+  ...applyIcons(AUTO_PROVIDERS).sort((a, b) => a.name.localeCompare(b.name)),
 ]
 
 // ═══ Google OAuth (special case — one flow, two integration rows) ═══

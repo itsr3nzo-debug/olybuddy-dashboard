@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Building2, Plug, MessageSquare, ChevronRight, ChevronLeft, Check, Loader2, Shield } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { PROVIDERS, CATEGORIES } from '@/lib/integrations-config'
+import ProviderIcon from '@/components/integrations/ProviderIcon'
 
 const STEP_META = [
   { icon: Building2, label: 'Business Details' },
@@ -259,9 +260,7 @@ export default function OnboardingPage() {
               {priorityProviders.map((p) => (
                 <a key={p.id} href={`/api/oauth/${p.id}`}
                   className="flex items-center gap-3 p-3 bg-background border rounded-lg hover:border-brand-primary/50 transition-colors group">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${p.iconColor}`}>
-                    <Plug size={14} />
-                  </div>
+                  <ProviderIcon provider={p} size={32} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate group-hover:text-brand-primary transition-colors">{p.name}</p>
                     <p className="text-xs text-muted-foreground truncate">{p.description}</p>
