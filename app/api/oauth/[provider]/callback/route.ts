@@ -166,6 +166,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
   let accountEmail = "";
   let accountName = "";
   let metadata: Record<string, unknown> = {};
+  const provConfig = getProvider(provider);
 
   if (config.userinfoUrl) {
     try {
@@ -203,7 +204,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
           accountEmail = info.user || "";
           accountName = info.hub_domain || "";
           metadata.hubId = info.hub_id;
-        } else if (provider === "microsoft" || providerConfig?.oauthProvider === "microsoft") {
+        } else if (provider === "microsoft" || provConfig?.oauthProvider === "microsoft") {
           // Microsoft Graph /me response
           accountEmail = info.mail || info.userPrincipalName || "";
           accountName = info.displayName || "";
