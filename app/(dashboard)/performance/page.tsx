@@ -167,11 +167,13 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
             {agentName} · {periodLabel}
           </p>
         </div>
-        <TimePeriodSelector value={periodKey} options={[
-          { value: '7d', label: '7d' },
-          { value: '30d', label: '30d' },
-          { value: '90d', label: '90d' },
-        ]} />
+        <Suspense fallback={null}>
+          <TimePeriodSelector value={periodKey} options={[
+            { value: '7d', label: '7d' },
+            { value: '30d', label: '30d' },
+            { value: '90d', label: '90d' },
+          ]} />
+        </Suspense>
       </div>
 
       {/* AI Employee framing */}

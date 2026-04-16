@@ -234,7 +234,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               🔥 {streak}d streak
             </div>
           )}
-          <TimePeriodSelector value={periodKey} onChange={() => {}} />
+          <Suspense fallback={null}>
+            <TimePeriodSelector value={periodKey} />
+          </Suspense>
         </div>
       </div>
 
