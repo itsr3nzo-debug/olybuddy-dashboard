@@ -40,10 +40,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
       const admin = getSupabase();
       const providerConfig = getProvider(provider);
       const isGoogle = provider === "google" || providerConfig?.oauthProvider === "google";
-      const isMicrosoft = provider === "microsoft" || providerConfig?.oauthProvider === "microsoft";
-      const rows = isGoogle ? ["gmail", "google_calendar"]
-                 : isMicrosoft ? ["outlook", "outlook_calendar", "microsoft_teams", "one_drive", "share_point"]
-                 : [provider];
+      const rows = isGoogle ? ["gmail", "google_calendar"] : [provider];
 
       for (const p of rows) {
         const { error } = await admin.from("integrations").upsert(
@@ -204,10 +201,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
           accountEmail = info.user || "";
           accountName = info.hub_domain || "";
           metadata.hubId = info.hub_id;
-        } else if (provider === "microsoft" || provConfig?.oauthProvider === "microsoft") {
-          // Microsoft Graph /me response
-          accountEmail = info.mail || info.userPrincipalName || "";
-          accountName = info.displayName || "";
         } else {
           // Generic: try common field names
           accountEmail = info.email || info.user_email || info.login || "";
@@ -248,10 +241,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
   // For Google/Microsoft: create MULTIPLE integration rows from one OAuth flow
   const providerConfig = getProvider(provider);
   const isGoogle = provider === "google" || providerConfig?.oauthProvider === "google";
-  const isMicrosoft = provider === "microsoft" || providerConfig?.oauthProvider === "microsoft";
-  const providers = isGoogle ? ["gmail", "google_calendar"]
-                   : isMicrosoft ? ["outlook", "outlook_calendar", "microsoft_teams", "one_drive", "share_point"]
-                   : [provider];
+  const providers = isGoogle ? ["gmail", "google_calendar"] : [provider];
 
   for (const p of providers) {
     const { error: upsertErr } = await adminSupabase.from("integrations").upsert(
