@@ -23,7 +23,7 @@ export default function PeakHoursHeatmap({ data }: PeakHoursHeatmapProps) {
   const max = Math.max(...data.flat())
 
   if (max === 0) {
-    return <p className="text-sm text-muted-foreground">Peak hours will appear after more calls are logged.</p>
+    return <p className="text-sm text-muted-foreground">Peak hours will appear after more conversations are handled.</p>
   }
 
   return (

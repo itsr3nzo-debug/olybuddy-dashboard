@@ -194,7 +194,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
       }>
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
           <KpiCard label="Conversations" value={totalCalls} sub="this period" color="accent" animate icon={<Phone size={16} />} />
-          <KpiCard label="Resolution Rate" value={`${resolutionRate}%`} sub="calls fully handled" color="success" icon={<CheckCircle size={16} />} />
+          <KpiCard label="Resolution Rate" value={`${resolutionRate}%`} sub="conversations resolved" color="success" icon={<CheckCircle size={16} />} />
           <KpiCard label="Avg Duration" value={formatDuration(avgDuration)} sub="completed calls" icon={<Clock size={16} />} />
           <KpiCard label="Hours Worked" value={hoursWorked} sub="24/7 this month" color="warning" animate icon={<Zap size={16} />} />
         </div>
@@ -252,7 +252,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
               })}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">Call reasons will appear as more calls are logged.</p>
+            <p className="text-sm text-muted-foreground">Conversation topics will appear as more messages are handled.</p>
           )}
         </div>
       </div>

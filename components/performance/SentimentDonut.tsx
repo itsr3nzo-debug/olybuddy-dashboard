@@ -20,7 +20,7 @@ export default function SentimentDonut({ positive, neutral, negative }: Sentimen
   const total = positive + neutral + negative
 
   if (total === 0) {
-    return <p className="text-sm text-muted-foreground">Sentiment data will appear after calls are processed.</p>
+    return <p className="text-sm text-muted-foreground">Sentiment data will appear after conversations are processed.</p>
   }
 
   const data = [
