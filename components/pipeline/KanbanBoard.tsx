@@ -1,11 +1,13 @@
 'use client'
 
-import { useOptimistic, useTransition } from 'react'
+import { useState, useOptimistic, useTransition } from 'react'
+import { DndContext, DragOverlay, closestCorners, type DragStartEvent, type DragEndEvent } from '@dnd-kit/core'
 import { toast } from 'sonner'
 import { PIPELINE_STAGES } from '@/lib/constants'
 import { updateOpportunityStage } from '@/app/(dashboard)/pipeline/actions'
 import type { Opportunity, PipelineStage } from '@/lib/types'
 import KanbanColumn from './KanbanColumn'
+import KanbanCard from './KanbanCard'
 import { formatCurrency } from '@/lib/format'
 
 type OppWithContact = Opportunity & {
@@ -18,6 +20,7 @@ interface KanbanBoardProps {
 
 export default function KanbanBoard({ opportunities }: KanbanBoardProps) {
   const [isPending, startTransition] = useTransition()
+  const [activeId, setActiveId] = useState<string | null>(null)
   const [optimisticOpps, setOptimisticOpps] = useOptimistic(
     opportunities,
     (state: OppWithContact[], { id, newStage }: { id: string; newStage: string }) =>
@@ -28,7 +31,22 @@ export default function KanbanBoard({ opportunities }: KanbanBoardProps) {
   const wonCount = opportunities.filter(o => o.stage === 'won').length
   const openCount = opportunities.filter(o => o.stage !== 'won' && o.stage !== 'lost').length
 
-  function handleDrop(opportunityId: string, newStage: string) {
+  const activeOpp = activeId ? optimisticOpps.find(o => o.id === activeId) : null
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(String(event.active.id))
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    setActiveId(null)
+    const { active, over } = event
+    if (!over) return
+
+    const opportunityId = String(active.id)
+    const newStage = String(over.id)
+    const current = optimisticOpps.find(o => o.id === opportunityId)
+    if (!current || current.stage === newStage) return
+
     startTransition(async () => {
       setOptimisticOpps({ id: opportunityId, newStage })
       try {
@@ -61,22 +79,32 @@ export default function KanbanBoard({ opportunities }: KanbanBoardProps) {
         )}
       </div>
 
-      {/* Kanban columns */}
-      <div className="flex gap-3 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-thin">
-        {PIPELINE_STAGES.map(stage => {
-          const stageOpps = optimisticOpps.filter(o => o.stage === stage.key)
-          return (
-            <KanbanColumn
-              key={stage.key}
-              stageKey={stage.key}
-              stageLabel={stage.label}
-              stageHex={stage.hex}
-              opportunities={stageOpps}
-              onDrop={handleDrop}
-            />
-          )
-        })}
-      </div>
+      {/* Kanban columns with dnd-kit */}
+      <DndContext collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-thin">
+          {PIPELINE_STAGES.map(stage => {
+            const stageOpps = optimisticOpps.filter(o => o.stage === stage.key)
+            return (
+              <KanbanColumn
+                key={stage.key}
+                stageKey={stage.key}
+                stageLabel={stage.label}
+                stageHex={stage.hex}
+                opportunities={stageOpps}
+              />
+            )
+          })}
+        </div>
+
+        {/* Drag overlay — the floating card that follows cursor */}
+        <DragOverlay>
+          {activeOpp ? (
+            <div className="rotate-2 scale-105">
+              <KanbanCard opportunity={activeOpp} isDragOverlay />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
     </div>
   )
 }

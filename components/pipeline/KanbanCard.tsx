@@ -1,38 +1,55 @@
 'use client'
 
-import { motion } from 'motion/react'
+import { useDraggable } from '@dnd-kit/core'
+import { CSS } from '@dnd-kit/utilities'
 import { formatCurrency } from '@/lib/format'
-import { Phone, MessageSquare } from 'lucide-react'
+import { Phone, MessageSquare, GripVertical } from 'lucide-react'
 import type { Opportunity } from '@/lib/types'
 
 interface KanbanCardProps {
   opportunity: Opportunity & {
     contacts?: { first_name: string | null; last_name: string | null; company: string | null; phone: string | null } | null
   }
+  isDragOverlay?: boolean
 }
 
-export default function KanbanCard({ opportunity: opp }: KanbanCardProps) {
+export default function KanbanCard({ opportunity: opp, isDragOverlay }: KanbanCardProps) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: opp.id,
+  })
+
   const name = opp.contacts
     ? [opp.contacts.first_name, opp.contacts.last_name].filter(Boolean).join(' ') || 'Unknown'
     : 'Unknown'
   const company = opp.contacts?.company
 
+  const style = transform ? {
+    transform: CSS.Translate.toString(transform),
+  } : undefined
+
   return (
-    <motion.div
-      layout
-      layoutId={opp.id}
-      draggable="true"
-      onDragStart={(e) => {
-        const evt = e as unknown as React.DragEvent
-        evt.dataTransfer?.setData('text/plain', opp.id)
-      }}
-      className="rounded-xl border bg-card p-3.5 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-shadow group"
-      style={{ borderColor: 'var(--border)' }}
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`rounded-xl border bg-card p-3.5 transition-all group ${
+        isDragOverlay
+          ? 'shadow-xl border-brand-primary/30 ring-2 ring-brand-primary/20'
+          : isDragging
+            ? 'opacity-30'
+            : 'shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing'
+      }`}
     >
       <div className="flex items-start justify-between mb-2">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-foreground truncate">{opp.title || name}</p>
           {company && <p className="text-xs text-muted-foreground truncate">{company}</p>}
+        </div>
+        <div
+          {...listeners}
+          {...attributes}
+          className="flex-shrink-0 p-1 -mr-1 cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-muted-foreground"
+        >
+          <GripVertical size={14} />
         </div>
       </div>
 
@@ -59,6 +76,6 @@ export default function KanbanCard({ opportunity: opp }: KanbanCardProps) {
           <MessageSquare size={12} />
         </button>
       </div>
-    </motion.div>
+    </div>
   )
 }
