@@ -3,14 +3,11 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Building2, Plug, MessageSquare, ChevronRight, ChevronLeft, Check, Loader2, Shield } from 'lucide-react'
+import { Building2, MessageSquare, ChevronLeft, Check, Loader2, Shield } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { PROVIDERS, CATEGORIES } from '@/lib/integrations-config'
-import ProviderIcon from '@/components/integrations/ProviderIcon'
 
 const STEP_META = [
   { icon: Building2, label: 'Business Details' },
-  { icon: Plug, label: 'Integrations' },
   { icon: Shield, label: 'Terms & DPA' },
   { icon: MessageSquare, label: 'AI Greeting' },
 ]
@@ -38,8 +35,6 @@ export default function OnboardingPage() {
   const [greeting, setGreeting] = useState('')
   const [dpaAccepted, setDpaAccepted] = useState(false)
   const [connectedCount, setConnectedCount] = useState(0)
-  const [search, setSearch] = useState('')
-  const [activeCategory, setActiveCategory] = useState('all')
 
   useEffect(() => {
     fetch('/api/onboarding')
@@ -84,17 +79,37 @@ export default function OnboardingPage() {
   async function saveStep(stepNum: number): Promise<boolean> {
     setSaving(true)
     setError('')
+    // Frontend has 3 steps but API still uses 4-step numbering (step 2 = integrations was removed from UI).
+    // Map: frontend 1 → API 1, frontend 2 → API 3, frontend 3 → API 4
+    const API_STEP_MAP: Record<number, number> = { 1: 1, 2: 3, 3: 4 }
+    const apiStep = API_STEP_MAP[stepNum] ?? stepNum
     const payloads: Record<number, object> = {
       1: { name, contact_name: contactName, phone, services_text: servicesText },
-      2: {},
       3: { dpa_accepted_at: new Date().toISOString() },
       4: { greeting_message: greeting },
     }
     try {
+      // If saving step 1 (business details), also silently advance past the removed
+      // integrations step (API step 2) so the backend stays in sync.
+      if (apiStep === 1) {
+        const r1 = await fetch('/api/onboarding', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ step: 1, data: payloads[1] }),
+        })
+        if (!r1.ok) { setError('Failed to save. Please try again.'); return false }
+        // Skip integrations step silently
+        await fetch('/api/onboarding', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ step: 2, data: {} }),
+        })
+        return true
+      }
       const res = await fetch('/api/onboarding', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ step: stepNum, data: payloads[stepNum] }),
+        body: JSON.stringify({ step: apiStep, data: payloads[apiStep] }),
       })
       if (!res.ok) {
         setError('Failed to save. Please try again.')
@@ -110,14 +125,14 @@ export default function OnboardingPage() {
   }
 
   async function handleNext() {
-    // Validation per step (integrations step is optional — skip allowed)
-    if (step === 3 && !dpaAccepted) {
+    // Validation per step (3 steps: Business Details, DPA, AI Greeting)
+    if (step === 2 && !dpaAccepted) {
       setError('Please accept the Data Processing Agreement to continue.')
       return
     }
     const saved = await saveStep(step)
     if (!saved) return
-    if (step < 4) {
+    if (step < 3) {
       setStep(step + 1)
     } else {
       router.replace('/dashboard')
@@ -125,16 +140,6 @@ export default function OnboardingPage() {
   }
 
   // 6 prioritized integrations shown by default, rest behind "Show all"
-  const onboardingProviders = PROVIDERS.filter(p => p.available)
-  const filteredProviders = onboardingProviders.filter(p => {
-    if (activeCategory !== 'all' && p.category !== activeCategory) return false
-    if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !p.description?.toLowerCase().includes(search.toLowerCase())) return false
-    return true
-  })
-  const PRIORITY_IDS = ['gmail', 'google_calendar', 'outlook', 'quickbooks', 'hubspot', 'slack']
-  const priorityProviders = filteredProviders.filter(p => PRIORITY_IDS.includes(p.id))
-  const otherProviders = filteredProviders.filter(p => !PRIORITY_IDS.includes(p.id))
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -214,89 +219,8 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Step 2: Integrations — all 118 with search + categories, optional */}
+        {/* Step 2: DPA (was step 3 — integrations removed from onboarding) */}
         {step === 2 && (
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Plug size={20} className="text-brand-primary" />
-                Connect integrations <span className="text-xs font-normal text-muted-foreground">(optional)</span>
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                Pick the apps you actually use — or skip and add them later from Settings.
-                {connectedCount > 0 && <span className="text-emerald-400"> · ✅ {connectedCount} connected</span>}
-              </p>
-            </div>
-
-            <input
-              type="search"
-              placeholder="Search 100+ integrations: Notion, Pipedrive, Dropbox, Salesforce…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full px-3 py-2 bg-background border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/50"
-            />
-
-            <div className="flex flex-wrap gap-1.5">
-              {CATEGORIES.slice(0, 12).map(cat => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setActiveCategory(cat.id)}
-                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                    activeCategory === cat.id
-                      ? 'bg-brand-primary text-white border-brand-primary'
-                      : 'bg-background border-muted text-muted-foreground hover:border-brand-primary/30'
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="grid gap-2 max-h-[420px] overflow-y-auto pr-1">
-              {priorityProviders.length > 0 && !search && activeCategory === 'all' && (
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground mt-2 mb-1">Most popular</p>
-              )}
-              {priorityProviders.map((p) => (
-                <a key={p.id} href={`/api/oauth/${p.id}`}
-                  className="flex items-center gap-3 p-3 bg-background border rounded-lg hover:border-brand-primary/50 transition-colors group">
-                  <ProviderIcon provider={p} size={32} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate group-hover:text-brand-primary transition-colors">{p.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{p.description}</p>
-                  </div>
-                  <ChevronRight size={14} className="text-muted-foreground" />
-                </a>
-              ))}
-              {otherProviders.length > 0 && (
-                <>
-                  {priorityProviders.length > 0 && !search && activeCategory === 'all' && (
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground mt-3 mb-1">Everything else ({otherProviders.length})</p>
-                  )}
-                  {otherProviders.map((p) => (
-                    <a key={p.id} href={`/api/oauth/${p.id}`}
-                      className="flex items-center gap-3 p-3 bg-background border rounded-lg hover:border-brand-primary/50 transition-colors group">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${p.iconColor}`}>
-                        <Plug size={14} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate group-hover:text-brand-primary transition-colors">{p.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{p.description}</p>
-                      </div>
-                      <ChevronRight size={14} className="text-muted-foreground" />
-                    </a>
-                  ))}
-                </>
-              )}
-              {filteredProviders.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-8">No matches. Try a different search.</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: DPA */}
-        {step === 3 && (
           <div className="space-y-4">
             <div>
               <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -330,7 +254,7 @@ export default function OnboardingPage() {
         )}
 
         {/* Step 4: AI Greeting */}
-        {step === 4 && (
+        {step === 3 && (
           <div className="space-y-5">
             <div>
               <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -367,11 +291,11 @@ export default function OnboardingPage() {
               <ChevronLeft size={16} /> Back
             </button>
           ) : <div />}
-          <button onClick={handleNext} disabled={saving || (step === 3 && !dpaAccepted)}
+          <button onClick={handleNext} disabled={saving || (step === 2 && !dpaAccepted)}
             className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary text-white rounded-lg text-sm font-medium hover:bg-brand-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             {saving && <Loader2 size={14} className="animate-spin" />}
-            {step === 4 ? 'Finish Setup' : 'Continue'}
-            {step < 4 && !saving && <ChevronRight size={16} />}
+            {step === 3 ? 'Finish Setup' : 'Continue'}
+            {step < 3 && !saving && <ChevronLeft size={16} className="rotate-180" />}
           </button>
         </div>
       </div>
