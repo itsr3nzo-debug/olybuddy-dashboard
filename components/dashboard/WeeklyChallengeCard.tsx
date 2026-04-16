@@ -40,7 +40,7 @@ export default function WeeklyChallengeCard({ lastWeekCalls, thisWeekCalls }: We
       <p className="text-sm text-foreground mb-3">
         {isComplete
           ? 'Challenge complete! Your AI crushed it this week.'
-          : `Beat last week: ${lastWeekCalls} calls → target ${target}`
+          : `Beat last week: ${lastWeekCalls} conversations → target ${target}`
         }
       </p>
 

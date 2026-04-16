@@ -18,7 +18,7 @@ export default function CallsChart({ data }: CallsChartProps) {
         <div>
           <h2 className="text-sm font-semibold text-foreground">Activity — Last 7 Days</h2>
           {peak && peak.calls > 0 && (
-            <p className="text-xs text-muted-foreground mt-0.5">Peak: {peak.date} ({peak.calls} calls)</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Peak: {peak.date} ({peak.calls} conversations)</p>
           )}
         </div>
         <span className="text-xs text-muted-foreground">{total} total</span>

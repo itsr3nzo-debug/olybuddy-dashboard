@@ -72,14 +72,14 @@ export default function NotificationSettings({ initialPrefs }: NotificationSetti
         onChange={setEmail}
         label="Email"
         icon={<Mail size={14} />}
-        description="Get notified when your AI misses a call or a new booking is made"
+        description="Get notified when your AI handles a message or a new booking is made"
       />
       <Toggle
         checked={telegram}
         onChange={setTelegram}
         label="Telegram"
         icon={<Send size={14} />}
-        description="Instant Telegram notifications for every call"
+        description="Instant Telegram notifications for every conversation"
       />
       <Toggle
         checked={false}

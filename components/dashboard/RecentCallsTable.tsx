@@ -15,15 +15,15 @@ export default function RecentCallsTable({ calls }: { calls: CallLog[] }) {
   return (
     <div className="rounded-xl border overflow-hidden bg-card-bg">
       <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-foreground">Recent Calls</h2>
+        <h2 className="text-sm font-semibold text-foreground">Recent Activity</h2>
         <a href="/calls" className="text-xs font-medium text-brand-primary hover:underline">View all →</a>
       </div>
 
       {calls.length === 0 ? (
         <div className="px-5 py-12 text-center">
           <Phone size={32} className="mx-auto mb-3 text-muted-foreground opacity-30" />
-          <p className="text-sm font-medium mb-1 text-foreground">Your AI Employee is standing by</p>
-          <p className="text-xs text-muted-foreground">Call {AI_PHONE_DISPLAY} to see your first call appear here.</p>
+          <p className="text-sm font-medium mb-1 text-foreground">Your AI Employee is live</p>
+          <p className="text-xs text-muted-foreground">Send a WhatsApp message to see activity appear here.</p>
         </div>
       ) : (
         <div className="divide-y divide-border">

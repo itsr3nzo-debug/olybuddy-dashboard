@@ -85,7 +85,7 @@ export default async function MoneyPage() {
       {/* KPI breakdown cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <KpiCard
-          label="Calls Answered"
+          label="Conversations Handled"
           value={totalAnswered}
           sub={`× £15/call = ${formatCurrency(callsSaved)}`}
           color="success"
@@ -112,7 +112,7 @@ export default async function MoneyPage() {
       {/* Savings breakdown */}
       <div className="rounded-xl border p-6 mb-6 bg-card-bg">
         <h2 className="text-sm font-semibold mb-2 text-foreground">How we calculate this</h2>
-        <p className="text-xs mb-5 text-muted-foreground">Based on UK average receptionist costs (£15/call) and admin time (£2/follow-up)</p>
+        <p className="text-xs mb-5 text-muted-foreground">Based on UK average admin costs (£5/message, £15/call, £50/booking, £2/follow-up)</p>
         <div className="space-y-0 divide-y divide-border">
           <SavingsRow label="Calls answered" count={totalAnswered} unit="£15/call" value={callsSaved} />
           <SavingsRow label="Follow-ups automated" count={totalFollowUps} unit="£2/follow-up" value={followUpsSaved} />

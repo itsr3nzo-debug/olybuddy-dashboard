@@ -72,7 +72,7 @@ export default function BeforeAfterCard({ first30, current30, hasEnoughData }: B
       </div>
 
       <MetricRow label="Resolution Rate" before={first30.resolutionRate} after={current30.resolutionRate} suffix="%" />
-      <MetricRow label="Calls Handled" before={first30.callsHandled} after={current30.callsHandled} />
+      <MetricRow label="Conversations" before={first30.callsHandled} after={current30.callsHandled} />
       <MetricRow label="Positive Sentiment" before={first30.positiveRate} after={current30.positiveRate} suffix="%" />
       <MetricRow label="Avg Duration" before={first30.avgDuration} after={current30.avgDuration} suffix="s" higherIsBetter={false} />
     </motion.div>

@@ -70,9 +70,9 @@ export default async function ReportingPage() {
         <p className="text-sm mt-1 text-muted-foreground">Last 30 days · Comprehensive analytics</p>
       </div>
 
-      {/* Call Report */}
+      {/* Activity Report */}
       <section className="mb-8">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Call Report</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">Activity Report</h2>
         <Suspense fallback={<div className="grid grid-cols-2 xl:grid-cols-4 gap-4">{[0,1,2,3].map(i => <KpiCardSkeleton key={i} />)}</div>}>
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
             <KpiCard label="Total Calls" value={totalCalls} color="accent" animate icon={<Phone size={16} />} />

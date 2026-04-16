@@ -10,13 +10,13 @@ interface GettingStartedProps {
 export default function GettingStarted({ hasGreeting, hasHours }: GettingStartedProps) {
   const steps = [
     {
-      id: 'call',
-      icon: Phone,
-      label: 'Call your AI Employee',
-      description: `Dial ${AI_PHONE_DISPLAY} and hear it in action`,
-      done: false, // always shows as a todo — they need to call to see data
-      href: `tel:${AI_PHONE_NUMBER}`,
-      external: true,
+      id: 'message',
+      icon: MessageSquare,
+      label: 'Message your AI Employee',
+      description: 'Send a WhatsApp message and see it respond',
+      done: false,
+      href: '#',
+      external: false,
     },
     {
       id: 'greeting',
