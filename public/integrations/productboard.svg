@@ -1,1 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><rect width="24" height="24" rx="4" fill="#6366F1"/><text x="12" y="12.5" text-anchor="middle" dominant-baseline="central" font-family="-apple-system,sans-serif" font-weight="700" font-size="13" fill="white">P</text></svg>
+<svg width="48" height="48" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M21.0003 7L30.0001 16L20.9998 25L12.0005 16L21.0003 7Z" fill="#0071E1"/>
+    <path d="M20.9996 7L11.9998 16L3 7H20.9996Z" fill="#FFC600"/>
+    <path d="M11.9998 16L20.9996 25H3L11.9998 16Z" fill="#F84136"/>
+</svg>
