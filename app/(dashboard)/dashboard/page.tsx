@@ -15,7 +15,8 @@ import VpsHeartbeatBadge from '@/components/dashboard/VpsHeartbeatBadge'
 import WeeklyChallengeCard from '@/components/dashboard/WeeklyChallengeCard'
 import OpportunityDonut from '@/components/dashboard/OpportunityDonut'
 import type { CallLog, AgentStatus } from '@/lib/types'
-import { MessageSquare, Calendar, PoundSterling, XCircle } from 'lucide-react'
+import { MessageSquare, Calendar, PoundSterling, UserPlus, Zap, Link2, Activity } from 'lucide-react'
+import GettingStarted from '@/components/dashboard/GettingStarted'
 import { AI_PHONE_DISPLAY } from '@/lib/constants'
 import { TimePeriodSelector } from '@/components/ui/time-period-selector'
 
@@ -363,18 +364,19 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             label="Leads Captured"
             value={newContacts}
             sub="new contacts this period"
-            color="accent"
+            color="warning"
             animate
-            icon={<XCircle size={16} />}
+            icon={<UserPlus size={16} />}
+            index={3}
           />
         </div>
       </Suspense>
 
       {/* Secondary KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <KpiCard label="Follow-ups Sent" value={followUpsSent} sub="automated chase messages" />
-        <KpiCard label="Active Today" value={calls.filter(c => c.started_at && new Date(c.started_at).toDateString() === today).length + (messagesThisPeriod > 0 ? 1 : 0)} sub="conversations today" />
-        <KpiCard label="Integrations" value={integrationsCount} sub="apps connected" />
+        <KpiCard label="Follow-ups Sent" value={followUpsSent} sub="automated chase messages" color="accent" animate icon={<Zap size={16} />} index={4} />
+        <KpiCard label="Active Today" value={calls.filter(c => c.started_at && new Date(c.started_at).toDateString() === today).length + (messagesThisPeriod > 0 ? 1 : 0)} sub="conversations today" color="default" animate icon={<Activity size={16} />} index={5} />
+        <KpiCard label="Integrations" value={integrationsCount} sub="apps connected" color="default" animate icon={<Link2 size={16} />} index={6} />
       </div>
 
       {/* Voice Agent Section — only for £999/mo Voice plan */}
@@ -389,8 +391,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
       )}
 
+      {/* Getting Started — show for new clients with no activity */}
+      {clientId && totalConversations === 0 && (
+        <GettingStarted hasGreeting={agentName !== 'Ava'} hasHours={false} />
+      )}
+
       {/* Weekly Challenge */}
-      <WeeklyChallengeCard lastWeekCalls={prevCalls.length} thisWeekCalls={calls.length} />
+      <WeeklyChallengeCard lastWeekCalls={prevTotalConversations} thisWeekCalls={totalConversations} />
 
       {/* Pipeline Overview */}
       <OpportunityDonut openCount={oppOpen} wonCount={oppWon} lostCount={oppLost} totalValue={oppTotalValue} />
