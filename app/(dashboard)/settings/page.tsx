@@ -83,6 +83,42 @@ export default async function SettingsPage() {
       )}
 
       <div className="space-y-6">
+        <Section
+          title="Sender Roles"
+          description="Tell your AI Employee who's the boss — owner numbers vs customer numbers"
+        >
+          <a
+            href="/settings/sender-roles"
+            className="flex items-center justify-between -mx-5 sm:-mx-6 px-5 sm:px-6 py-4 hover:bg-muted/30 transition-colors"
+          >
+            <div>
+              <p className="text-sm font-medium text-foreground">Manage owner numbers</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Business WhatsApp (what customers message), your personal number (you as boss), and aliases.
+              </p>
+            </div>
+            <span className="text-sm text-brand-accent">Open →</span>
+          </a>
+        </Section>
+
+        <Section
+          title="Pricing rules"
+          description="Your rate card — labour, markups, site loadings. Used for every quote draft."
+        >
+          <a
+            href="/settings/pricing-rules"
+            className="flex items-center justify-between -mx-5 sm:-mx-6 px-5 sm:px-6 py-4 hover:bg-muted/30 transition-colors"
+          >
+            <div>
+              <p className="text-sm font-medium text-foreground">Edit rate card</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Labour £/hr, minimum call-out, markup tiers, site loadings. Codify once, save hours on every estimate.
+              </p>
+            </div>
+            <span className="text-sm text-brand-accent">Open →</span>
+          </a>
+        </Section>
+
         <Section title="Business Details" description="Your company information">
           <BusinessForm
             initialName={client?.name ?? ''}

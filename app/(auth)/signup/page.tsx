@@ -18,9 +18,11 @@ import IndustryPicker from '@/components/signup/IndustryPicker'
 import PersonalityPicker from '@/components/signup/PersonalityPicker'
 import WhatsAppPreview from '@/components/signup/WhatsAppPreview'
 import PlanCards from '@/components/signup/PlanCards'
+import PhoneNumbersStep, { phoneNumbersStepValid } from '@/components/signup/PhoneNumbersStep'
 import { createClient } from '@/lib/supabase/client'
 
-const STEP_LABELS = ['Get Started', 'Your Business', "AI Personality", 'Choose Plan']
+const STEP_LABELS = ['Get Started', 'Your Business', 'WhatsApp Setup', "AI Personality", 'Choose Plan']
+const TOTAL_STEPS = 5
 
 export default function SignupPage() {
   return (
@@ -47,6 +49,9 @@ function SignupWizard() {
     services: '',
     personality: 'optimistic',
     plan: 'trial',
+    business_whatsapp: '',
+    owner_phone: '',
+    owner_name: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(cancelled ? 'Payment was cancelled. Try again or choose a different plan.' : '')
@@ -60,13 +65,14 @@ function SignupWizard() {
   function canProceed(): boolean {
     if (step === 1) return !!form.email && form.email.includes('@') && !!form.password && form.password.length >= 10 && /\d/.test(form.password)
     if (step === 2) return !!form.business_name && !!form.industry
-    if (step === 3) return !!form.personality
-    if (step === 4) return !!form.plan
+    if (step === 3) return phoneNumbersStepValid(form.business_whatsapp, form.owner_phone)
+    if (step === 4) return !!form.personality
+    if (step === 5) return !!form.plan
     return false
   }
 
   function next() {
-    if (canProceed() && step < 4) setStep(step + 1)
+    if (canProceed() && step < TOTAL_STEPS) setStep(step + 1)
   }
 
   function back() {
@@ -81,7 +87,10 @@ function SignupWizard() {
       const res = await fetch('/api/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          owner_name: form.owner_name || form.contact_name,
+        }),
       })
 
       const data = await res.json()
@@ -182,7 +191,7 @@ function SignupWizard() {
                 {i + 1 < step ? <Check size={12} /> : <span>{i + 1}</span>}
                 <span className="hidden sm:inline">{label}</span>
               </div>
-              {i < 3 && <div className={`w-8 h-px ${i + 1 < step ? 'bg-green-500/30' : 'bg-white/10'}`} />}
+              {i < STEP_LABELS.length - 1 && <div className={`w-8 h-px ${i + 1 < step ? 'bg-green-500/30' : 'bg-white/10'}`} />}
             </div>
           ))}
         </div>
@@ -313,6 +322,17 @@ function SignupWizard() {
             )}
 
             {step === 3 && (
+              <div className="max-w-xl mx-auto text-slate-200">
+                <PhoneNumbersStep
+                  businessWhatsapp={form.business_whatsapp}
+                  ownerPhone={form.owner_phone}
+                  ownerName={form.owner_name || form.contact_name}
+                  onChange={(field, value) => update(field, value)}
+                />
+              </div>
+            )}
+
+            {step === 4 && (
               <div>
                 <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-2">
                   Choose your AI&apos;s personality
@@ -345,7 +365,7 @@ function SignupWizard() {
               </div>
             )}
 
-            {step === 4 && (
+            {step === 5 && (
               <div className="max-w-5xl mx-auto">
                 <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-2">
                   Hire your AI Employee
@@ -387,7 +407,7 @@ function SignupWizard() {
             </button>
           )}
 
-          {step < 4 ? (
+          {step < TOTAL_STEPS ? (
             <button
               onClick={next}
               disabled={!canProceed()}

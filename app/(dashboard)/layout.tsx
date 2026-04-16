@@ -7,6 +7,7 @@ import MobileNav from '@/components/dashboard/MobileNav'
 import CommandPalette from '@/components/shared/CommandPalette'
 import OnboardingRedirect from '@/components/shared/OnboardingRedirect'
 import TrialBanner from '@/components/dashboard/TrialBanner'
+import ProvisioningBanner from '@/components/dashboard/ProvisioningBanner'
 import { Breadcrumb } from '@/components/ui/breadcrumb'
 import { getSupabase } from '@/lib/supabase'
 
@@ -52,6 +53,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {/* Main content */}
         <main className="flex-1 lg:ml-60 min-h-screen p-4 sm:p-6 lg:p-8 overflow-auto pb-24 lg:pb-8 transition-[margin] duration-300">
           <TrialBanner trialEndsAt={trialEndsAt} subscriptionStatus={subscriptionStatus} />
+          {session.role !== 'super_admin' && session.clientId && <ProvisioningBanner />}
           <Breadcrumb />
           {children}
         </main>

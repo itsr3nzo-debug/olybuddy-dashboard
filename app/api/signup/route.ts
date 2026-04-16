@@ -28,6 +28,16 @@ async function recordSignupAttempt(ip: string, supabase: any) {
 }
 
 const VALID_PLANS = ['trial', 'employee', 'voice']
+
+// UK mobile normalization — accepts 07xxx, +447xxx, 447xxx, returns 447xxx or null.
+function normalizeUkPhone(input: string | undefined | null): string | null {
+  if (!input) return null
+  const digits = String(input).replace(/[^\d+]/g, '')
+  if (/^\+447\d{9}$/.test(digits)) return digits.slice(1)
+  if (/^447\d{9}$/.test(digits)) return digits
+  if (/^07\d{9}$/.test(digits)) return '44' + digits.slice(1)
+  return null
+}
 // Industry is a user-chosen string — not from a closed enum. We only guard
 // against empty/oversized input. The provisioning step falls back to a
 // generic template if the industry has no specific Layer 2 file.
@@ -43,11 +53,29 @@ export async function POST(req: NextRequest) {
   await recordSignupAttempt(ip, supabase)
 
   const body = await req.json()
-  const { business_name, contact_name, email, password, phone, industry, services, location, plan, personality } = body
+  const {
+    business_name, contact_name, email, password, phone, industry, services, location, plan, personality,
+    business_whatsapp, owner_phone, owner_name,
+  } = body
 
   // Input validation
   if (!business_name || !email || !password || !industry || !plan) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+  }
+
+  // Sender Role Protocol: both the agent's WhatsApp number and the owner's personal
+  // WhatsApp number are REQUIRED. Without both, the agent can't distinguish
+  // owner-commands from customer-enquiries.
+  const normalizedBusinessWa = normalizeUkPhone(business_whatsapp)
+  const normalizedOwnerPhone = normalizeUkPhone(owner_phone)
+  if (!normalizedBusinessWa) {
+    return NextResponse.json({ error: 'Business WhatsApp number must be a valid UK mobile' }, { status: 400 })
+  }
+  if (!normalizedOwnerPhone) {
+    return NextResponse.json({ error: 'Your personal WhatsApp number must be a valid UK mobile' }, { status: 400 })
+  }
+  if (normalizedBusinessWa === normalizedOwnerPhone) {
+    return NextResponse.json({ error: 'Business and personal WhatsApp must be different numbers' }, { status: 400 })
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: 'Invalid email format' }, { status: 400 })
@@ -140,6 +168,10 @@ export async function POST(req: NextRequest) {
     is_active: false,
     tone: personality || 'optimistic',
     greeting_message: `Hey! I'm the AI assistant for ${business_name}. How can I help you today?`,
+    business_whatsapp: normalizedBusinessWa,
+    owner_phone: normalizedOwnerPhone,
+    owner_name: (typeof owner_name === 'string' && owner_name.trim()) || contact_name || null,
+    owner_aliases: [],
   })
 
   if (configErr) {
@@ -165,6 +197,24 @@ export async function POST(req: NextRequest) {
     await supabase.from('agent_config').delete().eq('client_id', clientId)
     await supabase.from('clients').delete().eq('id', clientId)
     return NextResponse.json({ error: authErr.message || 'Failed to create account.' }, { status: 500 })
+  }
+
+  // Enqueue a provisioning run so the new client's VPS (once spun up by the
+  // provisioning worker) gets access.json + CLAUDE.md with the correct owner
+  // numbers baked in. Best-effort.
+  try {
+    await supabase.from('provisioning_queue').insert({
+      client_id: clientId,
+      action: 'full_reprovision',
+      triggered_by: 'signup',
+      meta: {
+        owner_phone: normalizedOwnerPhone,
+        business_whatsapp: normalizedBusinessWa,
+        plan,
+      },
+    })
+  } catch (e) {
+    console.error('[signup] failed to enqueue provisioning:', e)
   }
 
   // TRIAL: welcome email (no login link needed — they know their password)

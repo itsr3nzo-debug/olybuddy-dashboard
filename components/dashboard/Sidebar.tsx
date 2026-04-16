@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Phone, LayoutDashboard, BarChart3, PoundSterling, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Kanban, MessageSquare, Calendar, ScrollText, FileBarChart, Plug, Shield } from 'lucide-react'
+import { Phone, LayoutDashboard, BarChart3, PoundSterling, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Kanban, MessageSquare, Calendar, ScrollText, FileBarChart, Plug, Shield, Users, Mic, FileEdit, FileText } from 'lucide-react'
 import type { UserRole } from '@/lib/rbac'
 import { MEMBER_BLOCKED_PAGES } from '@/lib/rbac'
 
@@ -16,8 +16,14 @@ const allNavItems = [
   { href: '/conversations',  label: 'Inbox',          Icon: MessageSquare },
   { href: '/calls',          label: 'Conversations',  Icon: ScrollText },
   { href: '/calendar',       label: 'Calendar',       Icon: Calendar },
+  // Trades-ops
+  { href: '/jobs/captured',  label: 'Captured jobs',  Icon: Mic },
+  { href: '/variations',     label: 'Variations',     Icon: FileEdit },
+  { href: '/estimates',      label: 'Estimates',      Icon: FileText },
   // Settings
   { href: '/integrations',   label: 'Integrations',   Icon: Plug },
+  { href: '/settings/sender-roles', label: 'Sender Roles', Icon: Users },
+  { href: '/settings/pricing-rules', label: 'Pricing rules', Icon: PoundSterling },
   { href: '/settings',       label: 'Settings',       Icon: Settings },
 ]
 

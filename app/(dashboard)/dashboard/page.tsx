@@ -9,6 +9,7 @@ import CallsChart, { ChartSkeleton } from '@/components/dashboard/CallsChart'
 import DashboardRealtime from '@/components/dashboard/DashboardRealtime'
 import EmptyState from '@/components/shared/EmptyState'
 import HeroRoiCard from '@/components/dashboard/HeroRoiCard'
+import WeeklyROIWidget from '@/components/dashboard/WeeklyROIWidget'
 import AgentStatusCard from '@/components/dashboard/AgentStatusCard'
 import IntegrationsCta from '@/components/dashboard/IntegrationsCta'
 import VpsHeartbeatBadge from '@/components/dashboard/VpsHeartbeatBadge'
@@ -322,6 +323,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
       {/* Hero ROI Card */}
       <HeroRoiCard savedPounds={savedPounds} />
+
+      {/* Weekly ROI — concrete breakdown of what the AI Employee did */}
+      {clientId && <WeeklyROIWidget />}
 
       {/* KPI Grid */}
       <Suspense fallback={
