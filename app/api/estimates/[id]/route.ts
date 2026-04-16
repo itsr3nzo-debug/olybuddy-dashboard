@@ -11,7 +11,20 @@ function service() {
   )
 }
 
-async function getClientId(): Promise<string | null> {
+async function getClientId(req?: NextRequest): Promise<string | null> {
+  // 1. Agent bearer key path (for on-VPS agents writing back take-off results)
+  const auth = req?.headers.get('authorization') || ''
+  const m = auth.match(/^Bearer\s+(oak_[a-f0-9]+)$/i)
+  if (m) {
+    const sb = createClient(
+      process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false } },
+    )
+    const { data } = await sb.from('agent_config').select('client_id').eq('agent_api_key', m[1]).maybeSingle()
+    return data?.client_id ?? null
+  }
+  // 2. User cookie session path (for dashboard edits)
   const cookieStore = await cookies()
   const s = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -77,7 +90,7 @@ function computePricing(takeoff: Record<string, number>, rules: PricingRules) {
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const clientId = await getClientId()
+  const clientId = await getClientId(req)
   if (!clientId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await ctx.params
