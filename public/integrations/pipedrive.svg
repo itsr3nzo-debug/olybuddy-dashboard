@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
-  <rect width="24" height="24" rx="5" fill="#017737" opacity="0.15"/>
-  <text x="12" y="12.5" text-anchor="middle" dominant-baseline="central" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" font-weight="700" font-size="14" fill="#017737">P</text>
+  <rect width="24" height="24" rx="4" fill="#017737"/>
+  <circle cx="12" cy="10" r="5" fill="none" stroke="white" stroke-width="2.5"/>
+  <rect x="10.5" y="10" width="2.5" height="9" rx="0.5" fill="white"/>
 </svg>
