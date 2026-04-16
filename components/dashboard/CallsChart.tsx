@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 interface CallsChartProps {
@@ -7,6 +8,7 @@ interface CallsChartProps {
 }
 
 export default function CallsChart({ data }: CallsChartProps) {
+  const router = useRouter()
   const total = data.reduce((s, d) => s + d.calls, 0)
   const peak = data.reduce((max, d) => d.calls > max.calls ? d : max, data[0])
 
@@ -50,7 +52,12 @@ export default function CallsChart({ data }: CallsChartProps) {
             strokeWidth={2}
             fill="url(#callGrad)"
             dot={{ r: 3, fill: 'var(--brand-primary)', strokeWidth: 0 }}
-            activeDot={{ r: 5, fill: 'var(--brand-primary)', strokeWidth: 0 }}
+            activeDot={{ r: 5, fill: 'var(--brand-primary)', strokeWidth: 0, style: { cursor: 'pointer' } }}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            onClick={(state: any) => {
+              if (state?.payload?.date) router.push(`/calls?date=${encodeURIComponent(state.payload.date)}`)
+            }}
+            style={{ cursor: 'pointer' }}
           />
         </AreaChart>
       </ResponsiveContainer>

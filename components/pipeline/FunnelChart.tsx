@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { PIPELINE_STAGES } from '@/lib/constants'
 import { formatCurrency } from '@/lib/format'
@@ -9,6 +10,7 @@ interface FunnelChartProps {
 }
 
 export default function FunnelChart({ stageData }: FunnelChartProps) {
+  const router = useRouter()
   const firstCount = stageData[0]?.count ?? 1
 
   const allStages = PIPELINE_STAGES
@@ -37,7 +39,16 @@ export default function FunnelChart({ stageData }: FunnelChartProps) {
             contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
             formatter={(v) => [`${v} deals`, '']}
           />
-          <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={24}>
+          <Bar
+            dataKey="count"
+            radius={[0, 6, 6, 0]}
+            barSize={24}
+            onClick={(state) => {
+              const stage = PIPELINE_STAGES.find(s => s.label === state?.name)
+              if (stage) router.push(`/pipeline?stage=${stage.key}`)
+            }}
+            style={{ cursor: 'pointer' }}
+          >
             {data.map((entry, i) => (
               <Cell key={i} fill={entry.hex} fillOpacity={0.8} />
             ))}

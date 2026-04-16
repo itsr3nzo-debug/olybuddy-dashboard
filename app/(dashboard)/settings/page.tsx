@@ -13,6 +13,7 @@ import FaqEditor from '@/components/settings/FaqEditor'
 import NotificationSettings from '@/components/settings/NotificationSettings'
 import HoursGrid from '@/components/settings/HoursGrid'
 import TeamSection from '@/components/settings/TeamSection'
+import { Section } from '@/components/ui/card'
 
 export default async function SettingsPage() {
   const { requireAccess } = await import('@/lib/rbac-guard')
@@ -82,84 +83,42 @@ export default async function SettingsPage() {
       )}
 
       <div className="space-y-6">
-        {/* Business Details (Editable) */}
-        <section className="rounded-xl border overflow-hidden bg-card-bg">
-          <div className="px-6 py-4 border-b border-border">
-            <h2 className="text-sm font-semibold text-foreground">Business Details</h2>
-          </div>
-          <div className="px-6 py-5">
-            <BusinessForm
-              initialName={client?.name ?? ''}
-              initialEmail={client?.email ?? ''}
-              initialPhone={client?.phone ?? ''}
-            />
-          </div>
-        </section>
+        <Section title="Business Details" description="Your company information">
+          <BusinessForm
+            initialName={client?.name ?? ''}
+            initialEmail={client?.email ?? ''}
+            initialPhone={client?.phone ?? ''}
+          />
+        </Section>
 
-        {/* AI Employee Info (Read-only) */}
-        <section className="rounded-xl border overflow-hidden bg-card-bg">
-          <div className="px-6 py-4 border-b border-border">
-            <h2 className="text-sm font-semibold text-foreground">AI Employee</h2>
-          </div>
-          <div className="px-6 divide-y divide-border">
+        <Section title="AI Employee" description="Your AI team member configuration">
+          <div className="divide-y divide-border -mx-5 sm:-mx-6">
             <SettingRow label="Calls handled (all time)" value={totalCalls.toLocaleString()} />
             <SettingRow label="Voice" value="Ava (British female)" />
             <SettingRow label="Provider" value="ElevenLabs" />
             <SettingRow label="Inbound number" value={AI_PHONE_DISPLAY} mono />
           </div>
-        </section>
+        </Section>
 
-        {/* Greeting Message */}
-        <section className="rounded-xl border overflow-hidden bg-card-bg">
-          <div className="px-6 py-4 border-b border-border">
-            <h2 className="text-sm font-semibold text-foreground">Greeting Message</h2>
-          </div>
-          <div className="px-6 py-5">
-            <GreetingEditor initialGreeting={config?.greeting_message ?? ''} />
-          </div>
-        </section>
+        <Section title="Greeting Message" description="What customers hear when your AI Employee picks up">
+          <GreetingEditor initialGreeting={config?.greeting_message ?? ''} />
+        </Section>
 
-        {/* Operating Hours */}
-        <section className="rounded-xl border overflow-hidden bg-card-bg">
-          <div className="px-6 py-4 border-b border-border">
-            <h2 className="text-sm font-semibold text-foreground">Operating Hours</h2>
-          </div>
-          <div className="px-6 py-5">
-            <HoursGrid initialHours={(config?.hours as HoursConfig) ?? defaultHours} />
-          </div>
-        </section>
+        <Section title="Operating Hours" description="When your AI Employee is active">
+          <HoursGrid initialHours={(config?.hours as HoursConfig) ?? defaultHours} />
+        </Section>
 
-        {/* FAQs */}
-        <section className="rounded-xl border overflow-hidden bg-card-bg">
-          <div className="px-6 py-4 border-b border-border">
-            <h2 className="text-sm font-semibold text-foreground">FAQs</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Help your AI answer common questions about your business</p>
-          </div>
-          <div className="px-6 py-5">
-            <FaqEditor initialFaqs={Array.isArray(config?.faqs) ? (config.faqs as { question: string; answer: string }[]) : []} />
-          </div>
-        </section>
+        <Section title="FAQs" description="Help your AI answer common questions about your business">
+          <FaqEditor initialFaqs={Array.isArray(config?.faqs) ? (config.faqs as { question: string; answer: string }[]) : []} />
+        </Section>
 
-        {/* Notifications */}
-        <section className="rounded-xl border overflow-hidden bg-card-bg">
-          <div className="px-6 py-4 border-b border-border">
-            <h2 className="text-sm font-semibold text-foreground">Notifications</h2>
-          </div>
-          <div className="px-6">
-            <NotificationSettings initialPrefs={(config?.notification_prefs as { email?: boolean; telegram?: boolean }) ?? {}} />
-          </div>
-        </section>
+        <Section title="Notifications" description="How you get alerted about calls and bookings">
+          <NotificationSettings initialPrefs={(config?.notification_prefs as { email?: boolean; telegram?: boolean }) ?? {}} />
+        </Section>
 
-        {/* Subscription */}
-        <section className="rounded-xl border overflow-hidden bg-card-bg">
-          <div className="px-6 py-4 border-b border-border">
-            <h2 className="text-sm font-semibold text-foreground">Subscription</h2>
-          </div>
-          <div className="px-6 divide-y divide-border">
-            <SettingRow
-              label="Status"
-              value={<StatusBadge status={client?.subscription_status ?? 'active'} />}
-            />
+        <Section title="Subscription" description="Your plan and billing">
+          <div className="divide-y divide-border -mx-5 sm:-mx-6">
+            <SettingRow label="Status" value={<StatusBadge status={client?.subscription_status ?? 'active'} />} />
             <SettingRow label="Plan" value={PLAN_LABELS[client?.subscription_plan ?? ''] ?? 'AI Employee'} />
             {client?.subscription_status === 'trial' && client?.trial_ends_at && (
               <SettingRow label="Trial ends" value={new Date(client.trial_ends_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} />
@@ -169,24 +128,37 @@ export default async function SettingsPage() {
               <SettingRow label="Your AI WhatsApp number" value={config.twilio_phone} mono />
             )}
           </div>
-        </section>
+        </Section>
 
-        {/* Account */}
-        <section className="rounded-xl border overflow-hidden bg-card-bg">
-          <div className="px-6 py-4 border-b border-border">
-            <h2 className="text-sm font-semibold text-foreground">Account</h2>
-          </div>
-          <div className="px-6 divide-y divide-border">
+        <Section title="Account" description="Login and security">
+          <div className="divide-y divide-border -mx-5 sm:-mx-6">
             <SettingRow label="Login email" value={session.email ?? '—'} />
           </div>
-        </section>
+        </Section>
 
-        {/* Support */}
-        <section className="rounded-xl border overflow-hidden p-6 bg-card-bg">
-          <h2 className="text-sm font-semibold mb-2 text-foreground">Need help?</h2>
-          <p className="text-sm mb-4 text-muted-foreground">
-            For advanced configuration, subscription changes, or AI script updates, contact the Nexley AI team.
-          </p>
+        {/* Danger Zone */}
+        <Section title="Danger Zone" description="Irreversible actions" className="border-red-500/20">
+          <div className="flex items-center justify-between py-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">Cancel subscription</p>
+              <p className="text-xs text-muted-foreground">Your AI Employee will stop responding immediately</p>
+            </div>
+            <button className="px-3 py-1.5 rounded-lg text-sm border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors">
+              Cancel plan
+            </button>
+          </div>
+          <div className="flex items-center justify-between py-3 border-t border-border">
+            <div>
+              <p className="text-sm font-medium text-foreground">Delete account</p>
+              <p className="text-xs text-muted-foreground">Permanently remove all data including call logs and contacts</p>
+            </div>
+            <button className="px-3 py-1.5 rounded-lg text-sm border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors">
+              Delete account
+            </button>
+          </div>
+        </Section>
+
+        <Section title="Need help?" description="For advanced configuration, subscription changes, or AI script updates">
           <a
             href="https://nexley.ai"
             target="_blank"
@@ -195,9 +167,8 @@ export default async function SettingsPage() {
           >
             Contact Nexley AI →
           </a>
-        </section>
+        </Section>
 
-        {/* Team Members */}
         <TeamSection />
       </div>
     </div>

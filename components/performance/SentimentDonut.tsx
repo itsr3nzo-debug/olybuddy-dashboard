@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 
 interface SentimentDonutProps {
@@ -15,6 +16,7 @@ const COLORS = {
 }
 
 export default function SentimentDonut({ positive, neutral, negative }: SentimentDonutProps) {
+  const router = useRouter()
   const total = positive + neutral + negative
 
   if (total === 0) {
@@ -41,6 +43,11 @@ export default function SentimentDonut({ positive, neutral, negative }: Sentimen
               paddingAngle={2}
               dataKey="value"
               stroke="none"
+              onClick={(_, index) => {
+                const sentiment = data[index]?.name?.toLowerCase()
+                if (sentiment) router.push(`/calls?sentiment=${sentiment}`)
+              }}
+              style={{ cursor: 'pointer' }}
             >
               {data.map((entry, i) => (
                 <Cell key={i} fill={entry.color} />

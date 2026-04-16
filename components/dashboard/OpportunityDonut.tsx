@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { formatCurrency } from '@/lib/format'
 import { motion } from 'motion/react'
@@ -12,6 +13,7 @@ interface OpportunityDonutProps {
 }
 
 export default function OpportunityDonut({ openCount, wonCount, lostCount, totalValue }: OpportunityDonutProps) {
+  const router = useRouter()
   const total = openCount + wonCount + lostCount
   if (total === 0) return null
 
@@ -34,7 +36,14 @@ export default function OpportunityDonut({ openCount, wonCount, lostCount, total
         <div className="w-28 h-28 relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={data} cx="50%" cy="50%" innerRadius={32} outerRadius={50} paddingAngle={2} dataKey="value" stroke="none">
+              <Pie
+                data={data} cx="50%" cy="50%" innerRadius={32} outerRadius={50} paddingAngle={2} dataKey="value" stroke="none"
+                onClick={(_, index) => {
+                  const stage = data[index]?.name?.toLowerCase()
+                  if (stage) router.push(`/pipeline?stage=${stage}`)
+                }}
+                style={{ cursor: 'pointer' }}
+              >
                 {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
               </Pie>
               <Tooltip

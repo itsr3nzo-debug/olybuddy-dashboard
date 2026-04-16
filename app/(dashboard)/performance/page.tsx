@@ -13,11 +13,17 @@ import PeakHoursHeatmap from '@/components/performance/PeakHoursHeatmap'
 import BeforeAfterCard from '@/components/performance/BeforeAfterCard'
 import BenchmarkCard from '@/components/performance/BenchmarkCard'
 import FunnelChart from '@/components/pipeline/FunnelChart'
+import { TimePeriodSelector } from '@/components/ui/time-period-selector'
 
-export default async function PerformancePage() {
+export default async function PerformancePage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  const params = await searchParams
+  const periodKey = params.period || '30d'
+  const periodDays = periodKey === '7d' ? 7 : periodKey === '90d' ? 90 : periodKey === 'all' ? 365 : 30
+  const periodLabel = periodKey === '7d' ? 'Last 7 days' : periodKey === '90d' ? 'Last 90 days' : periodKey === 'all' ? 'All time' : 'Last 30 days'
 
   const clientId = user.app_metadata?.client_id
   const now = new Date()
@@ -33,7 +39,7 @@ export default async function PerformancePage() {
 
   if (clientId) {
     const thirtyDaysAgo = new Date(now)
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - periodDays)
 
     const [callsRes, configRes, clientRes, bookingsRes, allOppsRes] = await Promise.all([
       supabase
@@ -154,11 +160,18 @@ export default async function PerformancePage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Performance</h1>
-        <p className="text-sm mt-1 text-muted-foreground">
-          {agentName} · {now.toLocaleString('en-GB', { month: 'long', year: 'numeric' })}
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Performance</h1>
+          <p className="text-sm mt-1 text-muted-foreground">
+            {agentName} · {periodLabel}
+          </p>
+        </div>
+        <TimePeriodSelector value={periodKey} options={[
+          { value: '7d', label: '7d' },
+          { value: '30d', label: '30d' },
+          { value: '90d', label: '90d' },
+        ]} />
       </div>
 
       {/* AI Employee framing */}
