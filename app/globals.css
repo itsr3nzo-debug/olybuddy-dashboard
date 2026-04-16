@@ -19,6 +19,7 @@
   --sidebar-bg:      #0f172a;
   --skeleton-from:   #e2e8f0;
   --skeleton-to:     #f1f5f9;
+  --hero-gradient:   linear-gradient(135deg, #166534 0%, #15803d 50%, #16a34a 100%);
 
   /* shadcn tokens */
   --background:      oklch(1 0 0);
@@ -70,6 +71,7 @@
   --sidebar-bg:      #020617;
   --skeleton-from:   #1e293b;
   --skeleton-to:     #334155;
+  --hero-gradient:   linear-gradient(135deg, #15803d 0%, #16a34a 50%, #22c55e 100%);
 
   /* shadcn tokens */
   --background:      oklch(0.145 0 0);

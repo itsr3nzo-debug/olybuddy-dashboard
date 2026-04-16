@@ -17,7 +17,7 @@ export default function HeroRoiCard({ savedPounds }: HeroRoiCardProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
       className="rounded-2xl p-5 sm:p-6 mb-6 relative overflow-hidden"
-      style={{ background: 'linear-gradient(135deg, #166534 0%, #15803d 50%, #16a34a 100%)' }}
+      style={{ background: 'var(--hero-gradient)' }}
     >
       {/* Decorative circles */}
       <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/5" />

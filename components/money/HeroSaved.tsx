@@ -12,7 +12,7 @@ export default function HeroSaved({ savedPence, roi, memberSince }: HeroSavedPro
   const pounds = Math.round(savedPence / 100)
 
   return (
-    <div className="rounded-2xl p-6 sm:p-8 mb-6 text-center" style={{ background: 'linear-gradient(135deg, #166534 0%, #15803d 50%, #16a34a 100%)' }}>
+    <div className="rounded-2xl p-6 sm:p-8 mb-6 text-center" style={{ background: 'var(--hero-gradient)' }}>
       <p className="text-green-200 text-sm font-medium mb-2">Your AI Employee has saved you</p>
       <div className="text-white font-bold" style={{ fontSize: 'clamp(2rem, 8vw, 3.5rem)', lineHeight: 1 }}>
         <AnimatedNumber target={pounds} prefix="£" duration={1200} />
