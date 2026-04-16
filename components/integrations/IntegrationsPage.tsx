@@ -76,7 +76,7 @@ function AddIntegrationModal({ open, onClose, connectedProviders }: { open: bool
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
-      <DialogContent className="max-w-4xl w-[90vw] max-h-[80vh] overflow-hidden p-0 gap-0">
+      <DialogContent className="sm:max-w-4xl w-[90vw] max-h-[80vh] overflow-hidden p-0 gap-0">
         <DialogHeader className="px-6 py-4 border-b border-border">
           <DialogTitle>Add integration</DialogTitle>
         </DialogHeader>
