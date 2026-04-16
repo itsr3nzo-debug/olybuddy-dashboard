@@ -90,7 +90,7 @@ export default async function MoneyPage() {
           sub={`× £15/call = ${formatCurrency(callsSaved)}`}
           color="success"
           animate
-          icon={<Phone size={16} />}
+          icon={<MessageSquare size={16} />}
         />
         <KpiCard
           label="Follow-ups Sent"

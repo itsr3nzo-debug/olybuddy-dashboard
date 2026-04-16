@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import type { CallLog } from '@/lib/types'
 import KpiCard, { KpiCardSkeleton } from '@/components/dashboard/KpiCard'
-import { Phone, Clock, CheckCircle, Zap } from 'lucide-react'
+import { MessageSquare, Clock, CheckCircle, Zap } from 'lucide-react'
 import { formatDuration } from '@/lib/format'
 import SentimentDonut from '@/components/performance/SentimentDonut'
 import PeakHoursHeatmap from '@/components/performance/PeakHoursHeatmap'
@@ -193,7 +193,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
         </div>
       }>
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-          <KpiCard label="Conversations" value={totalCalls} sub="this period" color="accent" animate icon={<Phone size={16} />} />
+          <KpiCard label="Conversations" value={totalCalls} sub="this period" color="accent" animate icon={<MessageSquare size={16} />} />
           <KpiCard label="Resolution Rate" value={`${resolutionRate}%`} sub="conversations resolved" color="success" icon={<CheckCircle size={16} />} />
           <KpiCard label="Avg Duration" value={formatDuration(avgDuration)} sub="completed calls" icon={<Clock size={16} />} />
           <KpiCard label="Hours Worked" value={hoursWorked} sub="24/7 this month" color="warning" animate icon={<Zap size={16} />} />

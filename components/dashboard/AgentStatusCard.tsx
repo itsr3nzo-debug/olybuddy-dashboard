@@ -4,7 +4,7 @@ import { motion } from 'motion/react'
 import { formatRelativeTime } from '@/lib/format'
 import { useAgentStatus } from '@/lib/hooks/useAgentStatus'
 import type { AgentStatus } from '@/lib/types'
-import { Phone, Wifi, WifiOff, PhoneCall } from 'lucide-react'
+import { Phone, MessageSquare, Wifi, WifiOff } from 'lucide-react'
 
 interface AgentStatusCardProps {
   agentName: string
@@ -16,7 +16,7 @@ interface AgentStatusCardProps {
 
 const STATUS_CONFIG: Record<AgentStatus, { label: string; dotClass: string; icon: React.ReactNode; description: string }> = {
   online:  { label: 'Online',  dotClass: 'bg-brand-success', icon: <Wifi size={14} />,      description: 'Handling messages' },
-  in_call: { label: 'Processing', dotClass: 'bg-brand-primary', icon: <PhoneCall size={14} />,  description: 'Working on a conversation' },
+  in_call: { label: 'Processing', dotClass: 'bg-brand-primary', icon: <MessageSquare size={14} />,  description: 'Working on a conversation' },
   idle:    { label: 'Idle',    dotClass: 'bg-brand-warning', icon: <Phone size={14} />,      description: 'Standing by' },
   offline: { label: 'Offline', dotClass: 'bg-brand-danger',  icon: <WifiOff size={14} />,    description: 'Not currently active' },
 }

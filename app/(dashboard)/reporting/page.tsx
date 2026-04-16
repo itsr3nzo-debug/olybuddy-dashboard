@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import KpiCard, { KpiCardSkeleton } from '@/components/dashboard/KpiCard'
-import { Phone, CheckCircle, Clock, Users, TrendingUp, PoundSterling } from 'lucide-react'
+import { MessageSquare, CheckCircle, Clock, Users, TrendingUp, PoundSterling } from 'lucide-react'
 import { formatDuration, formatCurrency } from '@/lib/format'
 import { PIPELINE_STAGES, COST_PER_CALL_PENCE } from '@/lib/constants'
 
@@ -75,7 +75,7 @@ export default async function ReportingPage() {
         <h2 className="text-lg font-semibold text-foreground mb-4">Activity Report</h2>
         <Suspense fallback={<div className="grid grid-cols-2 xl:grid-cols-4 gap-4">{[0,1,2,3].map(i => <KpiCardSkeleton key={i} />)}</div>}>
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
-            <KpiCard label="Total Calls" value={totalCalls} color="accent" animate icon={<Phone size={16} />} />
+            <KpiCard label="Total Calls" value={totalCalls} color="accent" animate icon={<MessageSquare size={16} />} />
             <KpiCard label="Answer Rate" value={`${answerRate}%`} color={answerRate >= 90 ? 'success' : 'warning'} icon={<CheckCircle size={16} />} />
             <KpiCard label="Avg Duration" value={formatDuration(avgDuration)} icon={<Clock size={16} />} />
             <KpiCard label="Unique Callers" value={uniqueCallers} animate icon={<Users size={16} />} />

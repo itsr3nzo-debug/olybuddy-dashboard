@@ -15,7 +15,7 @@ import VpsHeartbeatBadge from '@/components/dashboard/VpsHeartbeatBadge'
 import WeeklyChallengeCard from '@/components/dashboard/WeeklyChallengeCard'
 import OpportunityDonut from '@/components/dashboard/OpportunityDonut'
 import type { CallLog, AgentStatus } from '@/lib/types'
-import { Phone, Calendar, PoundSterling, XCircle } from 'lucide-react'
+import { MessageSquare, Calendar, PoundSterling, XCircle } from 'lucide-react'
 import { AI_PHONE_DISPLAY } from '@/lib/constants'
 import { TimePeriodSelector } from '@/components/ui/time-period-selector'
 
@@ -336,7 +336,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             color="accent"
             animate
             trend={trendPct(totalConversations, prevTotalConversations)}
-            icon={<Phone size={16} />}
+            icon={<MessageSquare size={16} />}
             sparklineData={callsSparkline}
           />
           <KpiCard
@@ -413,7 +413,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <DashboardRealtime initialCalls={calls.slice(0, 5)} clientId={clientId} />
         ) : clientId ? (
           <EmptyState
-            icon={<Phone size={24} />}
+            icon={<MessageSquare size={24} />}
             title="No activity yet"
             description="Your AI Employee is live on WhatsApp. Send a message to see conversations appear here."
           />

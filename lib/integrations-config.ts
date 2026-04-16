@@ -420,32 +420,17 @@ for (const [slug, entry] of Object.entries(REGISTRY)) {
   })
 }
 
-// Brand icon mapping — SVG files live in /public/integrations/{filename}.svg
-// Provider IDs use underscores (google_calendar) but filenames use hyphens (google-calendar.svg)
-const ICON_MAP: Record<string, string> = {
-  gmail: 'gmail', outlook: 'outlook', slack: 'slack',
+// Brand icons: every provider now has an SVG in /public/integrations/{id}.svg
+// Curated providers with underscored IDs need hyphen mapping for filenames.
+const CURATED_ICON_OVERRIDES: Record<string, string> = {
   microsoft_teams: 'microsoft-teams', google_calendar: 'google-calendar',
-  calendly: 'calendly', outlook_calendar: 'outlook-calendar',
-  xero: 'xero', quickbooks: 'quickbooks', sage: 'sage', freeagent: 'freeagent',
-  google_drive: 'google-drive', dext: 'dext', hubdoc: 'hubdoc',
-  ignition: 'ignition', brightmanager: 'brightmanager', pixie: 'pixie',
-  taxcalc: 'taxcalc', iris: 'iris',
-  fathom: 'fathom', spotlight: 'spotlight',
-  hubspot: 'hubspot', stripe: 'stripe',
-  // Top auto-generated from Composio
-  notion: 'notion', github: 'github', googlesheets: 'google-sheets',
-  pipedrive: 'pipedrive', airtable: 'airtable', asana: 'asana',
-  trello: 'trello', salesforce: 'salesforce', dropbox: 'dropbox',
-  zoom: 'zoom', linear: 'linear', jira: 'jira', mailchimp: 'mailchimp',
-  googledrive: 'google-drive', googlecalendar: 'google-calendar',
-  googlemeet: 'google-meet', linkedin: 'linkedin',
+  outlook_calendar: 'outlook-calendar', google_drive: 'google-drive',
 }
 
 function applyIcons(providers: ProviderConfig[]): ProviderConfig[] {
   return providers.map(p => {
-    const iconFile = ICON_MAP[p.id]
-    if (iconFile) return { ...p, iconUrl: `/integrations/${iconFile}.svg` }
-    return p
+    const iconFile = CURATED_ICON_OVERRIDES[p.id] || p.id
+    return { ...p, iconUrl: `/integrations/${iconFile}.svg` }
   })
 }
 

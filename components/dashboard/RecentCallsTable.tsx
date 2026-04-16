@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { CallLog } from '@/lib/types'
-import { ChevronRight, Phone, PhoneOutgoing } from 'lucide-react'
+import { ChevronRight, MessageSquare } from 'lucide-react'
 import { formatDuration, formatRelativeTime, callerDisplayName } from '@/lib/format'
 import { STATUS_CONFIG } from '@/lib/constants'
 import TranscriptBubbles from '@/components/shared/TranscriptBubbles'
@@ -21,7 +21,7 @@ export default function RecentCallsTable({ calls }: { calls: CallLog[] }) {
 
       {calls.length === 0 ? (
         <div className="px-5 py-12 text-center">
-          <Phone size={32} className="mx-auto mb-3 text-muted-foreground opacity-30" />
+          <MessageSquare size={32} className="mx-auto mb-3 text-muted-foreground opacity-30" />
           <p className="text-sm font-medium mb-1 text-foreground">Your AI Employee is live</p>
           <p className="text-xs text-muted-foreground">Send a WhatsApp message to see activity appear here.</p>
         </div>
@@ -43,10 +43,7 @@ export default function RecentCallsTable({ calls }: { calls: CallLog[] }) {
                   disabled={!hasDetail}
                 >
                   <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center bg-muted">
-                    {call.direction === 'inbound'
-                      ? <Phone size={14} className="text-brand-primary" />
-                      : <PhoneOutgoing size={14} className="text-brand-success" />
-                    }
+                    <MessageSquare size={14} className={call.direction === 'inbound' ? 'text-brand-primary' : 'text-brand-success'} />
                   </div>
 
                   <div className="flex-1 min-w-0">

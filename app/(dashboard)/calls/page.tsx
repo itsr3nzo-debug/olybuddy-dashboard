@@ -119,7 +119,7 @@ export default function CallsPage() {
           </div>
         ) : calls.length === 0 ? (
           <EmptyState
-            icon={<Phone size={24} />}
+            icon={<MessageSquare size={24} />}
             title="No conversations yet"
             description={search || statusFilter !== 'all'
               ? 'Try adjusting your filters.'
