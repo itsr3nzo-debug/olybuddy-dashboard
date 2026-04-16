@@ -18,7 +18,7 @@ export default function HeroSaved({ savedPence, roi, memberSince }: HeroSavedPro
         <AnimatedNumber target={pounds} prefix="£" duration={1200} />
       </div>
       {memberSince && (
-        <p className="text-green-200 text-sm mt-3">since you started with Olybuddy</p>
+        <p className="text-green-200 text-sm mt-3">since you started with Nexley AI</p>
       )}
       {roi > 1 && (
         <div className="inline-block mt-4 bg-white/20 rounded-full px-4 py-1.5">

@@ -4,7 +4,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ── Olybuddy Design Tokens (Light) ───────────────── */
+/* ── Nexley AI Design Tokens (Light) ───────────────── */
 :root {
   /* Brand colors */
   --brand-primary:   #6366f1;
@@ -56,7 +56,7 @@
   --sidebar-ring:    oklch(0.488 0.243 264.376);
 }
 
-/* ── Olybuddy Design Tokens (Dark) ────────────────── */
+/* ── Nexley AI Design Tokens (Dark) ────────────────── */
 .dark {
   /* Brand colors (slightly lighter for dark bg) */
   --brand-primary:   #818cf8;

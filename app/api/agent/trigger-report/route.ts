@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://olybuddy-dashboard.vercel.app'
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL!
 const CRON_SECRET = process.env.CRON_SECRET
 
 export async function POST(request: Request) {

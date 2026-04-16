@@ -1,4 +1,4 @@
-/* ── Olybuddy Dashboard Types ─────────────────────── */
+/* ── Nexley AI Dashboard Types ─────────────────────── */
 /* Matches SUPABASE-SCHEMA.sql exactly                  */
 
 export interface Client {

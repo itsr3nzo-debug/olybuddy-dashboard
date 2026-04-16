@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
         type: 'magiclink',
         email,
         options: {
-          redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://olybuddy-dashboard.vercel.app'}/auth/callback`,
+          redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL!}/auth/callback`,
         },
       })
 
@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
       agentId,
       loginEmail: email,
       inviteSent,
-      dashboardUrl: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://olybuddy-dashboard.vercel.app'}/login`,
+      dashboardUrl: `${process.env.NEXT_PUBLIC_SITE_URL!}/login`,
     })
 
   } catch (e) {

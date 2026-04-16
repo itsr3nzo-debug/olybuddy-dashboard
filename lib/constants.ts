@@ -1,4 +1,4 @@
-/* ── Olybuddy Constants ────────────────────────────── */
+/* ── Nexley AI Constants ────────────────────────────── */
 
 export const COST_PER_CALL_PENCE = 1500      // £15/call (receptionist equivalent — voice plan only)
 export const COST_PER_MESSAGE_PENCE = 500    // £5/message handled (vs hiring admin to reply)

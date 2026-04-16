@@ -110,7 +110,7 @@ function buildEmailHtml(clientName: string, stats: ReturnType<typeof computeStat
         <!-- CTA -->
         <tr>
           <td style="padding:0 40px 32px;">
-            <a href="https://olybuddy-dashboard.vercel.app" style="display:inline-block;background:#0f172a;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:8px;">
+            <a href="${process.env.NEXT_PUBLIC_SITE_URL}" style="display:inline-block;background:#0f172a;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:8px;">
               View full dashboard →
             </a>
           </td>

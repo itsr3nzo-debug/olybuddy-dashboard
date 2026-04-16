@@ -157,8 +157,8 @@ export async function POST(req: NextRequest) {
                 subject: 'Payment confirmed — Your AI Employee is ready',
                 html: `<p>Hi ${metadata.business_name || 'there'},</p>
                   <p>Payment received. Sign in with the password you set at signup:</p>
-                  <p><a href="${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://olybuddy-dashboard.vercel.app'}/login" style="background:#2563EB;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Sign in</a></p>
-                  <p>Forgot it? Use <a href="${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://olybuddy-dashboard.vercel.app'}/forgot-password">reset password</a>.</p>
+                  <p><a href="${process.env.NEXT_PUBLIC_SITE_URL!}/login" style="background:#2563EB;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Sign in</a></p>
+                  <p>Forgot it? Use <a href="${process.env.NEXT_PUBLIC_SITE_URL!}/forgot-password">reset password</a>.</p>
                   <p>— The Nexley AI Team</p>`,
               });
             } catch { /* email failure is non-fatal */ }

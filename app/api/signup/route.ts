@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
         subject: 'Welcome to Nexley AI — Your AI Employee is ready',
         html: `<p>Hi ${contact_name || 'there'},</p>
           <p>Your 5-day trial is active. Sign in with the password you just chose:</p>
-          <p><a href="${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://olybuddy-dashboard.vercel.app'}/login" style="background:#2563EB;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Sign in</a></p>
+          <p><a href="${process.env.NEXT_PUBLIC_SITE_URL!}/login" style="background:#2563EB;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Sign in</a></p>
           <p>Your trial runs until ${new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB')}.</p>
           <p>— The Nexley AI Team</p>`,
       })

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
-const STORAGE_KEY = 'olybuddy-starred-calls'
+const STORAGE_KEY = 'nexley-starred-calls'
 const MAX_STARRED = 50
 
 export function useStarredCalls() {
