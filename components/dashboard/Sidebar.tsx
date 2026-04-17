@@ -24,6 +24,7 @@ const allNavItems = [
   { href: '/integrations',   label: 'Integrations',   Icon: Plug },
   { href: '/settings/sender-roles', label: 'Sender Roles', Icon: Users },
   { href: '/settings/pricing-rules', label: 'Pricing rules', Icon: PoundSterling },
+  { href: '/settings/agent-trust', label: 'Agent trust', Icon: Shield },
   { href: '/settings/inbound-webhook', label: 'Inbound webhook', Icon: Webhook },
   { href: '/settings/emergency', label: 'Pause agent', Icon: Pause },
   { href: '/settings',       label: 'Settings',       Icon: Settings },
