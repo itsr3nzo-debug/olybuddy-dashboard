@@ -43,7 +43,7 @@ export async function GET() {
   ])
 
   const token = cfg?.webhook_token as string | undefined
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://olybuddy-dashboard.vercel.app'
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://nexley.vercel.app'
 
   return NextResponse.json({
     webhook_url: client ? `${siteUrl}/api/clients/${client.slug}/webhook` : null,
