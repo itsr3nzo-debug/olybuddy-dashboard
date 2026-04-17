@@ -77,14 +77,14 @@ export async function POST(request: NextRequest) {
       client_id: clientId,
       business_name,
       business_description: `${business_name} — ${industry} services`,
-      agent_name: 'Ava',
+      agent_name: 'Nexley',
       agent_status: 'online',
       is_active: true,
       tone: 'optimistic',
       hours: defaultHours,
       services: [],
       faqs: [],
-      greeting_message: `Hey, thanks for calling ${business_name}! My name is Ava. How can I help you today?`,
+      greeting_message: `Hey, thanks for calling ${business_name}! My name is Nexley. How can I help you today?`,
       agent_id: agentId,
     })
 

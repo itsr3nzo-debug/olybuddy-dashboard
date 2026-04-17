@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
     whatsapp_enabled: true,
     model_preference: 'auto',
     agent_api_key: agentApiKey,
-    agent_name: 'Ava',
+    agent_name: 'Nexley',
     agent_status: 'offline',
     is_active: false,
     tone: personality || 'optimistic',

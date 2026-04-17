@@ -2,7 +2,7 @@
 -- Run this in Supabase Dashboard > SQL Editor
 
 -- New columns on agent_config for AI Employee identity
-ALTER TABLE agent_config ADD COLUMN IF NOT EXISTS agent_name TEXT DEFAULT 'Ava';
+ALTER TABLE agent_config ADD COLUMN IF NOT EXISTS agent_name TEXT DEFAULT 'Nexley';
 ALTER TABLE agent_config ADD COLUMN IF NOT EXISTS agent_status TEXT DEFAULT 'online';
 ALTER TABLE agent_config ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 ALTER TABLE agent_config ADD COLUMN IF NOT EXISTS last_call_at TIMESTAMPTZ;

@@ -130,7 +130,7 @@ export default async function SettingsPage() {
         <Section title="AI Employee" description="Your AI team member configuration">
           <div className="divide-y divide-border -mx-5 sm:-mx-6">
             <SettingRow label="Conversations handled (all time)" value={totalCalls.toLocaleString()} />
-            <SettingRow label="Voice" value="Ava (British female)" />
+            <SettingRow label="Voice" value="Nexley (British female)" />
             <SettingRow label="Provider" value="ElevenLabs" />
             <SettingRow label="Inbound number" value={AI_PHONE_DISPLAY} mono />
           </div>

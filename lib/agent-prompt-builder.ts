@@ -36,7 +36,7 @@ function formatFaqs(faqs: FaqItem[]): string {
 }
 
 export function buildAgentPrompt(config: Partial<AgentConfig>): string {
-  const name = config.agent_name ?? 'Ava'
+  const name = config.agent_name ?? 'Nexley'
   const business = config.business_name ?? 'our company'
   const description = config.business_description ?? ''
   const tone = config.tone ?? 'optimistic'
@@ -86,7 +86,7 @@ export function buildAgentPrompt(config: Partial<AgentConfig>): string {
 
 export function buildFirstMessage(config: Partial<AgentConfig>): string {
   if (config.greeting_message) return config.greeting_message
-  const name = config.agent_name ?? 'Ava'
+  const name = config.agent_name ?? 'Nexley'
   const business = config.business_name ?? 'our company'
   return `Hey, thanks for calling ${business}! My name is ${name}. How can I help you today?`
 }

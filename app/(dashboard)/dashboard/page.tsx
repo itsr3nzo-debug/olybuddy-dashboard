@@ -122,7 +122,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   let followUpsSent = 0
   let bookingsThisWeek = 0
   let prevBookings = 0
-  let agentName = 'Ava'
+  let agentName = 'Nexley'
   let agentStatus: AgentStatus = 'online'
   let agentIsActive = true
   let agentLastCallAt: string | null = null
@@ -233,7 +233,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     // Agent config (gracefully handle missing columns from migration)
     const ac = agentRes.data as Record<string, unknown> | null
     if (ac) {
-      agentName = (ac.agent_name as string) ?? 'Ava'
+      agentName = (ac.agent_name as string) ?? 'Nexley'
       agentStatus = (ac.agent_status as AgentStatus) ?? 'online'
       agentIsActive = (ac.is_active as boolean) ?? true
       agentLastCallAt = (ac.last_call_at as string) ?? null
@@ -397,7 +397,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
       {/* Getting Started — show for new clients with no activity */}
       {clientId && totalConversations === 0 && (
-        <GettingStarted hasGreeting={agentName !== 'Ava'} hasHours={false} />
+        <GettingStarted hasGreeting={agentName !== 'Nexley'} hasHours={false} />
       )}
 
       {/* Weekly Challenge */}

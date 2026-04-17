@@ -84,7 +84,7 @@ export async function updateAgentConfig(formData: FormData) {
 
   const agentNameVal = formData.get('agent_name')
   if (agentNameVal !== null) {
-    updates.agent_name = sanitizeText(agentNameVal, 50) || 'Ava'
+    updates.agent_name = sanitizeText(agentNameVal, 50) || 'Nexley'
   }
 
   const toneVal = formData.get('tone') as string | null
