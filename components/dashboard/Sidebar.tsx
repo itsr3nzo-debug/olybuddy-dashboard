@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Phone, LayoutDashboard, BarChart3, PoundSterling, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Kanban, MessageSquare, Calendar, ScrollText, FileBarChart, Plug, Shield, Users, Mic, FileEdit, FileText, Pause } from 'lucide-react'
+import { Sparkles, LayoutDashboard, BarChart3, PoundSterling, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Kanban, MessageSquare, Calendar, ScrollText, FileBarChart, Plug, Shield, Users, Mic, FileEdit, FileText, Pause } from 'lucide-react'
 import type { UserRole } from '@/lib/rbac'
 import { MEMBER_BLOCKED_PAGES } from '@/lib/rbac'
 
@@ -71,7 +71,7 @@ export default function Sidebar({ businessName, role = 'owner' }: { businessName
       {/* Logo / Business Name */}
       <div className="flex items-center gap-3 px-4 py-4 border-b border-sidebar-border min-h-[60px]">
         <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-sidebar-primary">
-          <Phone size={14} className="text-sidebar-primary-foreground" strokeWidth={2.5} />
+          <Sparkles size={14} className="text-sidebar-primary-foreground" strokeWidth={2.5} />
         </div>
         {!collapsed && (
           <div className="min-w-0">

@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'motion/react'
 import { createClient } from '@/lib/supabase/client'
-import { Phone, Mail, Lock, ArrowRight, Sparkles } from 'lucide-react'
+import { Mail, Lock, ArrowRight, Sparkles } from 'lucide-react'
 
 export default function LoginPage() {
   return (
@@ -112,7 +112,7 @@ function LoginForm() {
         >
           <div className="inline-flex items-center gap-3 mb-4">
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-gradient-to-br from-indigo-500 to-indigo-600 shadow-lg shadow-indigo-500/25">
-              <Phone size={22} className="text-white" strokeWidth={2.5} />
+              <Sparkles size={22} className="text-white" strokeWidth={2.5} />
             </div>
             <span className="text-3xl font-bold text-white tracking-tight">Nexley AI</span>
           </div>
