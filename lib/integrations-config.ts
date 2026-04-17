@@ -185,11 +185,14 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
       userinfoUrl: 'https://api.xero.com/connections',
       revokeUrl: 'https://identity.xero.com/connect/revocation',
       // GRANULAR scopes — required for apps created after 2 Mar 2026.
-      // `accounting.transactions` was split into `.invoices`, `.payments`, `.banktransactions`.
-      // `accounting.contacts` + `.attachments` are unchanged.
-      // If you add new XeroClient methods that call BankTransactions or Payments,
-      // add the corresponding scope here.
-      scopes: 'openid profile email accounting.invoices accounting.contacts accounting.attachments accounting.reports.read offline_access',
+      // Verified live against our Nexley AI app's OAuth consent screen (2026-04-17):
+      //   ✅ accounting.contacts    — view/manage contacts
+      //   ✅ accounting.invoices    — view/manage invoices + RELATED DOCUMENTS (attachments included)
+      //   ⚠️ accounting.attachments — rejected with 'invalid scope for client' (not yet available)
+      //   ⚠️ accounting.reports.read — rejected (not yet available; add when we ship VAT report skill)
+      // When `.attachments` / `.reports.read` / `.payments` / `.banktransactions` become
+      // available, add them here — consent screen will ask user to re-authorise.
+      scopes: 'openid profile email accounting.contacts accounting.invoices offline_access',
       clientIdEnv: 'XERO_CLIENT_ID',
       clientSecretEnv: 'XERO_CLIENT_SECRET',
     },
