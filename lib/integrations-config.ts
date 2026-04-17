@@ -43,6 +43,15 @@ export type ProviderCategory =
   | 'data'
   | 'other'
 
+export interface ProviderPATConfig {
+  // For integrations that use a Personal Access Token (pasted by the user) instead of OAuth.
+  // The user clicks Connect → we show a modal asking for the token → we store it encrypted.
+  tokenName: string // e.g., "Fergus API key" shown in the UI
+  helpUrl: string // link to the provider's docs on how to generate the PAT
+  placeholder?: string // placeholder text for the input
+  validateUrl?: string // if set, we GET this (with Authorization: Bearer <token>) to validate before saving
+}
+
 export interface ProviderConfig {
   id: string
   name: string
@@ -52,8 +61,10 @@ export interface ProviderConfig {
   iconUrl?: string // path to brand SVG in /public/integrations/
   available: boolean // true = OAuth wired, false = "Coming Soon"
   oauth?: ProviderOAuthConfig
+  pat?: ProviderPATConfig // alternative auth mode — pasted token
   createsDualRows?: string[] // e.g., Google creates ['gmail', 'google_calendar']
   oauthProvider?: string // if this row maps to a different OAuth provider (e.g., gmail → google)
+  recommendedForTrades?: boolean // surface in "Recommended for Trades" section
 }
 
 export const CATEGORIES = [
@@ -87,6 +98,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     category: 'communication',
     iconColor: 'bg-red-900/20 text-red-400',
     available: true,
+    recommendedForTrades: true,
   },
   {
     id: 'outlook',
@@ -130,6 +142,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     category: 'scheduling',
     iconColor: 'bg-blue-900/20 text-blue-400',
     available: true,
+    recommendedForTrades: true,
   },
   {
     id: 'calendly',
@@ -161,18 +174,39 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
   {
     id: 'xero',
     name: 'Xero',
-    description: 'Cloud accounting, invoicing, and bank feeds',
+    description: 'Invoices, contacts, bank reconciliation, VAT/CIS — Nexley drafts, you approve',
     category: 'accounting',
     iconColor: 'bg-cyan-900/20 text-cyan-400',
     available: true,
+    recommendedForTrades: true,
     oauth: {
       authUrl: 'https://login.xero.com/identity/connect/authorize',
       tokenUrl: 'https://identity.xero.com/connect/token',
       userinfoUrl: 'https://api.xero.com/connections',
       revokeUrl: 'https://identity.xero.com/connect/revocation',
-      scopes: 'openid profile email accounting.transactions accounting.contacts offline_access',
+      // Scopes aligned to what `lib/integrations/xero.ts` actually calls.
+      // Granular scopes required for apps created after 2 Mar 2026 per Xero devblog.
+      scopes: 'openid profile email accounting.transactions accounting.contacts accounting.attachments accounting.reports.read offline_access',
       clientIdEnv: 'XERO_CLIENT_ID',
       clientSecretEnv: 'XERO_CLIENT_SECRET',
+    },
+  },
+  {
+    // Fergus is scaffolded (PAT flow + push-job endpoint + skill) but the API
+    // schema was inferred from apitracker.io — needs a sandbox verification
+    // pass before exposing to paying customers. Flip `available: true` + add
+    // `recommendedForTrades: true` once we've confirmed /jobs/* shape.
+    id: 'fergus',
+    name: 'Fergus',
+    description: 'Trade job management — push captured jobs from WhatsApp straight to your Fergus board',
+    category: 'practice',
+    iconColor: 'bg-orange-900/20 text-orange-400',
+    available: false, // TODO: flip once API shape verified against real Fergus sandbox
+    pat: {
+      tokenName: 'Fergus Personal Access Token',
+      helpUrl: 'https://help.fergus.com/en/articles/api-personal-access-tokens',
+      placeholder: 'fergus_pat_…',
+      validateUrl: 'https://api.fergus.com/api/v1/current_user',
     },
   },
   {
@@ -356,6 +390,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     category: 'payments',
     iconColor: 'bg-violet-900/20 text-violet-400',
     available: true,
+    recommendedForTrades: true,
   },
 ]
 

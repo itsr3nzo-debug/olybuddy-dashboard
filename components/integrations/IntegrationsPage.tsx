@@ -64,15 +64,104 @@ function ConnectedRow({ integration, onDisconnect }: { integration: ConnectedInt
 
 /* -- Add integration modal -- */
 
-function AddIntegrationModal({ open, onClose, connectedProviders }: { open: boolean; onClose: () => void; connectedProviders: Set<string> }) {
+/* -- PAT (pasted-token) connect modal -- */
+
+function PatConnectModal({ provider, onClose, onConnected }: {
+  provider: ProviderConfig
+  onClose: () => void
+  onConnected: () => void
+}) {
+  const [token, setToken] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  async function connect() {
+    if (!token.trim()) return
+    setLoading(true); setError('')
+    try {
+      const res = await fetch('/api/integrations/pat', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: provider.id, token: token.trim() }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Connection failed')
+      onConnected()
+      onClose()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open={true} onOpenChange={(v) => { if (!v) onClose() }}>
+      <DialogContent className="sm:max-w-md w-[90vw] p-0">
+        <DialogHeader className="px-5 py-4 border-b border-border">
+          <DialogTitle>Connect {provider.name}</DialogTitle>
+        </DialogHeader>
+        <div className="p-5 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Paste your {provider.pat?.tokenName ?? 'API token'} to connect {provider.name}.
+            {provider.pat?.helpUrl && (
+              <> <a href={provider.pat.helpUrl} target="_blank" rel="noreferrer" className="text-brand-accent underline hover:no-underline">How do I get one?</a></>
+            )}
+          </p>
+          <input
+            type="password"
+            value={token}
+            onChange={e => setToken(e.target.value)}
+            placeholder={provider.pat?.placeholder ?? 'paste your token…'}
+            autoFocus
+            className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
+          />
+          {error && <p className="text-xs text-brand-danger">{error}</p>}
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button onClick={onClose} className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground">Cancel</button>
+            <button
+              onClick={connect}
+              disabled={!token.trim() || loading}
+              className="px-4 py-2 bg-brand-accent text-white text-sm rounded-lg font-medium hover:bg-brand-accent/90 disabled:opacity-50"
+            >
+              {loading ? 'Validating…' : 'Connect'}
+            </button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/* -- Add integration modal -- */
+
+function AddIntegrationModal({ open, onClose, connectedProviders, onChanged }: {
+  open: boolean
+  onClose: () => void
+  connectedProviders: Set<string>
+  onChanged: () => void
+}) {
   const [category, setCategory] = useState('all')
   const [search, setSearch] = useState('')
+  const [patProvider, setPatProvider] = useState<ProviderConfig | null>(null)
+
+  const recommended = PROVIDERS.filter(p => p.recommendedForTrades && !connectedProviders.has(p.id))
 
   const filtered = PROVIDERS.filter(p => {
     if (category !== 'all' && p.category !== category) return false
     if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
+
+  function handleTileClick(e: React.MouseEvent, provider: ProviderConfig) {
+    if (!provider.available || connectedProviders.has(provider.id)) return
+    if (provider.pat) {
+      e.preventDefault()
+      setPatProvider(provider)
+    }
+    // else → the <a href> fires and redirects to /api/oauth/{provider}
+  }
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
@@ -114,6 +203,37 @@ function AddIntegrationModal({ open, onClose, connectedProviders }: { open: bool
               </div>
             </div>
 
+            {category === 'all' && !search && recommended.length > 0 && (
+              <div className="px-4 pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs uppercase tracking-wide font-medium text-brand-accent">⭐ Recommended for trades</span>
+                  <span className="text-xs text-muted-foreground">Start here — the stack most UK trade owners get the most out of.</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mb-2">
+                  {recommended.map(provider => {
+                    const oauthProviderId = getOAuthProviderId(provider.id)
+                    return (
+                      <a
+                        key={provider.id}
+                        href={provider.available && !provider.pat ? `/api/oauth/${oauthProviderId}` : undefined}
+                        onClick={(e) => handleTileClick(e, provider)}
+                        className="flex items-start gap-3 p-4 rounded-xl border border-brand-accent/30 bg-brand-accent/5 hover:border-brand-accent/60 hover:shadow-md cursor-pointer transition-all"
+                      >
+                        <ProviderIcon provider={provider} size={40} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-foreground text-sm">{provider.name}</p>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">{provider.description}</p>
+                        </div>
+                      </a>
+                    )
+                  })}
+                </div>
+                <div className="border-b border-border pt-3"></div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3 p-4">
               {filtered.map(provider => {
                 const isConnected = connectedProviders.has(provider.id)
@@ -121,7 +241,8 @@ function AddIntegrationModal({ open, onClose, connectedProviders }: { open: bool
                 return (
                   <a
                     key={provider.id}
-                    href={provider.available && !isConnected ? `/api/oauth/${oauthProviderId}` : undefined}
+                    href={provider.available && !isConnected && !provider.pat ? `/api/oauth/${oauthProviderId}` : undefined}
+                    onClick={(e) => handleTileClick(e, provider)}
                     className={`flex items-start gap-3 p-4 rounded-xl border transition-all ${
                       isConnected
                         ? 'border-emerald-500/30 bg-emerald-500/5 cursor-default'
@@ -146,6 +267,14 @@ function AddIntegrationModal({ open, onClose, connectedProviders }: { open: bool
           </div>
         </div>
       </DialogContent>
+
+      {patProvider && (
+        <PatConnectModal
+          provider={patProvider}
+          onClose={() => setPatProvider(null)}
+          onConnected={() => { setPatProvider(null); onChanged(); }}
+        />
+      )}
     </Dialog>
   )
 }
@@ -191,19 +320,17 @@ export default function IntegrationsPage() {
     }
   }, [])
 
-  useEffect(() => {
-    async function load() {
-      const supabase = createClient()
-      const { data } = await supabase
-        .from('integrations')
-        .select('id, provider, status, account_email, account_name, last_synced_at, created_at, error_message')
-        .order('created_at', { ascending: false })
+  const fetchIntegrations = async () => {
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('integrations')
+      .select('id, provider, status, account_email, account_name, last_synced_at, created_at, error_message')
+      .order('created_at', { ascending: false })
+    setIntegrations(data || [])
+    setLoading(false)
+  }
 
-      setIntegrations(data || [])
-      setLoading(false)
-    }
-    load()
-  }, [])
+  useEffect(() => { fetchIntegrations() }, [])
 
   const connectedProviders = new Set(integrations.filter(i => i.status === 'connected').map(i => i.provider))
 
@@ -342,6 +469,7 @@ export default function IntegrationsPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         connectedProviders={connectedProviders}
+        onChanged={() => { fetchIntegrations() }}
       />
     </div>
   )
