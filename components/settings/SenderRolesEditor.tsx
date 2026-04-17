@@ -124,7 +124,10 @@ export default function SenderRolesEditor() {
 
   const bizValid = data.business_whatsapp.length === 0 || validPhone(data.business_whatsapp)
   const ownerValid = data.owner_phone.length === 0 || validPhone(data.owner_phone)
-  const sameNumber = data.business_whatsapp && data.owner_phone && data.business_whatsapp.replace(/\s|\+/g, '') === data.owner_phone.replace(/\s|\+/g, '')
+  const sameNumber = Boolean(
+    data.business_whatsapp && data.owner_phone &&
+    data.business_whatsapp.replace(/\s|\+/g, '') === data.owner_phone.replace(/\s|\+/g, '')
+  )
 
   if (loading) {
     return <div className="skeleton h-80 w-full rounded-xl" />
