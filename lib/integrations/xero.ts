@@ -313,13 +313,43 @@ export class XeroClient {
     return res.arrayBuffer()
   }
 
-  async listBills(filter?: { status?: string; dateFrom?: string }): Promise<XeroInvoice[]> {
+  /**
+   * List supplier BILLS (ACCPAY invoices). This is how we surface Dext data
+   * without connecting to Dext directly — Dext syncs every captured receipt
+   * into Xero as a Bill, so reading Bills from Xero = reading Dext.
+   */
+  async listBills(filter?: { status?: string; dateFrom?: string; dateTo?: string; pageSize?: number }): Promise<XeroInvoice[]> {
+    // Paginated, 100 per page (Xero max), filtered server-side.
     const clauses = ['Type=="ACCPAY"']
     if (filter?.status) clauses.push(`Status=="${filter.status}"`)
-    if (filter?.dateFrom) clauses.push(`Date>=DateTime(${filter.dateFrom.replace(/-/g, ',')})`)
-    const where = `?where=${encodeURIComponent(clauses.join('&&'))}`
-    const { data } = await this.req<{ Invoices: XeroInvoice[] }>('GET', `/Invoices${where}`)
-    return data?.Invoices ?? []
+    if (filter?.dateFrom) clauses.push(`Date>=DateTime(${filter.dateFrom.split('-').map(Number).join(',')})`)
+    if (filter?.dateTo) clauses.push(`Date<=DateTime(${filter.dateTo.split('-').map(Number).join(',')})`)
+    const baseWhere = encodeURIComponent(clauses.join('&&'))
+    const all: XeroInvoice[] = []
+    const maxPages = 20 // 2000 bills max per call — sensible cap
+    for (let page = 1; page <= maxPages; page++) {
+      const { data } = await this.req<{ Invoices: XeroInvoice[] }>('GET', `/Invoices?where=${baseWhere}&page=${page}&order=Date DESC`)
+      const rows = data?.Invoices ?? []
+      all.push(...rows)
+      if (rows.length < 100) break
+    }
+    return all
+  }
+
+  /** Total supplier spend in the given date window, split by supplier. */
+  async supplierSpendSummary(args: { dateFrom: string; dateTo?: string }): Promise<Array<{ supplier: string; total_gbp: number; bill_count: number }>> {
+    const bills = await this.listBills({ dateFrom: args.dateFrom, dateTo: args.dateTo })
+    const bySupplier = new Map<string, { total: number; count: number }>()
+    for (const b of bills) {
+      const name = (b.Contact as { Name?: string })?.Name ?? 'Unknown supplier'
+      const existing = bySupplier.get(name) ?? { total: 0, count: 0 }
+      existing.total += b.Total ?? 0
+      existing.count += 1
+      bySupplier.set(name, existing)
+    }
+    return Array.from(bySupplier.entries())
+      .map(([supplier, v]) => ({ supplier, total_gbp: Math.round(v.total * 100) / 100, bill_count: v.count }))
+      .sort((a, b) => b.total_gbp - a.total_gbp)
   }
 
   async getBankTransactions(filter?: { accountId?: string; dateFrom?: string }): Promise<unknown[]> {

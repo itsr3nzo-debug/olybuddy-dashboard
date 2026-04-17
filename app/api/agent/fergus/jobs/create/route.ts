@@ -1,22 +1,22 @@
 /**
  * POST /api/agent/fergus/jobs/create
  *
- * The flagship Fergus action: VPS agent receives a voice note or WhatsApp
- * enquiry, extracts the job details, and pushes them to Julian's Fergus
- * dashboard. This replaces the manual "type it in later" step that kills
- * trades ops productivity.
+ * VPS agent uses this to push a captured job (voice-note / WhatsApp enquiry)
+ * into the owner's Fergus board. Always DRAFT by default so the owner reviews
+ * in Fergus before finalising — perfect fit with our trust-gate model.
  *
  * Body:
  * {
- *   customer_name: string,
- *   customer_phone?: string,
- *   customer_email?: string,
- *   site_address?: string,
- *   description: string,          // the work — "Fuse board replacement + RCBO upgrade"
- *   estimated_value_gbp?: number,
- *   scheduled_for?: "YYYY-MM-DD",
- *   internal_notes?: string,      // anything the owner should see but not the customer
- *   source?: string               // defaults to "Nexley (WhatsApp)"
+ *   job_type?: "Service Call" | "Install" | ...    // defaults to "Service Call"
+ *   title: string                                  // short summary — shown in Fergus list
+ *   description?: string                           // fuller detail — what needs doing
+ *   customer_name: string
+ *   customer_phone?: string
+ *   customer_email?: string
+ *   customer_id?: number                           // if we already know their Fergus ID
+ *   site_address?: FergusAddress                   // physical address of the job
+ *   customer_reference?: string                    // e.g., "Job #2026-042"
+ *   is_draft?: boolean                             // default true (recommended)
  * }
  */
 
@@ -30,15 +30,31 @@ export async function POST(req: NextRequest) {
   if (auth instanceof NextResponse) return auth
 
   const body = await req.json().catch(() => ({}))
-  const { customer_name, customer_phone, customer_email, site_address, description, estimated_value_gbp, scheduled_for, internal_notes, source } = body
+  const {
+    job_type = 'Service Call',
+    title,
+    description,
+    customer_name,
+    customer_phone,
+    customer_email,
+    customer_id,
+    site_address,
+    customer_reference,
+    is_draft = true,
+  } = body
 
-  if (!customer_name || !description) {
-    return NextResponse.json({ error: 'customer_name and description required' }, { status: 400 })
+  if (!title) {
+    return NextResponse.json({ error: 'title required' }, { status: 400 })
+  }
+  if (!customer_id && !customer_name) {
+    return NextResponse.json({ error: 'customer_id OR customer_name required' }, { status: 400 })
   }
 
-  // Creating a Fergus job is a draft_write (visible to owner in Fergus but not yet invoiced).
-  // Blocked at TL=0 (shadow mode).
-  const trust = enforceTrust(auth, 'draft_write', estimated_value_gbp)
+  // Creating a draft Fergus job = draft_write.
+  // Creating a non-draft (finalised) job = send_big_external because it enters Fergus workflow,
+  // becomes scheduled, etc. Treat accordingly.
+  const actionClass = is_draft ? 'draft_write' : 'send_big_external'
+  const trust = enforceTrust(auth, actionClass)
   if (!trust.allowed) return trust.response!
 
   let fergus: FergusClient
@@ -48,18 +64,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Fergus not connected', detail: safeErrorDetail(e) }, { status: 409 })
   }
 
+  // Resolve customer: use provided ID, else search, else create
+  let resolvedCustomerId = customer_id as number | undefined
+  if (!resolvedCustomerId) {
+    try {
+      const existing = await fergus.searchCustomers(customer_name)
+      const match = existing.find(c => c.customerFullName.toLowerCase() === customer_name.toLowerCase())
+      if (match) {
+        resolvedCustomerId = match.id
+      } else {
+        const [firstName, ...rest] = customer_name.split(/\s+/)
+        const created = await fergus.createCustomer({
+          customerFullName: customer_name,
+          mainContact: {
+            firstName: firstName ?? customer_name,
+            lastName: rest.join(' ') || undefined,
+            email: customer_email,
+            mobile: customer_phone,
+          },
+          physicalAddress: site_address,
+        })
+        resolvedCustomerId = created.id
+      }
+    } catch (e) {
+      return NextResponse.json({ error: 'Customer lookup/create failed', detail: safeErrorDetail(e) }, { status: 502 })
+    }
+  }
+
+  // Create the job (draft by default)
   let job
   try {
     job = await fergus.createJob({
-      customer_name,
-      customer_phone,
-      customer_email,
-      site_address,
+      jobType: job_type,
+      title,
       description,
-      estimated_value_pence: typeof estimated_value_gbp === 'number' ? Math.round(estimated_value_gbp * 100) : undefined,
-      scheduled_for,
-      internal_notes,
-      source: source ?? 'Nexley (WhatsApp)',
+      customerId: resolvedCustomerId,
+      customerReference: customer_reference,
+      isDraft: is_draft,
     })
   } catch (e) {
     return NextResponse.json({ error: 'Fergus createJob failed', detail: safeErrorDetail(e) }, { status: 502 })
@@ -69,18 +110,24 @@ export async function POST(req: NextRequest) {
     clientId: auth.clientId,
     category: 'job_captured',
     skillUsed: 'push-to-fergus',
-    summary: `Fergus job #${job.job_number ?? job.id} created — ${customer_name} — ${description.slice(0, 80)}`,
+    summary: `Fergus ${is_draft ? 'draft' : 'active'} job "${title.slice(0, 60)}" created for ${customer_name}`,
     outcomeTag: 'n_a',
-    valueGbp: estimated_value_gbp,
     contactName: customer_name,
     contactPhone: customer_phone,
-    meta: { fergus_job_id: job.id, fergus_job_number: job.job_number, status: job.status },
+    meta: {
+      fergus_job_id: job.id,
+      fergus_job_no: job.jobNo,
+      fergus_customer_id: resolvedCustomerId,
+      is_draft,
+    },
   })
 
   return NextResponse.json({
     fergus_job_id: job.id,
-    fergus_job_number: job.job_number ?? null,
-    status: job.status,
-    customer_name: job.customer?.name ?? customer_name,
+    fergus_job_no: job.jobNo ?? null,
+    is_draft: job.isDraft ?? is_draft,
+    customer_id: resolvedCustomerId,
+    customer_name,
+    fergus_link: job.jobNo ? `https://app.fergus.com/jobs/${job.id}` : null,
   })
 }

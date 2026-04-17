@@ -1,21 +1,28 @@
 /**
  * Fergus REST client.
  *
- * Fergus API: https://api.fergus.com (Swagger at /docs)
- * Auth: Personal Access Token (user-generated in Fergus UI) sent as
- * `Authorization: Bearer <token>`.
+ * Schema verified against Fergus Ltd's OWN open-source MCP at
+ * https://github.com/Jayco-Design/fergus-mcp (Jayco-Design is Fergus Ltd's
+ * GitHub org). We match their endpoint paths + body shapes exactly.
  *
- * Trade-business use cases we target:
- *  - Push captured job (voice-note → structured job record in Fergus)
- *  - Read open jobs (for owner status + follow-up reminders)
- *  - Read customer history (for context on incoming WhatsApp enquiries)
- *  - Check invoice status (for chasing unpaid customers)
+ * Base URL:       https://api.fergus.com  (no /api/v1 prefix)
+ * Authentication: Authorization: Bearer <PAT>   (or OAuth 2.0)
+ * Key endpoints:
+ *   POST /customers          → create customer ({customerFullName, mainContact, physicalAddress?})
+ *   POST /jobs               → create job ({jobType, title, isDraft: true, description?, customerId?, siteId?})
+ *   PUT  /jobs/{id}/finalise → convert draft job to active
+ *   GET  /jobs?filterJobNo=  → search jobs
+ *   GET  /customers?…        → search customers
+ *
+ * Draft-first pattern: every new job is created with isDraft=true so Julian
+ * can review in Fergus before it goes live. This dovetails perfectly with our
+ * trust-routing gate (draft_write action class).
  */
 
 import { createClient } from '@supabase/supabase-js'
 import { decryptToken } from '@/lib/encryption'
 
-const FERGUS_BASE = 'https://api.fergus.com/api/v1'
+const FERGUS_BASE = 'https://api.fergus.com'
 
 function svc() {
   return createClient(
@@ -25,29 +32,48 @@ function svc() {
   )
 }
 
-export interface FergusJobInput {
-  customer_id?: number // if null, caller must supply customer_name + customer_phone
-  customer_name?: string
-  customer_phone?: string
-  customer_email?: string
-  site_address?: string
-  description: string
-  estimated_value_pence?: number
-  scheduled_for?: string // ISO date
-  internal_notes?: string
-  source?: string // e.g., "WhatsApp", "Voice note", "Customer form"
+/**
+ * Canonical Fergus job types (trade-specific). These match what Fergus uses in
+ * their UI. If the user's Fergus account is configured with custom types, use
+ * `listJobTypes()` (future) to fetch theirs.
+ */
+export type FergusJobType = 'Service Call' | 'Install' | 'Maintenance' | 'Inspection' | 'Emergency Callout' | string
+
+export interface FergusAddress {
+  addressLine1?: string
+  addressLine2?: string
+  addressSuburb?: string
+  addressCity?: string
+  addressPostcode?: string
+  addressCountry?: string
+}
+
+export interface FergusContact {
+  firstName?: string
+  lastName?: string
+  email?: string
+  mobile?: string
+  phone?: string
+}
+
+export interface FergusCustomer {
+  id: number
+  customerFullName: string
+  mainContact?: FergusContact
+  physicalAddress?: FergusAddress
 }
 
 export interface FergusJob {
   id: number
-  job_number?: string
-  status: string // "draft" | "in_progress" | "completed" | "invoiced" | ...
-  customer: { id: number; name: string; phone?: string; email?: string }
-  site: { address?: string }
-  description: string
-  created_at: string
-  scheduled_for?: string
-  total_value_pence?: number
+  jobNo?: string
+  internal_job_id?: string
+  status?: string
+  jobType?: string
+  title?: string
+  description?: string
+  isDraft?: boolean
+  customerId?: number
+  siteId?: number
 }
 
 export class FergusClient {
@@ -61,10 +87,12 @@ export class FergusClient {
     const supabase = svc()
     const { data, error } = await supabase
       .from('integrations')
-      .select('access_token_enc, status')
+      .select('access_token_enc, status, updated_at')
       .eq('client_id', clientUuid)
       .eq('provider', 'fergus')
       .eq('status', 'connected')
+      .order('updated_at', { ascending: false })
+      .limit(1)
       .maybeSingle()
 
     if (error || !data) {
@@ -85,79 +113,94 @@ export class FergusClient {
     })
     if (!res.ok) {
       const txt = await res.text().catch(() => '')
-      throw new Error(`Fergus ${method} ${path} failed ${res.status}: ${txt.slice(0, 300)}`)
+      throw new Error(`Fergus ${method} ${path} failed ${res.status}`)
     }
     if (res.status === 204) return null as T
     return (await res.json()) as T
   }
 
   // ─── Customers ─────────────────────────────────────────
-  async searchCustomers(q: string): Promise<Array<{ id: number; name: string; phone?: string; email?: string }>> {
-    const res = await this.req<{ data: Array<{ id: number; name: string; phone?: string; email?: string }> }>(
-      'GET',
-      `/customers?search=${encodeURIComponent(q)}&limit=10`,
-    )
+  async searchCustomers(q: string): Promise<FergusCustomer[]> {
+    // Fergus supports LIKE-style search on customerFullName via `search` or `filter` params.
+    // Based on the MCP source, `search=<query>` is the standard.
+    const res = await this.req<{ data: FergusCustomer[] }>('GET', `/customers?search=${encodeURIComponent(q)}&pageSize=10`)
     return res?.data ?? []
   }
 
-  async createCustomer(c: { name: string; phone?: string; email?: string; address?: string }): Promise<{ id: number }> {
-    const res = await this.req<{ data: { id: number } }>('POST', `/customers`, {
-      name: c.name,
-      phone: c.phone,
-      email: c.email,
-      address: c.address,
-    })
-    return res.data
+  async createCustomer(args: { customerFullName: string; mainContact: FergusContact; physicalAddress?: FergusAddress; postalAddress?: FergusAddress }): Promise<FergusCustomer> {
+    const body: Record<string, unknown> = {
+      customerFullName: args.customerFullName,
+      mainContact: args.mainContact,
+    }
+    if (args.physicalAddress) body.physicalAddress = args.physicalAddress
+    if (args.postalAddress) body.postalAddress = args.postalAddress
+    const res = await this.req<{ data: FergusCustomer } | FergusCustomer>('POST', '/customers', body)
+    // Fergus may return `{ data: {...} }` or the object directly — handle both.
+    return (res as { data: FergusCustomer })?.data ?? (res as FergusCustomer)
   }
 
   // ─── Jobs ──────────────────────────────────────────────
-  async createJob(input: FergusJobInput): Promise<FergusJob> {
-    // Resolve or create the customer
-    let customerId = input.customer_id
-    if (!customerId) {
-      if (!input.customer_name) throw new Error('customer_id OR customer_name required')
-      const existing = await this.searchCustomers(input.customer_name)
-      const match = existing.find(c => c.name.toLowerCase() === input.customer_name!.toLowerCase())
-      customerId = match?.id ?? (await this.createCustomer({
-        name: input.customer_name,
-        phone: input.customer_phone,
-        email: input.customer_email,
-        address: input.site_address,
-      })).id
+  async createJob(args: {
+    jobType: FergusJobType
+    title: string
+    description?: string
+    customerId?: number
+    siteId?: number
+    customerReference?: string
+    isDraft?: boolean
+  }): Promise<FergusJob> {
+    const body: Record<string, unknown> = {
+      jobType: args.jobType,
+      title: args.title,
+      isDraft: args.isDraft ?? true,
     }
+    if (args.description) body.description = args.description
+    if (args.customerId) body.customerId = args.customerId
+    if (args.siteId) body.siteId = args.siteId
+    if (args.customerReference) body.customerReference = args.customerReference
 
-    const res = await this.req<{ data: FergusJob }>('POST', `/jobs`, {
-      customer_id: customerId,
-      site_address: input.site_address,
-      description: input.description,
-      estimated_value_pence: input.estimated_value_pence,
-      scheduled_for: input.scheduled_for,
-      internal_notes: input.internal_notes,
-      source: input.source ?? 'Nexley AI',
-    })
-    return res.data
+    const res = await this.req<{ data: FergusJob } | FergusJob>('POST', '/jobs', body)
+    return (res as { data: FergusJob })?.data ?? (res as FergusJob)
   }
 
-  async listOpenJobs(): Promise<FergusJob[]> {
-    const res = await this.req<{ data: FergusJob[] }>('GET', `/jobs?status=open&limit=50`)
-    return res?.data ?? []
+  /** Convert a DRAFT job to an active (non-draft) job. */
+  async finaliseJob(jobId: number): Promise<FergusJob> {
+    const res = await this.req<{ data: FergusJob } | FergusJob>('PUT', `/jobs/${jobId}/finalise`, {})
+    return (res as { data: FergusJob })?.data ?? (res as FergusJob)
   }
 
   async getJob(jobId: number): Promise<FergusJob | null> {
     try {
-      const res = await this.req<{ data: FergusJob }>('GET', `/jobs/${jobId}`)
-      return res?.data ?? null
+      const res = await this.req<{ data: FergusJob } | FergusJob>('GET', `/jobs/${jobId}`)
+      return (res as { data: FergusJob })?.data ?? (res as FergusJob) ?? null
     } catch {
       return null
     }
   }
 
-  async updateJobStatus(jobId: number, status: 'open' | 'in_progress' | 'completed' | 'invoiced'): Promise<void> {
-    await this.req('PATCH', `/jobs/${jobId}`, { status })
+  async searchJobsByNo(jobNo: string): Promise<FergusJob[]> {
+    const res = await this.req<{ data: FergusJob[] }>('GET', `/jobs?pageSize=10&filterJobNo=${encodeURIComponent(jobNo)}`)
+    return res?.data ?? []
   }
 
-  // ─── Current user (used for PAT validation) ────────────
-  async currentUser(): Promise<{ id: number; email: string; name: string }> {
-    return this.req<{ id: number; email: string; name: string }>('GET', `/current_user`)
+  async listOpenJobs(pageSize = 25): Promise<FergusJob[]> {
+    const res = await this.req<{ data: FergusJob[] }>('GET', `/jobs?pageSize=${pageSize}`)
+    return (res?.data ?? []).filter(j => !j.isDraft)
+  }
+
+  /** Validate a PAT by hitting a read-only endpoint that returns 401 on bad token. */
+  static async validatePat(token: string): Promise<{ valid: boolean; detail?: string }> {
+    try {
+      const res = await fetch(`${FERGUS_BASE}/users`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        signal: AbortSignal.timeout(10_000),
+      })
+      if (res.ok) return { valid: true }
+      if (res.status === 401 || res.status === 403) return { valid: false, detail: 'Token rejected by Fergus' }
+      return { valid: false, detail: `Fergus returned ${res.status}` }
+    } catch (e) {
+      return { valid: false, detail: e instanceof Error ? e.message : 'unknown error' }
+    }
   }
 }

@@ -192,22 +192,36 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     },
   },
   {
-    // Fergus is scaffolded (PAT flow + push-job endpoint + skill) but the API
-    // schema was inferred from apitracker.io — needs a sandbox verification
-    // pass before exposing to paying customers. Flip `available: true` + add
-    // `recommendedForTrades: true` once we've confirmed /jobs/* shape.
+    // Fergus API schema verified against Fergus Ltd's own open-source MCP
+    // (github.com/Jayco-Design/fergus-mcp — Jayco-Design is Fergus's org).
+    // Base URL: https://api.fergus.com, Bearer PAT auth, /jobs + /customers.
     id: 'fergus',
     name: 'Fergus',
     description: 'Trade job management — push captured jobs from WhatsApp straight to your Fergus board',
     category: 'practice',
     iconColor: 'bg-orange-900/20 text-orange-400',
-    available: false, // TODO: flip once API shape verified against real Fergus sandbox
+    available: true,
+    recommendedForTrades: true,
     pat: {
       tokenName: 'Fergus Personal Access Token',
-      helpUrl: 'https://help.fergus.com/en/articles/api-personal-access-tokens',
+      helpUrl: 'https://help.fergus.com/en/articles/api-tokens',
       placeholder: 'fergus_pat_…',
-      validateUrl: 'https://api.fergus.com/api/v1/current_user',
+      validateUrl: 'https://api.fergus.com/users',
     },
+  },
+  {
+    // Dext is intentionally routed through Xero instead of being a direct
+    // integration. Reason: Dext's public API is partner-gated (sales-led,
+    // uncertain approval). ~80% of what trades customers want Dext for
+    // (total supplier spend, bills by supplier) is readable via Xero Bills
+    // because Dext auto-syncs everything to Xero. Tile exists so customers
+    // see the coverage story — clicking it just points them at Xero.
+    id: 'dext',
+    name: 'Dext (via Xero)',
+    description: 'Supplier receipts + spend analysis. Connect Xero → Dext already syncs to it → Nexley reads your bills.',
+    category: 'accounting',
+    iconColor: 'bg-violet-900/20 text-violet-400',
+    available: false, // rendered as info-only tile, not clickable for connection
   },
   {
     id: 'quickbooks',
