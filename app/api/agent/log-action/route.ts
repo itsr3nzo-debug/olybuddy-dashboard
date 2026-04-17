@@ -59,6 +59,8 @@ type Payload = {
   related_id?: string
   meta?: Record<string, unknown>
   occurred_at?: string
+  skill_used?: string
+  outcome_tag?: string
 }
 
 export async function POST(req: NextRequest) {
@@ -105,6 +107,10 @@ export async function POST(req: NextRequest) {
     related_table: body.related_table ?? null,
     related_id: body.related_id ?? null,
     meta: body.meta ?? {},
+    // Added with agent_autonomy_safety_rails migration — powers weekly-reflection
+    // attribution and loop-observer detection. Required for L3 autonomy loop.
+    skill_used: body.skill_used ?? null,
+    outcome_tag: body.outcome_tag ?? null,
   }
   if (body.occurred_at) insert.occurred_at = body.occurred_at
 
