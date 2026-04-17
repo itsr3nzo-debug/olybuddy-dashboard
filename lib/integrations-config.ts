@@ -184,9 +184,12 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
       tokenUrl: 'https://identity.xero.com/connect/token',
       userinfoUrl: 'https://api.xero.com/connections',
       revokeUrl: 'https://identity.xero.com/connect/revocation',
-      // Scopes aligned to what `lib/integrations/xero.ts` actually calls.
-      // Granular scopes required for apps created after 2 Mar 2026 per Xero devblog.
-      scopes: 'openid profile email accounting.transactions accounting.contacts accounting.attachments accounting.reports.read offline_access',
+      // GRANULAR scopes — required for apps created after 2 Mar 2026.
+      // `accounting.transactions` was split into `.invoices`, `.payments`, `.banktransactions`.
+      // `accounting.contacts` + `.attachments` are unchanged.
+      // If you add new XeroClient methods that call BankTransactions or Payments,
+      // add the corresponding scope here.
+      scopes: 'openid profile email accounting.invoices accounting.contacts accounting.attachments accounting.reports.read offline_access',
       clientIdEnv: 'XERO_CLIENT_ID',
       clientSecretEnv: 'XERO_CLIENT_SECRET',
     },
