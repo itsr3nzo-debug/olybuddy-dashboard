@@ -200,10 +200,10 @@ function SignupWizard() {
         <AnimatePresence mode="wait">
           <motion.div
             key={step}
-            initial={{ opacity: 0, x: 20 }}
+            initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.2 }}
+            exit={{ opacity: 0, x: -10 }}
+            transition={{ duration: 0.12 }}
           >
             {step === 1 && (
               <div className="max-w-md mx-auto">

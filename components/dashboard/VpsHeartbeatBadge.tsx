@@ -45,7 +45,7 @@ export default function VpsHeartbeatBadge({ clientSlug }: { clientSlug?: string 
   if (!hb) {
     return (
       <span className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full bg-slate-700/30 text-slate-400">
-        <AlertCircle size={12} /> No heartbeat
+        <AlertCircle size={12} className="flex-shrink-0" /> No heartbeat
       </span>
     )
   }
@@ -58,7 +58,7 @@ export default function VpsHeartbeatBadge({ clientSlug }: { clientSlug?: string 
   if (stale) {
     return (
       <span className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full bg-red-900/30 text-red-300" title={`Last heartbeat ${ageMin}min ago`}>
-        <AlertCircle size={12} /> Agent offline · {ageMin}m
+        <AlertCircle size={12} className="flex-shrink-0" /> Agent offline · {ageMin}m
       </span>
     )
   }
@@ -70,7 +70,7 @@ export default function VpsHeartbeatBadge({ clientSlug }: { clientSlug?: string 
       }`}
       title={waOk ? 'Agent + WhatsApp live' : 'Agent up but WhatsApp disconnected'}
     >
-      <Activity size={12} className={waOk ? 'animate-pulse' : ''} />
+      <Activity size={12} className={`flex-shrink-0 ${waOk ? 'animate-pulse' : ''}`} />
       {waOk ? 'Live' : 'WhatsApp offline'}
     </span>
   )
