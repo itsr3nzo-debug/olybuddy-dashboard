@@ -1,0 +1,119 @@
+import type { Session, Message } from './types';
+
+export interface SessionSummary {
+  id: string;
+  title: string;
+  pinned: boolean;
+  created_at: string;
+  updated_at?: string;
+}
+
+export async function listSessions(clientId?: string): Promise<SessionSummary[]> {
+  const qs = clientId ? `?client=${encodeURIComponent(clientId)}` : '';
+  const res = await fetch(`/api/chat/sessions${qs}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('listSessions failed');
+  const body = await res.json();
+  return body.sessions ?? [];
+}
+
+export async function loadSession(
+  id: string,
+  clientId?: string
+): Promise<{ session: SessionSummary; messages: Message[] } | null> {
+  const qs = clientId ? `?client=${encodeURIComponent(clientId)}` : '';
+  const res = await fetch(`/api/chat/sessions/${id}${qs}`, { cache: 'no-store' });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error('loadSession failed');
+  const body = await res.json();
+  return { session: body.session, messages: body.messages as Message[] };
+}
+
+export async function createSession(title?: string, clientId?: string): Promise<SessionSummary> {
+  const res = await fetch('/api/chat/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, client_id: clientId }),
+  });
+  if (!res.ok) throw new Error('createSession failed');
+  const body = await res.json();
+  return body.session;
+}
+
+export async function renameSession(id: string, title: string): Promise<void> {
+  const res = await fetch(`/api/chat/sessions/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  });
+  if (!res.ok) throw new Error('renameSession failed');
+}
+
+export async function deleteSession(id: string): Promise<void> {
+  const res = await fetch(`/api/chat/sessions/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('deleteSession failed');
+}
+
+export interface PostMessageResult {
+  session_id: string;
+  user_message: Message;
+  assistant_message: Message;
+}
+
+export async function postMessage(
+  content: string,
+  session_id: string | null,
+  clientId?: string
+): Promise<PostMessageResult> {
+  const res = await fetch('/api/chat/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      content,
+      session_id: session_id ?? undefined,
+      create_if_missing: !session_id,
+      // Always pass client_id — server ignores it for non-admins (pinned to JWT)
+      // and uses it for super_admins to scope their chat into the right tenant.
+      client_id: clientId,
+    }),
+  });
+  if (!res.ok) throw new Error('postMessage failed');
+  return await res.json();
+}
+
+/**
+ * Map a row from the API / realtime into our Message type.
+ * The DB column names are snake_case; our types use camelCase.
+ */
+export function rowToMessage(row: {
+  id: string;
+  role: string;
+  content: string;
+  status: string;
+  sources?: Message['sources'];
+  error_message?: string | null;
+  created_at: string;
+  completed_at?: string | null;
+  metadata?: { breadcrumbs?: Message['breadcrumbs'] } | null;
+}): Message {
+  return {
+    id: row.id,
+    role: row.role as Message['role'],
+    content: row.content,
+    status: row.status as Message['status'],
+    sources: row.sources ?? undefined,
+    errorMessage: row.error_message ?? undefined,
+    createdAt: row.created_at,
+    breadcrumbs: row.metadata?.breadcrumbs ?? undefined,
+  };
+}
+
+export function summaryToSession(sum: SessionSummary, messages: Message[] = []): Session {
+  return {
+    id: sum.id,
+    title: sum.title,
+    createdAt: sum.created_at,
+    updatedAt: sum.updated_at,
+    messages,
+    pinned: sum.pinned,
+  };
+}

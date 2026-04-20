@@ -75,6 +75,48 @@ export async function proxy(request: NextRequest) {
       url.pathname = '/dashboard'
       return NextResponse.redirect(url)
     }
+
+    // ─── Onboarding gate ───
+    // Runs BEFORE any render. Fast path: read onboarding_completed straight
+    // from the JWT's app_metadata (zero DB round-trip). Slow path: fall back
+    // to a clients-table lookup for users whose metadata claim is missing
+    // (e.g. signed up before the claim was rolled out).
+    if (role !== 'super_admin' && !isApi && !isPublic) {
+      const meta = user.app_metadata as { client_id?: string; onboarding_completed?: boolean } | undefined
+      const clientId = meta?.client_id
+
+      if (clientId) {
+        let done: boolean
+        if (meta?.onboarding_completed === true) {
+          // Fast path: JWT says done → trust. Covers ~99% of production traffic
+          // since every request from an onboarded user skips the DB entirely.
+          done = true
+        } else {
+          // JWT says false OR claim missing. Verify against the DB: the user
+          // might have JUST finished onboarding and their JWT is still the old
+          // one that predates the app_metadata update. Trusting the JWT here
+          // would cause an infinite /dashboard ↔ /onboarding redirect loop.
+          const { data: client } = await supabase
+            .from('clients')
+            .select('onboarding_completed')
+            .eq('id', clientId)
+            .maybeSingle()
+          done = client?.onboarding_completed ?? false
+        }
+
+        const onOnboarding = pathname === '/onboarding' || pathname.startsWith('/onboarding/')
+        if (!done && !onOnboarding) {
+          const url = request.nextUrl.clone()
+          url.pathname = '/onboarding'
+          return NextResponse.redirect(url)
+        }
+        if (done && onOnboarding) {
+          const url = request.nextUrl.clone()
+          url.pathname = '/dashboard'
+          return NextResponse.redirect(url)
+        }
+      }
+    }
   }
 
   return supabaseResponse

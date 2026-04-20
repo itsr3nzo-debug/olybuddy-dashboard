@@ -5,11 +5,10 @@ import { RoleProvider } from '@/lib/role-context'
 import Sidebar from '@/components/dashboard/Sidebar'
 import MobileNav from '@/components/dashboard/MobileNav'
 import CommandPalette from '@/components/shared/CommandPalette'
-import OnboardingRedirect from '@/components/shared/OnboardingRedirect'
 import TrialBanner from '@/components/dashboard/TrialBanner'
 import ProvisioningBanner from '@/components/dashboard/ProvisioningBanner'
 import { Breadcrumb } from '@/components/ui/breadcrumb'
-import { getSupabase } from '@/lib/supabase'
+import ChatLauncher from '@/components/chat/ChatLauncher'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -23,12 +22,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let subscriptionStatus = 'active'
   let trialEndsAt: string | null = null
 
+  let launcherOwner: string | undefined;
   if (session.role === 'super_admin' && !session.clientId) {
     businessName = 'Nexley AI Admin'
   } else if (session.clientId) {
     const { data: client } = await supabase
       .from('clients')
-      .select('name, onboarding_completed, subscription_status, trial_ends_at')
+      .select('name, onboarding_completed, subscription_status, trial_ends_at, contact_name')
       .eq('id', session.clientId)
       .single()
     if (client) {
@@ -36,14 +36,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
       onboardingDone = client.onboarding_completed ?? true
       subscriptionStatus = client.subscription_status ?? 'active'
       trialEndsAt = client.trial_ends_at ?? null
+      launcherOwner = (client as { contact_name?: string }).contact_name
     }
   }
 
+  // Onboarding gate lives in middleware.ts (runs before render → no flicker).
+  // This layout just renders. `onboardingDone` is still read above because
+  // the page may be /onboarding itself (which is allowed for unfinished users).
+
   return (
     <RoleProvider session={session}>
-      {/* Redirect to onboarding if not completed (skip for super_admin) */}
-      {session.role !== 'super_admin' && <OnboardingRedirect done={onboardingDone} />}
-
       <div className="flex min-h-screen bg-background">
         {/* Desktop sidebar */}
         <div className="hidden lg:block">
@@ -63,6 +65,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
         {/* Global command palette (Cmd+K) */}
         <CommandPalette />
+
+        {/* Global AI chat launcher (Cmd+J) — available on every tab */}
+        {session.clientId && (
+          <ChatLauncher
+            clientId={session.clientId}
+            clientName={businessName}
+            userEmail={session.email}
+            ownerName={launcherOwner}
+          />
+        )}
       </div>
     </RoleProvider>
   )

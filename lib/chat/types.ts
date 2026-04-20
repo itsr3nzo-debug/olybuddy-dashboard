@@ -1,0 +1,67 @@
+// Chat types — match the prototype's shapes so the port is zero-friction.
+
+export type Role = 'user' | 'assistant' | 'system';
+
+export type MessageStatus = 'pending' | 'thinking' | 'drafting' | 'done' | 'error';
+
+export type SourceType = 'contact' | 'call' | 'quote' | 'job' | 'invoice';
+
+export interface Source {
+  id: string;
+  type: SourceType;
+  label: string;
+  sublabel?: string;
+  details?: Record<string, unknown>;
+}
+
+export interface Breadcrumb {
+  kind: 'tool' | 'info';
+  label: string;
+  ts?: string;
+}
+
+export interface Message {
+  id: string;
+  role: Role;
+  content: string;
+  createdAt: string; // ISO
+  status: MessageStatus;
+  sources?: Source[];
+  errorMessage?: string;
+  /** Streaming metadata written by the VPS bridge. */
+  breadcrumbs?: Breadcrumb[];
+}
+
+export interface Session {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt?: string;
+  messages: Message[];
+  pinned?: boolean;
+}
+
+export interface Suggestion {
+  prompt: string;
+  category: string;
+}
+
+export interface Workflow {
+  title: string;
+  sub: string;
+  steps: number;
+  kind: string;
+}
+
+export interface Command {
+  id: string;
+  label: string;
+  sub: string;
+  icon: string;
+}
+
+export interface MentionCustomer {
+  id: string;
+  name: string;
+  sub: string;
+}

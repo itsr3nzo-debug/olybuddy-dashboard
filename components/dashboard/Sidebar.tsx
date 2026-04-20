@@ -5,13 +5,14 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Sparkles, LayoutDashboard, BarChart3, PoundSterling, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Kanban, MessageSquare, Calendar, ScrollText, FileBarChart, Plug, Shield, Users, Mic, FileEdit, FileText, Pause, Webhook } from 'lucide-react'
+import { Sparkles, LayoutDashboard, BarChart3, PoundSterling, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Kanban, MessageSquare, Calendar, ScrollText, FileBarChart, Plug, Shield, Users, Mic, FileEdit, FileText, Pause, Webhook, Bot } from 'lucide-react'
 import type { UserRole } from '@/lib/rbac'
 import { MEMBER_BLOCKED_PAGES } from '@/lib/rbac'
 
 const allNavItems = [
   // Core
   { href: '/dashboard',      label: 'Dashboard',      Icon: LayoutDashboard },
+  { href: '/chat',           label: 'Chat',           Icon: Bot },
   { href: '/pipeline',       label: 'Pipeline',       Icon: Kanban },
   { href: '/conversations',  label: 'Inbox',          Icon: MessageSquare },
   { href: '/calls',          label: 'Conversations',  Icon: ScrollText },
