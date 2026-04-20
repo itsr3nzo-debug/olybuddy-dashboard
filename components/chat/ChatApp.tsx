@@ -283,11 +283,13 @@ export default function ChatApp(props: ChatAppProps) {
   }, [newChat, toggleTheme]);
 
   // Stuck-pending sweeper ─────────────────────────────────────────────
-  // Tiered timeouts: if a message is still 'pending' (bridge never
-  // even picked it up) after 25s the agent is likely not deployed /
-  // offline — show a specific error. If it progressed to
-  // 'thinking'/'drafting' but didn't finish in 120s, it's a slow reply
-  // timeout. Different messages, same clear failure.
+  // Tiered timeouts — `pending` beyond 25s becomes an error (bridge never
+  // picked up), `thinking`/`drafting` beyond 120s becomes an error (slow
+  // reply). Uses `setSessions` functional form so it stays correct without
+  // depending on `sessions` (which would re-mount the interval on every
+  // realtime update and prevent it from ever firing).
+  const sessionsRef = useRef<Session[]>([]);
+  useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
@@ -306,10 +308,7 @@ export default function ChatApp(props: ChatAppProps) {
                   'No agent picked this up. The AI Employee may not be deployed for this client yet, or the bridge is offline.',
               };
             }
-            if (
-              (m.status === 'thinking' || m.status === 'drafting') &&
-              ageMs > 120_000
-            ) {
+            if ((m.status === 'thinking' || m.status === 'drafting') && ageMs > 120_000) {
               changed = true;
               return {
                 ...m,
@@ -323,19 +322,18 @@ export default function ChatApp(props: ChatAppProps) {
         });
         return changed ? next : prev;
       });
-      setBusy((b) => {
-        const activeSess = sessions.find((s) => s.id === currentSessionIdRef.current);
-        const stillInFlight = activeSess?.messages.some(
-          (m) =>
-            m.role === 'assistant' &&
-            (m.status === 'pending' || m.status === 'thinking' || m.status === 'drafting') &&
-            now - new Date(m.createdAt).getTime() < 120_000
-        );
-        return stillInFlight ? b : false;
-      });
+      // Release busy if nothing is in-flight in the active session
+      const activeSess = sessionsRef.current.find((s) => s.id === currentSessionIdRef.current);
+      const stillInFlight = activeSess?.messages.some(
+        (m) =>
+          m.role === 'assistant' &&
+          (m.status === 'pending' || m.status === 'thinking' || m.status === 'drafting') &&
+          now - new Date(m.createdAt).getTime() < 120_000
+      );
+      if (!stillInFlight) setBusy(false);
     }, 5000);
     return () => clearInterval(interval);
-  }, [sessions]);
+  }, []);
 
   // Render ────────────────────────────────────────────────────────────
   void sessionsLoading;
