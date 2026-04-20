@@ -192,19 +192,23 @@ export default function ChatApp(props: ChatAppProps) {
       setBusy(true);
       try {
         const res = await postMessage(content, currentSessionId, props.clientId);
+        // API returns raw DB rows (snake_case). Normalise to Message shape.
+        const u = res.user_message as unknown as { id: string; content: string; created_at?: string; createdAt?: string };
+        const a = res.assistant_message as unknown as { id: string; created_at?: string; createdAt?: string };
+        const nowIso = new Date().toISOString();
         const userMsg = rowToMessage({
-          id: res.user_message.id,
+          id: u.id,
           role: 'user',
-          content: res.user_message.content,
+          content: u.content,
           status: 'done',
-          created_at: res.user_message.createdAt,
+          created_at: u.created_at || u.createdAt || nowIso,
         });
         const asstMsg = rowToMessage({
-          id: res.assistant_message.id,
+          id: a.id,
           role: 'assistant',
           content: '',
           status: 'pending',
-          created_at: res.assistant_message.createdAt,
+          created_at: a.created_at || a.createdAt || nowIso,
         });
 
         setSessions((prev) => {
@@ -279,10 +283,11 @@ export default function ChatApp(props: ChatAppProps) {
   }, [newChat, toggleTheme]);
 
   // Stuck-pending sweeper ─────────────────────────────────────────────
-  // If an assistant message has been pending/thinking/drafting for >120s,
-  // the bridge is either down, blocked, or timed out. Locally mark it as
-  // errored so the UI stops spinning. (DB row may still update later;
-  // realtime will overwrite.)
+  // Tiered timeouts: if a message is still 'pending' (bridge never
+  // even picked it up) after 25s the agent is likely not deployed /
+  // offline — show a specific error. If it progressed to
+  // 'thinking'/'drafting' but didn't finish in 120s, it's a slow reply
+  // timeout. Different messages, same clear failure.
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
@@ -290,10 +295,20 @@ export default function ChatApp(props: ChatAppProps) {
         let changed = false;
         const next = prev.map((s) => {
           const messages = s.messages.map((m) => {
+            if (m.role !== 'assistant') return m;
+            const ageMs = now - new Date(m.createdAt).getTime();
+            if (m.status === 'pending' && ageMs > 25_000) {
+              changed = true;
+              return {
+                ...m,
+                status: 'error' as const,
+                errorMessage:
+                  'No agent picked this up. The AI Employee may not be deployed for this client yet, or the bridge is offline.',
+              };
+            }
             if (
-              m.role === 'assistant' &&
-              (m.status === 'pending' || m.status === 'thinking' || m.status === 'drafting') &&
-              now - new Date(m.createdAt).getTime() > 120_000
+              (m.status === 'thinking' || m.status === 'drafting') &&
+              ageMs > 120_000
             ) {
               changed = true;
               return {
@@ -309,7 +324,6 @@ export default function ChatApp(props: ChatAppProps) {
         return changed ? next : prev;
       });
       setBusy((b) => {
-        // If nothing is actually in flight, release busy
         const activeSess = sessions.find((s) => s.id === currentSessionIdRef.current);
         const stillInFlight = activeSess?.messages.some(
           (m) =>

@@ -197,33 +197,32 @@ function ComposerChip({ icon: IconC, label, onClick, disabled }: ComposerChipPro
 }
 
 /* ───────────── Status pill ───────────── */
-export function StatusPill({ status }: { status: MessageStatus }) {
+export function StatusPill({ status, errorMessage }: { status: MessageStatus; errorMessage?: string }) {
   const map: Record<string, { label: string; icon: React.ComponentType<{ size?: number }>; danger?: boolean }> = {
     pending: { label: 'Queued', icon: Clock },
     thinking: { label: 'Thinking', icon: Brain },
     drafting: { label: 'Drafting your reply', icon: PencilLine },
-    error: { label: 'Something went wrong', icon: AlertCircle, danger: true },
+    error: { label: errorMessage || 'Something went wrong', icon: AlertCircle, danger: true },
   };
   const m = map[status] || map.thinking;
   const IconC = m.icon;
   return (
     <div
       className={cx(
-        'inline-flex items-center gap-2 rounded-md px-3 py-2 text-[13px]',
+        'inline-flex items-start gap-2 rounded-md px-3 py-2 text-[13px] max-w-[95%]',
         m.danger ? 'fg-danger' : 'bg-subtle fg-subtle'
       )}
       style={m.danger ? { background: 'rgb(var(--hy-danger) / 0.1)', border: '1px solid rgb(var(--hy-danger) / 0.3)' } : undefined}
     >
       <IconC size={14} />
-      {m.label}
+      <span className="flex-1">{m.label}</span>
       {!m.danger && (
-        <span className="flex gap-1 ml-1">
+        <span className="flex gap-1 ml-1 mt-1.5">
           <span className="status-dot" style={{ animationDelay: '0ms' }} />
           <span className="status-dot" style={{ animationDelay: '150ms' }} />
           <span className="status-dot" style={{ animationDelay: '300ms' }} />
         </span>
       )}
-      {m.danger && <button className="ml-1 text-[12px] underline fg-danger hover:opacity-80">Retry</button>}
     </div>
   );
 }
@@ -313,7 +312,7 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
       {(message.status !== 'done' && message.status !== 'drafting')
         ? (
           <div className="flex flex-col gap-1">
-            <StatusPill status={message.status} />
+            <StatusPill status={message.status} errorMessage={message.errorMessage} />
             <BreadcrumbStrip crumbs={message.breadcrumbs} />
           </div>
         )

@@ -36,33 +36,54 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
   if (session.role === 'super_admin' && !activeClientId) {
     const { data: allClients } = await supabase
       .from('clients')
-      .select('id, name, slug, onboarding_completed, subscription_status')
+      .select('id, name, slug, onboarding_completed, subscription_status, vps_ready, vps_ip')
       .order('name', { ascending: true });
 
     return (
       <div className="max-w-3xl mx-auto">
         <h1 className="text-2xl font-bold text-foreground mb-2">Chat — admin view</h1>
         <p className="text-sm text-muted-foreground mb-6">
-          Pick a client to chat as their AI Employee. Messages go through that client&apos;s
-          live agent on its own Hetzner VPS.
+          Pick a client to chat as their AI Employee. Messages hit the live client
+          agent on its own Hetzner VPS. Clients without a deployed agent are greyed
+          out — the chat UI loads but replies will time out.
         </p>
         <div className="space-y-2">
-          {(allClients ?? []).map((c) => (
-            <a
-              key={c.id}
-              href={`/chat?client=${c.id}`}
-              className="flex items-center justify-between rounded-md border border-border bg-card hover:bg-accent hover:text-accent-foreground transition-colors px-4 py-3"
-            >
-              <div className="flex flex-col min-w-0">
-                <span className="font-medium truncate">{c.name || c.slug}</span>
-                <span className="text-xs text-muted-foreground truncate">
-                  {c.slug} · {c.subscription_status || 'no plan'} ·{' '}
-                  {c.onboarding_completed ? 'onboarded' : 'onboarding'}
-                </span>
-              </div>
-              <span className="text-xs text-muted-foreground">→</span>
-            </a>
-          ))}
+          {(allClients ?? []).map((c) => {
+            const hasAgent = Boolean((c as { vps_ready?: boolean; vps_ip?: string }).vps_ready && (c as { vps_ip?: string }).vps_ip);
+            return (
+              <a
+                key={c.id}
+                href={`/chat?client=${c.id}`}
+                className={
+                  'flex items-center justify-between rounded-md border px-4 py-3 transition-colors ' +
+                  (hasAgent
+                    ? 'border-border bg-card hover:bg-accent hover:text-accent-foreground'
+                    : 'border-border/60 bg-card/50 opacity-70 hover:opacity-100 hover:bg-accent/50')
+                }
+              >
+                <div className="flex flex-col min-w-0">
+                  <span className="font-medium truncate flex items-center gap-2">
+                    {c.name || c.slug}
+                    {hasAgent ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 text-[10px] font-medium">
+                        <span className="h-1 w-1 rounded-full bg-emerald-500" />
+                        agent online
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                        no agent
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-xs text-muted-foreground truncate">
+                    {c.slug} · {c.subscription_status || 'no plan'} ·{' '}
+                    {c.onboarding_completed ? 'onboarded' : 'onboarding'}
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground">→</span>
+              </a>
+            );
+          })}
           {(!allClients || allClients.length === 0) && (
             <div className="text-sm text-muted-foreground">No clients yet.</div>
           )}

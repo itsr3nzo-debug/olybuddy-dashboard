@@ -5,10 +5,13 @@ export function cx(...args: Array<string | false | null | undefined | Array<stri
   return args.flat().filter((v): v is string => Boolean(v)).join(' ');
 }
 
-export function relativeTime(iso: string): string {
-  const now = Date.now();
+export function relativeTime(iso: string | undefined | null): string {
+  if (!iso) return 'just now';
   const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return 'just now';
+  const now = Date.now();
   const diff = Math.round((now - then) / 1000);
+  if (diff < 0) return 'just now';
   if (diff < 10) return 'just now';
   if (diff < 60) return `${diff}s ago`;
   const mins = Math.round(diff / 60);
