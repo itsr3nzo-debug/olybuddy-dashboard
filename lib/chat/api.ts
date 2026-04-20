@@ -25,7 +25,10 @@ export async function loadSession(
   if (res.status === 404) return null;
   if (!res.ok) throw new Error('loadSession failed');
   const body = await res.json();
-  return { session: body.session, messages: body.messages as Message[] };
+  // API returns raw DB rows (snake_case); normalise via rowToMessage so the
+  // UI gets createdAt / errorMessage / breadcrumbs instead of undefined.
+  const rawRows = (body.messages ?? []) as Array<Parameters<typeof rowToMessage>[0]>;
+  return { session: body.session, messages: rawRows.map(rowToMessage) };
 }
 
 export async function createSession(title?: string, clientId?: string): Promise<SessionSummary> {
