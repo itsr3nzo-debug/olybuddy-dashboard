@@ -318,12 +318,11 @@ interface DashboardProps {
 }
 
 export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows }: DashboardProps) {
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(['crm', 'calls']));
-  const toggle = (id: string) => setSelected((s) => {
-    const n = new Set(s);
-    if (n.has(id)) n.delete(id); else n.add(id);
-    return n;
-  });
+  // Source-selector state kept in case any decorative row is re-enabled; unused
+  // right now because the rows below the composer are hidden until those
+  // features ship. `void` prevents the linter from flagging.
+  const [selected] = useState<Set<string>>(() => new Set(['crm', 'calls']));
+  void selected;
 
   return (
     <BrowserChrome>
@@ -372,19 +371,9 @@ export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows }: D
             busy={false}
           />
 
-          <div className="flex items-center justify-end mt-2 px-1">
-            <VoicePill />
-          </div>
-
-          <div className="mt-2">
-            <SourceChipRow selected={selected} onToggle={toggle} />
-          </div>
-
-          <div className="mt-2">
-            <ApplyBar selected={selected} onClear={() => setSelected(new Set())} />
-          </div>
-
-          <HeartbeatCard />
+          {/* Decorative/demo rows hidden until the features behind them ship:
+              VoicePill, SourceChipRow, ApplyBar, HeartbeatCard (fake stats).
+              Leaves the composer + suggestions as the real empty-state. */}
 
           <div className="mt-6">
             <TipCarousel />
