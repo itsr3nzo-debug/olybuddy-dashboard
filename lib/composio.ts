@@ -1,8 +1,25 @@
 import { Composio } from "@composio/core";
 import registry from "./composio-registry.json";
 
-export const composio = new Composio({
-  apiKey: process.env.COMPOSIO_API_KEY!,
+// Lazy init — instantiating at module scope throws during next build's
+// "collect page data" step when COMPOSIO_API_KEY isn't set (e.g. in CI,
+// or any env without the integration configured).
+let _composio: Composio | null = null;
+function getClient(): Composio {
+  if (!_composio) {
+    _composio = new Composio({ apiKey: process.env.COMPOSIO_API_KEY! });
+  }
+  return _composio;
+}
+
+// Proxy that forwards all property access to the lazily-created client.
+// Keeps the existing `composio.connectedAccounts.initiate(...)` call sites
+// working unchanged while deferring the SDK constructor until first use.
+export const composio = new Proxy({} as Composio, {
+  get(_t, prop: string | symbol) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (getClient() as any)[prop];
+  },
 });
 
 type RegistryEntry = {
