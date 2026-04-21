@@ -137,15 +137,40 @@ export class FergusClient {
    * return the unfiltered first page which looks like a working API but isn't.
    */
   async searchCustomers(q: string): Promise<FergusCustomer[]> {
+    // Observed: Fergus Partner API's `filterSearchText` sometimes ignores
+    // the filter and returns *all* customers. We issue the filter call
+    // anyway (works for most cases), then apply a client-side substring
+    // match as a safety net so the agent never sees the full list.
     const params = new URLSearchParams({
-      pageSize: '10',
+      pageSize: '50',
       sortField: 'createdAt',
       sortOrder: 'desc',
       pageCursor: '0',
       filterSearchText: q,
     })
     const res = await this.req<{ data: FergusCustomer[] }>('GET', `/customers?${params.toString()}`)
-    return res?.data ?? []
+    const rows = res?.data ?? []
+    const needle = q.trim().toLowerCase()
+    if (!needle) return rows.slice(0, 10)
+    const hit = (c: FergusCustomer) => {
+      const haystacks: string[] = []
+      if (c.customerFullName) haystacks.push(c.customerFullName.toLowerCase())
+      const mc = c.mainContact as { firstName?: string; lastName?: string; contactItems?: Array<{ contactValue?: string }> } | undefined
+      if (mc?.firstName) haystacks.push(mc.firstName.toLowerCase())
+      if (mc?.lastName) haystacks.push(mc.lastName.toLowerCase())
+      for (const item of mc?.contactItems ?? []) {
+        if (item.contactValue) haystacks.push(item.contactValue.toLowerCase())
+      }
+      return haystacks.some(h => h.includes(needle))
+    }
+    const filtered = rows.filter(hit)
+    // If nothing matched via substring AND we got a big batch (the filter was ignored),
+    // return empty — better than showing 50 random customers.
+    // If something matched, return those. If the filter worked (small result set already),
+    // return the rows.
+    if (filtered.length > 0) return filtered.slice(0, 10)
+    if (rows.length < 15) return rows  // filter probably worked, pass through
+    return []                            // filter ignored + no substring match
   }
 
   async createCustomer(args: { customerFullName: string; mainContact: FergusContact; physicalAddress?: FergusAddress; postalAddress?: FergusAddress }): Promise<FergusCustomer> {
@@ -451,6 +476,73 @@ export class FergusClient {
       }
     }
     return created as Record<string, unknown>
+  }
+
+  /**
+   * Add a time entry (labour hours) to a job. Used by the agent when the
+   * owner reports "I did 3h at Smith Rd" or similar. Fergus accepts an
+   * `hours` decimal or a `startTime`/`endTime` pair — we use hours for
+   * owner-friendly input.
+   */
+  async addTimeEntry(jobId: number, entry: {
+    hours: number
+    date?: string          // ISO YYYY-MM-DD; defaults to today
+    userId?: number        // Fergus user whose time this is; defaults to PAT owner
+    description?: string
+    isBillable?: boolean   // default true
+  }): Promise<Record<string, unknown> | null> {
+    const body: Record<string, unknown> = {
+      hours: entry.hours,
+      date: entry.date ?? new Date().toISOString().slice(0, 10),
+      isBillable: entry.isBillable ?? true,
+    }
+    if (entry.userId) body.userId = entry.userId
+    if (entry.description) body.description = entry.description
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('POST', `/jobs/${jobId}/time-entries`, body)
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
+  }
+
+  /**
+   * Add a task (checklist item) to a job. Used by the agent for role-specific
+   * checklists — "Julian: test RCD", "James: label circuits", etc.
+   */
+  async addJobTask(jobId: number, task: {
+    title: string
+    description?: string
+    assigneeUserId?: number
+    dueDate?: string         // ISO date
+    completed?: boolean      // default false
+  }): Promise<Record<string, unknown> | null> {
+    const body: Record<string, unknown> = {
+      title: task.title,
+      completed: task.completed ?? false,
+    }
+    if (task.description) body.description = task.description
+    if (task.assigneeUserId) body.assigneeUserId = task.assigneeUserId
+    if (task.dueDate) body.dueDate = task.dueDate
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('POST', `/jobs/${jobId}/tasks`, body)
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
+  }
+
+  /**
+   * Add a variation (change order) to a job. Extra work on top of the
+   * original quote. Fergus tracks these as separate line items that can be
+   * approved/invoiced individually.
+   */
+  async addJobVariation(jobId: number, variation: {
+    title: string
+    description?: string
+    amount?: number           // price in major currency units
+    isApproved?: boolean      // default false (pending approval)
+  }): Promise<Record<string, unknown> | null> {
+    const body: Record<string, unknown> = {
+      title: variation.title,
+      isApproved: variation.isApproved ?? false,
+    }
+    if (variation.description) body.description = variation.description
+    if (variation.amount !== undefined) body.amount = variation.amount
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('POST', `/jobs/${jobId}/variations`, body)
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
   }
 
   async uploadJobAttachment(jobId: number, fileName: string, content: Buffer, mimeType: string): Promise<Record<string, unknown> | null> {

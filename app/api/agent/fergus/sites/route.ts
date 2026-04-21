@@ -99,15 +99,33 @@ export async function POST(req: NextRequest) {
       if (!cust) return NextResponse.json({ error: 'customer not found', customer_id: d.customer_id }, { status: 404 })
       const mc = cust.mainContact as { firstName?: string; lastName?: string; contactItems?: Array<{ contactType: string; contactValue: string }> } | undefined
       const pa = cust.physicalAddress as Record<string, string> | undefined
-      if (!mc?.firstName) {
-        return NextResponse.json({ error: 'customer has no mainContact.firstName — cannot auto-derive site defaultContact' }, { status: 422 })
+      // Derive firstName/lastName. Preference order:
+      //   1. mainContact.firstName (+lastName)
+      //   2. Split customerFullName on whitespace
+      //   3. customerFullName as firstName, no lastName
+      // Without this fallback, company-only rows (e.g. "ACME Ltd" with no
+      // mainContact) blocked site creation entirely — which is what Julian's
+      // agent hit with "always errors regardless of payload".
+      let firstName: string | undefined = mc?.firstName?.trim()
+      let lastName: string | undefined = mc?.lastName?.trim()
+      if (!firstName) {
+        const full = (cust.customerFullName ?? '').trim()
+        if (!full) {
+          return NextResponse.json({
+            error: 'customer has no mainContact.firstName AND no customerFullName — pass default_contact + site_address explicitly',
+            customer_id: d.customer_id,
+          }, { status: 422 })
+        }
+        const parts = full.split(/\s+/)
+        firstName = parts[0]
+        lastName = parts.slice(1).join(' ') || undefined
       }
-      const email = mc.contactItems?.find(c => c.contactType === 'email')?.contactValue
-      const mobile = mc.contactItems?.find(c => c.contactType === 'mobile')?.contactValue
-      const phone = mc.contactItems?.find(c => c.contactType === 'phone')?.contactValue
+      const email = mc?.contactItems?.find(c => c.contactType === 'email')?.contactValue
+      const mobile = mc?.contactItems?.find(c => c.contactType === 'mobile')?.contactValue
+      const phone = mc?.contactItems?.find(c => c.contactType === 'phone')?.contactValue
       defaultContact = {
-        firstName: mc.firstName,
-        lastName: mc.lastName,
+        firstName,
+        lastName,
         email, mobile, phone,
       }
       siteAddress = {
