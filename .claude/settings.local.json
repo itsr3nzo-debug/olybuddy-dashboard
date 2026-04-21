@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "#!/bin/bash\nINPUT=$(cat)\nif [ \"$(echo \"$INPUT\" | jq -r '.stop_hook_active')\" = \"true\" ]; then exit 0; fi\n\n# Check if any code was edited this session\nCHANGED=$(cd /Users/claudia/Desktop/olybuddy-dashboard && git diff --name-only 2>/dev/null | head -5)\nif [ -z \"$CHANGED\" ]; then exit 0; fi\n\n# Run TypeScript check\nTSC=$(/Users/claudia/Desktop/olybuddy-dashboard/node_modules/.bin/tsc --noEmit --project /Users/claudia/Desktop/olybuddy-dashboard/tsconfig.json 2>&1)\nif [ $? -ne 0 ]; then\n  echo '{\"decision\": \"block\", \"reason\": \"TypeScript errors found: '\"$(echo $TSC | head -3 | tr '\\n' ' ')\"'\"}'\n  exit 1\nfi\n\nexit 0"
+            "command": "#!/bin/bash\nINPUT=$(cat)\nif [ \"$(echo \"$INPUT\" | jq -r '.stop_hook_active')\" = \"true\" ]; then exit 0; fi\n\n# Check if any code was edited this session\nCHANGED=$(cd /Users/claudia/Desktop/nexley-dashboard && git diff --name-only 2>/dev/null | head -5)\nif [ -z \"$CHANGED\" ]; then exit 0; fi\n\n# Run TypeScript check\nTSC=$(/Users/claudia/Desktop/nexley-dashboard/node_modules/.bin/tsc --noEmit --project /Users/claudia/Desktop/nexley-dashboard/tsconfig.json 2>&1)\nif [ $? -ne 0 ]; then\n  echo '{\"decision\": \"block\", \"reason\": \"TypeScript errors found: '\"$(echo $TSC | head -3 | tr '\\n' ' ')\"'\"}'\n  exit 1\nfi\n\nexit 0"
           }
         ]
       }

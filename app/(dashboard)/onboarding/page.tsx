@@ -135,6 +135,22 @@ export default function OnboardingPage() {
     if (step < 3) {
       setStep(step + 1)
     } else {
+      // Step 1: refresh the Supabase session so the JWT picks up the freshly-
+      // written `app_metadata.onboarding_completed = true` stamp. Without this,
+      // the proxy's fast-path keeps seeing the old `false` claim on the next
+      // navigation and the DB fallback does the right thing, but it's an
+      // extra DB round-trip per request until the session expires (~1h).
+      try {
+        const sb = createClient()
+        await sb.auth.refreshSession()
+      } catch {
+        // non-fatal — proxy will DB-fall-back and user experience is unchanged
+      }
+      // Step 2: bust Next.js's Router Cache so the next RSC fetch for
+      // /dashboard reads fresh state (layout data, sidebar, banners).
+      router.refresh()
+      // Tiny delay lets the refresh settle before we navigate
+      await new Promise(r => setTimeout(r, 100))
       router.replace('/dashboard')
     }
   }

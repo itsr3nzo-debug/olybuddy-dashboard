@@ -185,14 +185,15 @@ export default function ChatApp(props: ChatAppProps) {
 
   // Actions ───────────────────────────────────────────────────────────
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, attachments?: import('@/lib/chat/types').Attachment[]) => {
       const content = text.trim();
-      if (!content || busy) return;
+      const hasAtt = !!(attachments && attachments.length);
+      if ((!content && !hasAtt) || busy) return;
       setBusy(true);
       try {
-        const res = await postMessage(content, currentSessionId, props.clientId);
+        const res = await postMessage(content, currentSessionId, props.clientId, attachments);
         // API returns raw DB rows (snake_case). Normalise to Message shape.
-        const u = res.user_message as unknown as { id: string; content: string; created_at?: string; createdAt?: string };
+        const u = res.user_message as unknown as { id: string; content: string; created_at?: string; createdAt?: string; metadata?: { attachments?: import('@/lib/chat/types').Attachment[] } };
         const a = res.assistant_message as unknown as { id: string; created_at?: string; createdAt?: string };
         const nowIso = new Date().toISOString();
         const userMsg = rowToMessage({
@@ -201,6 +202,7 @@ export default function ChatApp(props: ChatAppProps) {
           content: u.content,
           status: 'done',
           created_at: u.created_at || u.createdAt || nowIso,
+          metadata: u.metadata ?? (hasAtt ? { attachments } : undefined),
         });
         const asstMsg = rowToMessage({
           id: a.id,

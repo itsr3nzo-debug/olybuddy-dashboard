@@ -1,0 +1,128 @@
+{
+  "_meta": {
+    "description": "Universal integration-scanner registry. Each entry maps a provider to its Composio poll action + field extraction + classifier hint. Scanner works for ANY connected provider with an entry here. Providers not listed get a conservative default: call the provider's primary 'list' action, classify items via the generic classifier, emit low-confidence candidates for owner review.",
+    "how_to_add": "1. Find the Composio action slug via `curl https://backend.composio.dev/api/v3/tools/{SLUG}` — look for *_FETCH_*, *_LIST_*, *_SEARCH_*. 2. Add an entry below with poll_action + id_field + time_field + signal_vocabulary + classifier_hint. 3. No code changes needed — the universal scanner picks it up on next scan cycle.",
+    "schema_version": 1
+  },
+  "gmail": {
+    "triggers_to_subscribe": ["GMAIL_NEW_GMAIL_MESSAGE"],
+    "poll_action": "GMAIL_FETCH_EMAILS",
+    "params": { "max_results": 20, "verbose": false, "include_payload": false, "query_template": "is:unread -category:promotions{since_filter}", "since_filter_format": " after:{unix_seconds}" },
+    "response_path": "data.messages",
+    "id_field": "messageId",
+    "time_field": "messageTimestamp",
+    "time_unit_detect": true,
+    "display_template": "{sender}: {subject}",
+    "signal_vocabulary": ["supplier_invoice", "customer_question", "quote_request", "calendar_invite", "voicemail_transcript", "overdue_bounce", "payment_notice", "complaint", "spam_or_marketing", "personal", "unknown"],
+    "classifier_hint": "This is a UK small-business inbox. Customers message about quotes, complaints, bookings. Suppliers send invoices. Distinguish actionable email from marketing/personal.",
+    "redact_fields": ["subject", "sender"],
+    "trust_class_by_signal_type": {
+      "supplier_invoice": "draft_write",
+      "customer_question": "draft_write",
+      "quote_request": "draft_write",
+      "calendar_invite": "booking_small",
+      "complaint": "escalate_owner"
+    },
+    "default_trust_class": "info_reply"
+  },
+  "outlook": {
+    "poll_action": "OUTLOOK_OUTLOOK_LIST_MESSAGES",
+    "params": { "max_results": 20, "folder": "inbox" },
+    "response_path": "data.value",
+    "id_field": "id",
+    "time_field": "receivedDateTime",
+    "display_template": "{from.emailAddress.address}: {subject}",
+    "signal_vocabulary": ["supplier_invoice", "customer_question", "quote_request", "complaint", "spam_or_marketing", "personal", "unknown"],
+    "classifier_hint": "Microsoft 365 inbox for a UK small business. Same intents as Gmail.",
+    "redact_fields": ["subject", "from"],
+    "default_trust_class": "info_reply"
+  },
+  "slack": {
+    "poll_action": "SLACK_SEARCH_MESSAGES",
+    "params": { "query": "is:unread", "count": 20 },
+    "response_path": "data.messages.matches",
+    "id_field": "ts",
+    "time_field": "ts",
+    "display_template": "{channel.name} @{user}: {text}",
+    "signal_vocabulary": ["mention_for_owner", "action_request", "customer_support", "internal_noise", "unknown"],
+    "classifier_hint": "Internal Slack workspace. Look for owner @-mentions and requests needing action.",
+    "redact_fields": ["text"],
+    "default_trust_class": "draft_write"
+  },
+  "stripe": {
+    "poll_action": ["STRIPE_LIST_CHARGES", "STRIPE_LIST_REFUNDS", "STRIPE_LIST_INVOICES", "STRIPE_LIST_SUBSCRIPTIONS", "STRIPE_LIST_PAYMENT_INTENTS"],
+    "merge_strategy": "synth_events",
+    "params": { "limit": 50 },
+    "response_path": "data.data",
+    "id_field": "id",
+    "time_field": "created",
+    "signal_vocabulary": ["failed_payment", "charge_dispute", "large_refund", "new_subscription", "payout_failed"],
+    "classifier_hint": "Stripe events for a UK small business. Dispute + large refund + payout failure are always urgent.",
+    "default_trust_class": "send_small_external"
+  },
+  "xero": {
+    "poll_action": ["XERO_LIST_OVERDUE_INVOICES", "XERO_LIST_RECENT_BILLS"],
+    "merge_strategy": "synth_events",
+    "_note": "Uses our existing dashboard endpoints /api/agent/xero/invoices/overdue + /api/agent/xero/bills/list directly via the universal scanner's 'direct_dashboard' source_mode",
+    "source_mode": "direct_dashboard",
+    "endpoints": ["/api/agent/xero/invoices/overdue", "/api/agent/xero/bills/list?from={since_date}&summary=1"],
+    "signal_vocabulary": ["invoice_overdue", "supplier_bill_recorded", "supplier_spend_alert"],
+    "classifier_hint": "Xero accounting events. Invoice overdue + spend alerts.",
+    "default_trust_class": "send_small_external"
+  },
+  "google_calendar": {
+    "poll_action": "GOOGLECALENDAR_EVENTS_LIST",
+    "params": { "calendarId": "primary", "maxResults": 50, "singleEvents": true, "orderBy": "startTime", "timeMin_template": "{now_iso}", "timeMax_template": "{in_24h_iso}" },
+    "response_path": "data.items",
+    "id_field": "id",
+    "time_field": "start.dateTime",
+    "display_template": "{summary} @ {start.dateTime}",
+    "signal_vocabulary": ["upcoming_unprepared", "calendar_conflict", "customer_cancellation"],
+    "classifier_hint": "Calendar events in the next 24h. Detect conflicts + uprepared meetings.",
+    "default_trust_class": "draft_write"
+  },
+  "quickbooks": {
+    "poll_action": "QUICKBOOKS_LIST_INVOICES",
+    "params": { "max_results": 50 },
+    "response_path": "data.QueryResponse.Invoice",
+    "id_field": "Id",
+    "time_field": "TxnDate",
+    "display_template": "Invoice {DocNumber} {CustomerRef.name} £{TotalAmt}",
+    "signal_vocabulary": ["invoice_overdue", "invoice_paid"],
+    "classifier_hint": "QuickBooks invoice activity.",
+    "default_trust_class": "send_small_external"
+  },
+  "hubspot": {
+    "poll_action": "HUBSPOT_SEARCH_CONTACTS",
+    "params": { "limit": 20, "sorts_template": [{ "propertyName": "lastmodifieddate", "direction": "DESCENDING" }] },
+    "response_path": "data.results",
+    "id_field": "id",
+    "time_field": "updatedAt",
+    "display_template": "{properties.firstname} {properties.lastname} ({properties.lifecyclestage})",
+    "signal_vocabulary": ["new_lead", "lead_stage_change", "lead_owner_change"],
+    "classifier_hint": "HubSpot CRM. Watch for new leads and stage progressions.",
+    "default_trust_class": "draft_write"
+  },
+  "calendly": {
+    "poll_action": "CALENDLY_LIST_SCHEDULED_EVENTS",
+    "params": { "count": 20, "status": "active" },
+    "response_path": "data.collection",
+    "id_field": "uri",
+    "time_field": "created_at",
+    "display_template": "{name} at {start_time}",
+    "signal_vocabulary": ["new_booking", "booking_cancelled", "booking_rescheduled"],
+    "classifier_hint": "Calendly bookings. New bookings need welcome + calendar sync.",
+    "default_trust_class": "booking_small"
+  },
+  "trello": {
+    "poll_action": "TRELLO_LIST_CARDS_IN_BOARD",
+    "params": { "fields": "name,desc,due,dateLastActivity,list,labels", "limit": 50 },
+    "response_path": "data",
+    "id_field": "id",
+    "time_field": "dateLastActivity",
+    "display_template": "{name} (list: {list}, due: {due})",
+    "signal_vocabulary": ["card_overdue", "card_assigned_to_owner", "card_commented_mention"],
+    "classifier_hint": "Trello board activity. Watch for overdue cards and owner mentions.",
+    "default_trust_class": "draft_write"
+  }
+}

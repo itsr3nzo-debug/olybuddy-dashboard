@@ -184,23 +184,36 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
       tokenUrl: 'https://identity.xero.com/connect/token',
       userinfoUrl: 'https://api.xero.com/connections',
       revokeUrl: 'https://identity.xero.com/connect/revocation',
-      // GRANULAR scopes — required for apps created after 2 Mar 2026.
-      // Verified live against our Nexley AI app's OAuth consent screen (2026-04-17):
-      //   ✅ accounting.contacts    — view/manage contacts
-      //   ✅ accounting.invoices    — view/manage invoices + RELATED DOCUMENTS (attachments included)
-      //   ⚠️ accounting.attachments — rejected with 'invalid scope for client' (not yet available)
-      //   ⚠️ accounting.reports.read — rejected (not yet available; add when we ship VAT report skill)
-      // When `.attachments` / `.reports.read` / `.payments` / `.banktransactions` become
-      // available, add them here — consent screen will ask user to re-authorise.
-      scopes: 'openid profile email accounting.contacts accounting.invoices offline_access',
+      // GRANULAR scopes — required for apps created after 2 Mar 2026 (Nexley's
+      // Xero app was registered 2026-04-17, so we're on the new-granular system).
+      // The older broad scopes `accounting.transactions.read` and
+      // `accounting.reports.read` are REJECTED by Xero's OAuth as
+      // "unauthorized_client / Invalid scope" for post-Mar-2026 apps — they
+      // must be split into the specific granular scopes below.
+      //
+      // Verified against Xero docs 2026-04-20 (developer.xero.com/documentation/guides/oauth2/scopes):
+      //   ✅ accounting.contacts                     — contact CRUD
+      //   ✅ accounting.invoices                     — invoice CRUD (read included)
+      //   ✅ accounting.payments                     — payment CRUD
+      //   ✅ accounting.banktransactions.read        — bank transactions (replaces part of transactions.read)
+      //   ✅ accounting.settings.read                — chart of accounts, items, tax rates, currencies
+      //   ✅ accounting.reports.aged.read            — aged receivables/payables (chase-overdue skill)
+      //   ✅ accounting.reports.profitandloss.read   — P&L (monthly brief)
+      //   ✅ accounting.reports.balancesheet.read    — BS
+      //   ✅ accounting.reports.trialbalance.read    — TB
+      //   ✅ accounting.reports.taxreports.read      — VAT return (MTD)
+      //   ✅ offline_access                          — refresh tokens
+      // Existing clients who authorised before this change must reconnect to
+      // pick up the new scope set (Xero consent screen re-prompts).
+      scopes: 'openid profile email accounting.contacts accounting.invoices accounting.payments accounting.banktransactions.read accounting.settings.read accounting.reports.aged.read accounting.reports.profitandloss.read accounting.reports.balancesheet.read accounting.reports.trialbalance.read accounting.reports.taxreports.read offline_access',
       clientIdEnv: 'XERO_CLIENT_ID',
       clientSecretEnv: 'XERO_CLIENT_SECRET',
     },
   },
   {
-    // Fergus API schema verified against Fergus Ltd's own open-source MCP
-    // (github.com/Jayco-Design/fergus-mcp — Jayco-Design is Fergus's org).
-    // Base URL: https://api.fergus.com, Bearer PAT auth, /jobs + /customers.
+    // Fergus now offers self-serve PATs (shipped 2025). Path in Fergus web app:
+    // Settings (gear) → Integrations → Fergus API → Generate PAT → Copy.
+    // Help article: https://help.fergus.com/en/articles/14605426-fergus-api-personal-access-tokens-pats
     id: 'fergus',
     name: 'Fergus',
     description: 'Trade job management — push captured jobs from WhatsApp straight to your Fergus board',
@@ -210,8 +223,8 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     recommendedForTrades: true,
     pat: {
       tokenName: 'Fergus Personal Access Token',
-      helpUrl: 'https://help.fergus.com/en/articles/api-tokens',
-      placeholder: 'fergus_pat_…',
+      helpUrl: 'https://help.fergus.com/en/articles/14605426-fergus-api-personal-access-tokens-pats',
+      placeholder: 'Paste PAT from Fergus → Settings → Integrations → Fergus API',
       validateUrl: 'https://api.fergus.com/users',
     },
   },

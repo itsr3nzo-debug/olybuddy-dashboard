@@ -42,6 +42,55 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
       const isGoogle = provider === "google" || providerConfig?.oauthProvider === "google";
       const rows = isGoogle ? ["gmail", "google_calendar"] : [provider];
 
+      // Provider-specific metadata enrichment — capture the identifiers that
+      // webhooks carry so we can route them at tenant level without a round-trip.
+      // Stripe  : extract connected-account acct_* id from Composio's connection data
+      // Calendar: placeholder (channel registration happens later when the agent
+      //           calls events.watch — that code PATCHes this row with
+      //           calendar_channel_id + calendar_resource_id)
+      const enrichedMeta: Record<string, unknown> = {
+        composio_connected_account_id: connectionId,
+        composio_auth_config_id: composioCfg.authConfigId,
+      };
+      try {
+        // The Composio `connectedAccounts.get` response for Stripe exposes the
+        // account id in `data.auth_config_data.account_id` or in a provider-
+        // specific field nested under `data.state.val.account_id`. Defensive:
+        // look at a few likely paths.
+        if (provider === "stripe") {
+          // Normalise candidate locations — Composio has moved these fields
+          // across schema versions; read defensively.
+          type StripeAcctCandidate = Record<string, unknown>;
+          const candidates: StripeAcctCandidate[] = [
+            (conn?.data ?? {}) as StripeAcctCandidate,
+            ((conn?.data as { auth_config_data?: StripeAcctCandidate })?.auth_config_data ?? {}) as StripeAcctCandidate,
+            ((conn?.data as { state?: { val?: StripeAcctCandidate } })?.state?.val ?? {}) as StripeAcctCandidate,
+            ((conn?.data as { connection_data?: StripeAcctCandidate })?.connection_data ?? {}) as StripeAcctCandidate,
+          ];
+          let stripeAcctId: string | null = null;
+          for (const c of candidates) {
+            const val =
+              (c.stripe_account_id as string | undefined) ??
+              (c.account_id as string | undefined) ??
+              (c.stripe_user_id as string | undefined);
+            if (typeof val === "string" && val.startsWith("acct_")) {
+              stripeAcctId = val;
+              break;
+            }
+          }
+          if (stripeAcctId) {
+            enrichedMeta.stripe_account_id = stripeAcctId;
+            console.log(`[composio-callback] stripe enriched metadata.stripe_account_id=${stripeAcctId}`);
+          } else {
+            // Won't block the connection — webhooks will DLQ until the account
+            // id is available via a later retrieve + patch.
+            console.warn(`[composio-callback] stripe connection ${connectionId}: no acct_* id found in connection payload; webhooks will DLQ until enriched manually`);
+          }
+        }
+      } catch (e) {
+        console.warn(`[composio-callback] metadata enrichment threw for ${provider}:`, e);
+      }
+
       for (const p of rows) {
         const { error } = await admin.from("integrations").upsert(
           {
@@ -50,7 +99,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
             status: status === "ACTIVE" ? "connected" : "pending",
             account_email: conn?.data?.user?.email || "",
             account_name: conn?.data?.user?.name || "",
-            metadata: { composio_connected_account_id: connectionId, composio_auth_config_id: composioCfg.authConfigId },
+            metadata: enrichedMeta,
             error_message: null,
             error_count: 0,
           },
@@ -60,6 +109,55 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
           console.error(`[composio-callback] upsert failed for ${p}:`, error);
           return NextResponse.redirect(`${origin}/integrations?error=storage_failed&provider=${p}`);
         }
+      }
+
+      // Auto-subscribe to Composio triggers so events flow to /api/webhooks/composio
+      // without further configuration. Triggers are idempotent per (connection, slug).
+      try {
+        // Slugs verified live against Composio's /api/v3/triggers_types (2026-04-19).
+        // Conventions are inconsistent per toolkit — don't guess, check before adding.
+        const TRIGGER_MAP: Record<string, string[]> = {
+          gmail: ["GMAIL_NEW_GMAIL_MESSAGE"],
+          google_calendar: [
+            "GOOGLECALENDAR_GOOGLE_CALENDAR_EVENT_CREATED_TRIGGER",
+            "GOOGLECALENDAR_GOOGLE_CALENDAR_EVENT_UPDATED_TRIGGER",
+          ],
+          stripe: [
+            "STRIPE_INVOICE_PAYMENT_SUCCEEDED_TRIGGER",
+            "STRIPE_PAYMENT_FAILED_TRIGGER",
+            "STRIPE_CHARGE_FAILED_TRIGGER",
+            "STRIPE_CHECKOUT_SESSION_COMPLETED_TRIGGER",
+          ],
+          slack: ["SLACK_RECEIVE_MESSAGE"],
+          outlook: ["OUTLOOK_MESSAGE_TRIGGER"],
+          hubspot: ["HUBSPOT_CONTACT_CREATED_TRIGGER", "HUBSPOT_DEAL_STAGE_UPDATED_TRIGGER"],
+          // calendly intentionally omitted — Composio has no triggers for it yet.
+        };
+        const forProviders = isGoogle ? ["gmail", "google_calendar"] : [provider];
+        for (const p of forProviders) {
+          const slugs = TRIGGER_MAP[p] ?? [];
+          for (const slug of slugs) {
+            try {
+              const r = await fetch(
+                `https://backend.composio.dev/api/v3/trigger_instances/${slug}/upsert`,
+                {
+                  method: "POST",
+                  headers: { "x-api-key": process.env.COMPOSIO_API_KEY!, "content-type": "application/json" },
+                  body: JSON.stringify({ connected_account_id: connectionId, trigger_config: {} }),
+                },
+              );
+              if (!r.ok) {
+                console.warn(`[composio-callback] trigger ${slug} upsert HTTP ${r.status}`);
+              } else {
+                console.log(`[composio-callback] subscribed trigger ${slug} for ${p}`);
+              }
+            } catch (e) {
+              console.warn(`[composio-callback] trigger ${slug} upsert failed:`, e);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn(`[composio-callback] trigger auto-subscribe failed:`, e);
       }
 
       const response = NextResponse.redirect(`${origin}/integrations?connected=${provider}`);

@@ -11,10 +11,11 @@
  *   date?: "YYYY-MM-DD",
  *   dueDate?: "YYYY-MM-DD",
  *   reference?: string,
- *   // UK tax helpers
- *   reverseChargeEligible?: boolean,   // if true, applies ECOUTPUTSERVICES (DRC 20%)
- *   autoApplyVat?: boolean,            // default true
- *   // Status — we always default to DRAFT for safety. Trust-routing gate can AUTHORISE later.
+ *   // UK tax helpers (HMRC-liability-safe, updated 2026-04-18):
+ *   autoApplyVat?: boolean,            // default true — missing TaxType → OUTPUT2 (20% UK VAT)
+ *   // DRC (ECOUTPUTSERVICES) is NEVER auto-applied. To ship a DRC invoice,
+ *   // set TaxType: 'ECOUTPUTSERVICES' on the relevant line items directly.
+ *   // Any invoice with DRC lines is force-constrained to status=DRAFT.
  *   status?: 'DRAFT' | 'AUTHORISED',
  * }
  */
@@ -30,7 +31,23 @@ export async function POST(req: NextRequest) {
   const { clientId } = auth
 
   const body = await req.json().catch(() => ({}))
-  const { contact, lines, date, dueDate, reference, reverseChargeEligible, autoApplyVat = true, status = 'DRAFT' } = body
+  const { contact, lines, date, dueDate, reference, autoApplyVat = true, status = 'DRAFT' } = body
+
+  // HMRC liability guard — refuse to draft a DRC invoice unless status=DRAFT
+  // (owner still has to approve the draft before it authorises). We NEVER
+  // auto-apply ECOUTPUTSERVICES; callers must set TaxType per-line explicitly
+  // after owner sign-off. See lib/integrations/xero.ts → applyUkTaxCodes.
+  const hasDrcLine = Array.isArray(lines) && lines.some(
+    (l: { TaxType?: string }) => l?.TaxType === 'ECOUTPUTSERVICES',
+  )
+  if (hasDrcLine && status !== 'DRAFT') {
+    return NextResponse.json({
+      error: 'DRC invoices must be created as DRAFT for owner approval',
+      detail: 'Domestic Reverse Charge classification is the owner\'s call. ' +
+        'Create the invoice with status=DRAFT, have the owner review, then ' +
+        'authorise via the Xero UI or a separate authoriseInvoice call.',
+    }, { status: 400 })
+  }
 
   if (!contact || (!contact.ContactID && !contact.Name)) {
     return NextResponse.json({ error: 'contact requires ContactID or Name' }, { status: 400 })
@@ -84,17 +101,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Contact lookup/create failed', detail: safeErrorDetail(e) }, { status: 502 })
   }
 
-  // Apply UK tax codes
+  // Apply UK VAT tax codes.
+  // Only defaults missing TaxType fields to OUTPUT2 (standard 20% UK VAT).
+  // NEVER auto-applies DRC (ECOUTPUTSERVICES) — HMRC liability rests with
+  // the owner, so DRC must be set per-line by the caller before reaching here.
   let finalLines: XeroLineItem[] = lines as XeroLineItem[]
   if (autoApplyVat) {
-    const contactInfo = contact.ContactID
-      ? (await xero.getContact(contact.ContactID).catch(() => null))
-      : { IsSubcontractor: contact.IsSubcontractor ?? false }
-    finalLines = XeroClient.applyUkTaxCodes(
-      finalLines,
-      contactInfo ?? { IsSubcontractor: false },
-      !!reverseChargeEligible,
-    )
+    finalLines = XeroClient.applyUkTaxCodes(finalLines)
   }
 
   const today = new Date().toISOString().split('T')[0]
@@ -130,7 +143,7 @@ export async function POST(req: NextRequest) {
     valueGbp: invoice.Total,
     contactName: contact.Name,
     contactPhone: contact.Phone,
-    meta: { invoiceId: invoice.InvoiceID, status: invoice.Status, reverseCharge: !!reverseChargeEligible },
+    meta: { invoiceId: invoice.InvoiceID, status: invoice.Status, hasDrcLines: hasDrcLine },
   })
 
   return NextResponse.json({

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getUserSession } from '@/lib/rbac'
 import { getSupabase } from '@/lib/supabase'
@@ -116,6 +117,26 @@ export async function PATCH(request: Request) {
           .from('clients')
           .update({ onboarding_completed: true, onboarding_step: 4 })
           .eq('id', clientId)
+
+        // Also stamp onboarding_completed=true into the user's app_metadata so
+        // the proxy (which runs on every authenticated request) can read it
+        // straight from the JWT without a Supabase round-trip. Falls through to
+        // a DB lookup only if this update hasn't propagated yet.
+        try {
+          await adminDb.auth.admin.updateUserById(user.id, {
+            app_metadata: {
+              ...user.app_metadata,
+              onboarding_completed: true,
+            },
+          })
+        } catch (e) {
+          // Non-fatal. Proxy will still DB-fall-back. Just log.
+          console.error('[onboarding] Failed to update app_metadata.onboarding_completed:', e)
+        }
+
+        // Invalidate every cached RSC under the dashboard layout so the next
+        // client navigation sees onboarding_completed=true immediately.
+        revalidatePath('/', 'layout')
         break
       }
 

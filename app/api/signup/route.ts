@@ -55,8 +55,14 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const {
     business_name, contact_name, email, password, phone, industry, services, location, plan, personality,
-    business_whatsapp, owner_phone, owner_name,
+    business_whatsapp, owner_phone, owner_name, agent_name,
   } = body
+
+  // AI employee display name. Trim + cap at 30 chars (UI also caps at 30).
+  // Fallback to "Nexley" if omitted or empty (brand default + matches provision-ai-employee.py).
+  const sanitizedAgentName = (typeof agent_name === 'string' && agent_name.trim())
+    ? agent_name.trim().slice(0, 30)
+    : 'Nexley'
 
   // Input validation
   if (!business_name || !email || !password || !industry || !plan) {
@@ -163,7 +169,7 @@ export async function POST(req: NextRequest) {
     whatsapp_enabled: true,
     model_preference: 'auto',
     agent_api_key: agentApiKey,
-    agent_name: 'Nexley',
+    agent_name: sanitizedAgentName,
     agent_status: 'offline',
     is_active: false,
     tone: personality || 'optimistic',
@@ -188,7 +194,10 @@ export async function POST(req: NextRequest) {
     email,
     password,
     email_confirm: true, // no email verification step — they chose their password so we trust them
-    app_metadata: { client_id: clientId, role: 'owner' },
+    // onboarding_completed is stamped on the JWT so the proxy can gate /dashboard
+    // vs /onboarding with zero DB hits on the hot path. Flipped to true by the
+    // PATCH /api/onboarding step 4 handler when the user finishes onboarding.
+    app_metadata: { client_id: clientId, role: 'owner', onboarding_completed: false },
   })
 
   if (authErr) {

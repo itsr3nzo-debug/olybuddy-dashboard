@@ -8,9 +8,12 @@ import { getPreviewConversation } from '@/lib/personality-previews'
 interface WhatsAppPreviewProps {
   industry: string
   personality: string
+  /** Optional display name for the AI employee — shown on the preview top bar.
+   * If omitted, falls back to "{Business} AI". */
+  agentName?: string
 }
 
-export default function WhatsAppPreview({ industry, personality }: WhatsAppPreviewProps) {
+export default function WhatsAppPreview({ industry, personality, agentName }: WhatsAppPreviewProps) {
   const [conversation, setConversation] = useState(() =>
     getPreviewConversation(industry || 'plumber', personality || 'optimistic')
   )
@@ -80,7 +83,7 @@ export default function WhatsAppPreview({ industry, personality }: WhatsAppPrevi
           {/* Name & status */}
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-white">
-              {businessName} AI
+              {agentName ? `${agentName} · ${businessName}` : `${businessName} AI`}
             </p>
             <p className="text-xs text-emerald-400">online</p>
           </div>

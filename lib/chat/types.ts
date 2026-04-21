@@ -20,6 +20,14 @@ export interface Breadcrumb {
   ts?: string;
 }
 
+export interface Attachment {
+  url: string;          // public Supabase storage URL
+  name: string;         // original filename
+  mime: string;         // MIME type
+  size: number;         // bytes
+  kind: 'image' | 'video' | 'audio' | 'pdf' | 'file';
+}
+
 export interface Message {
   id: string;
   role: Role;
@@ -30,6 +38,8 @@ export interface Message {
   errorMessage?: string;
   /** Streaming metadata written by the VPS bridge. */
   breadcrumbs?: Breadcrumb[];
+  /** Files/images/videos the user attached to this message. */
+  attachments?: Attachment[];
 }
 
 export interface Session {

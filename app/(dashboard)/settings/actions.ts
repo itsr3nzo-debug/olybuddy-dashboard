@@ -84,7 +84,51 @@ export async function updateAgentConfig(formData: FormData) {
 
   const agentNameVal = formData.get('agent_name')
   if (agentNameVal !== null) {
-    updates.agent_name = sanitizeText(agentNameVal, 50) || 'Nexley'
+    // Cap at 30 to match the DB CHECK constraint from
+    // supabase-migration-employee-name.sql → agent_name_length_check.
+    // Client UI also caps at 30; keeping server-side in sync avoids
+    // silent constraint-violation 500s.
+    const newName = sanitizeText(agentNameVal, 30) || 'Nexley'
+    updates.agent_name = newName
+
+    // CRITICAL: personality_prompt + greeting_message are free-text fields
+    // written at signup and often embed the old agent_name (e.g. "You are
+    // Nexley, the AI employee for ..."). When the owner renames, those
+    // strings must be updated too, otherwise the agent sees contradictory
+    // signals (agent_name=Aiden but personality_prompt="You are Nexley").
+    // We do a word-boundary replace of the OLD name with the NEW name.
+    const { data: existing } = await supabase
+      .from('agent_config')
+      .select('agent_name, personality_prompt, greeting_message')
+      .eq('client_id', clientId)
+      .single()
+
+    const oldName = (existing?.agent_name ?? '').trim()
+    if (existing && oldName && oldName !== newName) {
+      const nameRegex = new RegExp(
+        `\\b${oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`,
+        'g',
+      )
+      // Never overwrite a field the caller explicitly set in THIS form.
+      // If greeting_message is already in updates (from form section above),
+      // respect it — the user's explicit edit wins over auto-rename.
+      if (!('personality_prompt' in updates)
+          && existing.personality_prompt
+          && typeof existing.personality_prompt === 'string') {
+        const updated = existing.personality_prompt.replace(nameRegex, newName)
+        if (updated !== existing.personality_prompt) {
+          updates.personality_prompt = updated
+        }
+      }
+      if (!('greeting_message' in updates)
+          && existing.greeting_message
+          && typeof existing.greeting_message === 'string') {
+        const updated = existing.greeting_message.replace(nameRegex, newName)
+        if (updated !== existing.greeting_message) {
+          updates.greeting_message = updated
+        }
+      }
+    }
   }
 
   const toneVal = formData.get('tone') as string | null

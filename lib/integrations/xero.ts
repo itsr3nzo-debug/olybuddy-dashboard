@@ -64,7 +64,7 @@ export interface XeroInvoiceInput {
   Type: 'ACCREC' | 'ACCPAY' // ACCREC = customer invoice, ACCPAY = bill
   Contact: { ContactID: string } | { Name: string } // create-if-missing with Name
   Date: string // YYYY-MM-DD
-  DueDate: string
+  DueDate?: string // optional — Xero allows bills/invoices without a due date
   LineItems: XeroLineItem[]
   Reference?: string
   Status?: 'DRAFT' | 'SUBMITTED' | 'AUTHORISED' // DRAFT is the safe default; AUTHORISED is ready-to-send
@@ -82,7 +82,7 @@ export interface XeroInvoice {
   DueDate: string
   LineItems: XeroLineItem[]
   Reference?: string
-  Status: 'DRAFT' | 'SUBMITTED' | 'AUTHORISED' | 'PAID' | 'VOIDED'
+  Status: 'DRAFT' | 'SUBMITTED' | 'AUTHORISED' | 'PAID' | 'VOIDED' | 'DELETED'
   AmountDue: number
   AmountPaid: number
   Total: number
@@ -98,6 +98,7 @@ export class XeroClient {
   private refreshToken: string
   private tokenExpiresAt: Date
   private integrationRowId: string
+  private loadedUpdatedAt: string
 
   private constructor(args: {
     clientId: string
@@ -106,6 +107,7 @@ export class XeroClient {
     refreshToken: string
     tokenExpiresAt: Date
     integrationRowId: string
+    loadedUpdatedAt: string
   }) {
     this.clientId = args.clientId
     this.tenantId = args.tenantId
@@ -113,6 +115,7 @@ export class XeroClient {
     this.refreshToken = args.refreshToken
     this.tokenExpiresAt = args.tokenExpiresAt
     this.integrationRowId = args.integrationRowId
+    this.loadedUpdatedAt = args.loadedUpdatedAt
   }
 
   /** Load + construct a client from the stored integration row. */
@@ -120,7 +123,7 @@ export class XeroClient {
     const supabase = svc()
     const { data, error } = await supabase
       .from('integrations')
-      .select('id, access_token_enc, refresh_token_enc, token_expires_at, metadata, status')
+      .select('id, access_token_enc, refresh_token_enc, token_expires_at, metadata, status, updated_at')
       .eq('client_id', clientUuid)
       .eq('provider', 'xero')
       .eq('status', 'connected')
@@ -145,6 +148,7 @@ export class XeroClient {
       refreshToken: decryptToken(data.refresh_token_enc!),
       tokenExpiresAt: new Date(data.token_expires_at!),
       integrationRowId: data.id,
+      loadedUpdatedAt: data.updated_at!,
     })
   }
 
@@ -165,7 +169,11 @@ export class XeroClient {
   private async refreshIfNeeded(): Promise<void> {
     if (!this.needsRefresh()) return
 
-    const oldEncRefresh = encryptToken(this.refreshToken)
+    // Snapshot the updated_at we loaded with — used for optimistic-lock on write.
+    // (Previous version compared encrypted refresh tokens, but encryptToken uses a
+    // random IV so the ciphertext changes every call, meaning the .eq() NEVER
+    // matched and rotations were silently dropped, leaving stale tokens forever.)
+    const loadedUpdatedAt = this.loadedUpdatedAt
 
     const basic = Buffer.from(`${process.env.XERO_CLIENT_ID}:${process.env.XERO_CLIENT_SECRET}`).toString('base64')
     const body = new URLSearchParams({
@@ -178,35 +186,39 @@ export class XeroClient {
       body,
     })
     if (!res.ok) {
-      // Another concurrent request may have just rotated our token. Re-read the row
-      // and retry with the fresh refresh_token before giving up.
+      // Another worker may have just rotated our token. Re-read the row and
+      // try with whatever fresh refresh_token lives in the DB now.
       const { data: fresh } = await svc()
         .from('integrations')
-        .select('access_token_enc, refresh_token_enc, token_expires_at')
+        .select('access_token_enc, refresh_token_enc, token_expires_at, updated_at')
         .eq('id', this.integrationRowId)
         .maybeSingle()
-      if (fresh && fresh.access_token_enc !== encryptToken(this.accessToken)) {
+      if (fresh && fresh.updated_at !== loadedUpdatedAt) {
         this.accessToken = decryptToken(fresh.access_token_enc!)
         this.refreshToken = decryptToken(fresh.refresh_token_enc!)
         this.tokenExpiresAt = new Date(fresh.token_expires_at!)
+        this.loadedUpdatedAt = fresh.updated_at!
         if (!this.needsRefresh()) return
       }
-      throw new Error(`Xero refresh failed ${res.status}`)
+      const txt = await res.text().catch(() => '')
+      throw new Error(`Xero refresh failed ${res.status}: ${txt.slice(0, 200)}`)
     }
     const j: { access_token: string; refresh_token: string; expires_in: number } = await res.json()
 
-    // Optimistic concurrency: only write our rotated token if the row still has
-    // the OLD refresh token we started from. Another worker's refresh wins the race.
+    const newUpdatedAt = new Date().toISOString()
+    // Optimistic concurrency via updated_at: only write if the row's updated_at
+    // still equals what we loaded. If another worker got there first, their
+    // rotation wins and we re-read + use their tokens.
     const updateRes = await svc()
       .from('integrations')
       .update({
         access_token_enc: encryptToken(j.access_token),
         refresh_token_enc: encryptToken(j.refresh_token),
         token_expires_at: new Date(Date.now() + j.expires_in * 1000).toISOString(),
-        updated_at: new Date().toISOString(),
+        updated_at: newUpdatedAt,
       })
       .eq('id', this.integrationRowId)
-      .eq('refresh_token_enc', oldEncRefresh)
+      .eq('updated_at', loadedUpdatedAt)
       .select('id')
 
     if (updateRes.data && updateRes.data.length > 0) {
@@ -214,17 +226,19 @@ export class XeroClient {
       this.accessToken = j.access_token
       this.refreshToken = j.refresh_token
       this.tokenExpiresAt = new Date(Date.now() + j.expires_in * 1000)
+      this.loadedUpdatedAt = newUpdatedAt
     } else {
       // Lost the race. Reload whatever the winner persisted.
       const { data: fresh } = await svc()
         .from('integrations')
-        .select('access_token_enc, refresh_token_enc, token_expires_at')
+        .select('access_token_enc, refresh_token_enc, token_expires_at, updated_at')
         .eq('id', this.integrationRowId)
         .maybeSingle()
       if (fresh) {
         this.accessToken = decryptToken(fresh.access_token_enc!)
         this.refreshToken = decryptToken(fresh.refresh_token_enc!)
         this.tokenExpiresAt = new Date(fresh.token_expires_at!)
+        this.loadedUpdatedAt = fresh.updated_at!
       }
     }
   }
@@ -454,31 +468,261 @@ export class XeroClient {
     }
   }
 
+  // ─── Additional reads ────────────────────────────────────
+
+  async getInvoice(invoiceId: string): Promise<XeroInvoice | null> {
+    const { data } = await this.req<{ Invoices: XeroInvoice[] }>('GET', `/Invoices/${invoiceId}`)
+    return data?.Invoices?.[0] ?? null
+  }
+
+  async getQuote(quoteId: string): Promise<Record<string, unknown> | null> {
+    const { data } = await this.req<{ Quotes: Array<Record<string, unknown>> }>('GET', `/Quotes/${quoteId}`)
+    return data?.Quotes?.[0] ?? null
+  }
+
+  async listQuotes(filter?: { status?: string; contactId?: string; dateFrom?: string }): Promise<Array<Record<string, unknown>>> {
+    const clauses: string[] = []
+    if (filter?.status) clauses.push(`Status=="${filter.status}"`)
+    if (filter?.contactId) clauses.push(`Contact.ContactID=Guid("${filter.contactId}")`)
+    if (filter?.dateFrom) clauses.push(`Date>=DateTime(${filter.dateFrom.replace(/-/g, ',')})`)
+    const where = clauses.length ? `?where=${encodeURIComponent(clauses.join('&&'))}` : ''
+    const { data } = await this.req<{ Quotes: Array<Record<string, unknown>> }>('GET', `/Quotes${where}`)
+    return data?.Quotes ?? []
+  }
+
+  async listItems(): Promise<Array<Record<string, unknown>>> {
+    const { data } = await this.req<{ Items: Array<Record<string, unknown>> }>('GET', '/Items')
+    return data?.Items ?? []
+  }
+
+  async listAccounts(): Promise<Array<Record<string, unknown>>> {
+    const { data } = await this.req<{ Accounts: Array<Record<string, unknown>> }>('GET', '/Accounts')
+    return data?.Accounts ?? []
+  }
+
+  async getAgedReceivables(contactId?: string): Promise<Record<string, unknown> | null> {
+    const path = contactId
+      ? `/Reports/AgedReceivablesByContact?contactId=${contactId}`
+      : '/Reports/AgedReceivablesByContact'
+    const { data } = await this.req<{ Reports: Array<Record<string, unknown>> }>('GET', path)
+    return data?.Reports?.[0] ?? null
+  }
+
+  async getProfitLoss(args?: { fromDate?: string; toDate?: string }): Promise<Record<string, unknown> | null> {
+    const qs = new URLSearchParams()
+    if (args?.fromDate) qs.set('fromDate', args.fromDate)
+    if (args?.toDate) qs.set('toDate', args.toDate)
+    const path = `/Reports/ProfitAndLoss${qs.toString() ? '?' + qs.toString() : ''}`
+    const { data } = await this.req<{ Reports: Array<Record<string, unknown>> }>('GET', path)
+    return data?.Reports?.[0] ?? null
+  }
+
+  async getVatReturn(args?: { fromDate?: string; toDate?: string }): Promise<Record<string, unknown> | null> {
+    // Xero returns VAT via /Reports/TaxReturn or org-specific HMRC MTD submissions; this reads the standard report.
+    const qs = new URLSearchParams()
+    if (args?.fromDate) qs.set('fromDate', args.fromDate)
+    if (args?.toDate) qs.set('toDate', args.toDate)
+    const path = `/Reports/TaxReturn${qs.toString() ? '?' + qs.toString() : ''}`
+    const { data } = await this.req<{ Reports: Array<Record<string, unknown>> }>('GET', path)
+    return data?.Reports?.[0] ?? null
+  }
+
+  // ─── Additional writes ───────────────────────────────────
+
+  async updateInvoice(invoiceId: string, patch: Partial<XeroInvoiceInput> & { Status?: string }): Promise<XeroInvoice | null> {
+    const body = { Invoices: [{ InvoiceID: invoiceId, ...patch }] }
+    const { data } = await this.req<{ Invoices: XeroInvoice[] }>('POST', `/Invoices/${invoiceId}`, body)
+    return data?.Invoices?.[0] ?? null
+  }
+
+  /**
+   * Void or delete an invoice depending on its current status.
+   * Xero rules:
+   *   DRAFT       → can only be set to DELETED
+   *   SUBMITTED   → can only be set to DELETED
+   *   AUTHORISED  → can be set to VOIDED (only if no payments applied)
+   *   PAID/VOIDED → terminal, cannot change
+   * We look up current status first and pick the right terminal.
+   */
+  async voidInvoice(invoiceId: string): Promise<XeroInvoice | null> {
+    const current = await this.getInvoice(invoiceId)
+    if (!current) throw new Error(`Invoice ${invoiceId} not found`)
+    const terminal =
+      current.Status === 'DRAFT' || current.Status === 'SUBMITTED' ? 'DELETED' : 'VOIDED'
+    if (current.Status === 'VOIDED' || current.Status === 'PAID') {
+      // Already terminal — return as-is.
+      return current
+    }
+    const { data } = await this.req<{ Invoices: XeroInvoice[] }>('POST', `/Invoices/${invoiceId}`, {
+      Invoices: [{ InvoiceID: invoiceId, Status: terminal }],
+    })
+    return data?.Invoices?.[0] ?? null
+  }
+
+  async updateContact(contactId: string, patch: {
+    Name?: string
+    EmailAddress?: string
+    Phone?: string
+    IsSubcontractor?: boolean
+  }): Promise<XeroContact | null> {
+    const body: Record<string, unknown> = { ContactID: contactId }
+    if (patch.Name) body.Name = patch.Name
+    if (patch.EmailAddress) body.EmailAddress = patch.EmailAddress
+    if (patch.Phone) body.Phones = [{ PhoneType: 'MOBILE', PhoneNumber: patch.Phone }]
+    if (patch.IsSubcontractor !== undefined) body.IsSubcontractor = patch.IsSubcontractor
+    const { data } = await this.req<{ Contacts: XeroContact[] }>('POST', `/Contacts/${contactId}`, {
+      Contacts: [body],
+    })
+    return data?.Contacts?.[0] ?? null
+  }
+
+  async createQuote(input: {
+    Contact: { ContactID: string }
+    Date: string
+    ExpiryDate?: string
+    Title?: string
+    Summary?: string
+    LineItems: Array<{
+      Description: string
+      Quantity: number
+      UnitAmount: number
+      AccountCode?: string
+      TaxType?: string
+    }>
+    Status?: 'DRAFT' | 'SENT' | 'ACCEPTED' | 'DECLINED'
+  }): Promise<Record<string, unknown> | null> {
+    const body = { Quotes: [{ ...input, Status: input.Status ?? 'DRAFT' }] }
+    const { data } = await this.req<{ Quotes: Array<Record<string, unknown>> }>('POST', '/Quotes', body)
+    return data?.Quotes?.[0] ?? null
+  }
+
+  async updateQuoteStatus(quoteId: string, status: 'SENT' | 'ACCEPTED' | 'DECLINED' | 'DRAFT'): Promise<Record<string, unknown> | null> {
+    // Xero Quotes update requires the full quote body, not just {QuoteID, Status} —
+    // unlike Invoices, Quote PATCH-style updates throw ValidationException.
+    // Fetch the current quote, overlay the new status, POST back.
+    const current = await this.getQuote(quoteId)
+    if (!current) throw new Error(`Quote ${quoteId} not found`)
+    const payload = { ...current, Status: status }
+    const { data } = await this.req<{ Quotes: Array<Record<string, unknown>> }>(
+      'POST',
+      `/Quotes/${quoteId}`,
+      { Quotes: [payload] },
+    )
+    return data?.Quotes?.[0] ?? null
+  }
+
+  async createBill(input: XeroInvoiceInput): Promise<XeroInvoice | null> {
+    // ACCPAY = supplier bill (money out). Same shape as invoice, different Type.
+    const body = { Invoices: [{ ...input, Type: 'ACCPAY', Status: input.Status ?? 'DRAFT' }] }
+    const { data } = await this.req<{ Invoices: XeroInvoice[] }>('POST', '/Invoices', body)
+    return data?.Invoices?.[0] ?? null
+  }
+
+  async approveBill(billId: string): Promise<XeroInvoice | null> {
+    const { data } = await this.req<{ Invoices: XeroInvoice[] }>('POST', `/Invoices/${billId}`, {
+      Invoices: [{ InvoiceID: billId, Status: 'AUTHORISED' }],
+    })
+    return data?.Invoices?.[0] ?? null
+  }
+
+  async payBill(args: {
+    billId: string
+    amount: number
+    date: string // YYYY-MM-DD
+    bankAccountId: string
+    reference?: string
+  }): Promise<void> {
+    // Same shape as recordPayment but against an ACCPAY invoice.
+    const body = {
+      Payments: [
+        {
+          Invoice: { InvoiceID: args.billId },
+          Account: { AccountID: args.bankAccountId },
+          Amount: args.amount,
+          Date: args.date,
+          ...(args.reference && { Reference: args.reference }),
+        },
+      ],
+    }
+    await this.req('POST', '/Payments', body)
+  }
+
+  async createCreditNote(input: {
+    Type: 'ACCRECCREDIT' | 'ACCPAYCREDIT' // receivable (to customer) vs payable (from supplier)
+    Contact: { ContactID: string }
+    Date: string
+    LineItems: Array<{ Description: string; Quantity: number; UnitAmount: number; AccountCode?: string; TaxType?: string }>
+    Reference?: string
+    Status?: 'DRAFT' | 'AUTHORISED'
+  }): Promise<Record<string, unknown> | null> {
+    const body = { CreditNotes: [{ ...input, Status: input.Status ?? 'DRAFT' }] }
+    const { data } = await this.req<{ CreditNotes: Array<Record<string, unknown>> }>('POST', '/CreditNotes', body)
+    return data?.CreditNotes?.[0] ?? null
+  }
+
+  async createItem(input: {
+    Code: string
+    Name: string
+    Description?: string
+    UnitPrice?: number
+    AccountCode?: string
+    TaxType?: string
+    IsSold?: boolean
+    IsPurchased?: boolean
+  }): Promise<Record<string, unknown> | null> {
+    const sale: Record<string, unknown> = {}
+    if (input.UnitPrice != null) sale.UnitPrice = input.UnitPrice
+    if (input.AccountCode) sale.AccountCode = input.AccountCode
+    if (input.TaxType) sale.TaxType = input.TaxType
+    const body = {
+      Items: [
+        {
+          Code: input.Code,
+          Name: input.Name,
+          ...(input.Description && { Description: input.Description }),
+          ...(input.IsSold != null && { IsSold: input.IsSold }),
+          ...(input.IsPurchased != null && { IsPurchased: input.IsPurchased }),
+          ...(Object.keys(sale).length && { SalesDetails: sale }),
+        },
+      ],
+    }
+    const { data } = await this.req<{ Items: Array<Record<string, unknown>> }>('PUT', '/Items', body)
+    return data?.Items?.[0] ?? null
+  }
+
   // ─── UK trades helpers ───────────────────────────────────
 
   /**
    * UK VAT tax codes for trades invoices.
    *
-   * Note: CIS (Construction Industry Scheme) is a PAYE income-tax deduction
-   * at the labour line, NOT a VAT treatment. Do not confuse the two.
-   * We no longer auto-apply CIS here; that's the accountant's job at the
-   * Xero org level. This helper only handles VAT tax code selection.
+   * HMRC LIABILITY NOTE (2026-04-18 — the reason we DO NOT auto-apply DRC):
    *
-   *  - `reverseChargeEligible: true` (caller must determine: customer is
-   *    VAT-registered AND services are construction services AND customer
-   *    is not end-user) → `ECOUTPUTSERVICES` (VAT DRC 20%)
-   *  - Otherwise → `OUTPUT2` (standard UK 20% VAT)
+   * Domestic Reverse Charge (DRC, `ECOUTPUTSERVICES`) applies only when ALL of:
+   *   1. Both parties are VAT-registered
+   *   2. Services fall within the Construction Industry Scheme (CIS)
+   *   3. Customer is NOT an "end-user" or "intermediary supplier"
+   *   4. Neither party is connected (same group)
    *
-   * DRC decisions should be confirmed by the owner before auto-applying —
-   * getting this wrong is a HMRC compliance issue.
+   * Misclassifying reverse charge is an HMRC compliance issue where liability
+   * sits with the supplier (the agent's owner). We refuse to auto-apply DRC
+   * from heuristics or from a `reverseChargeEligible` flag set by the agent —
+   * that decision must come from the owner (or their accountant), per invoice.
+   *
+   * CIS (Construction Industry Scheme) is a PAYE income-tax deduction at the
+   * labour line, NOT a VAT treatment. Do not confuse the two. CIS is set at
+   * the Xero org level by the accountant; we do not touch it here.
+   *
+   * Behaviour:
+   *  - If a line has an explicit `TaxType` → respect it (owner-set).
+   *  - If no `TaxType` → default to `OUTPUT2` (standard UK 20% VAT).
+   *  - DRC (`ECOUTPUTSERVICES`) is NEVER auto-applied. To ship a DRC invoice,
+   *    the owner must explicitly set `TaxType: 'ECOUTPUTSERVICES'` on the
+   *    relevant line items when approving the draft.
    */
-  static applyUkTaxCodes(lines: XeroLineItem[], _contact: { IsSubcontractor?: boolean }, reverseChargeEligible: boolean): XeroLineItem[] {
+  static applyUkTaxCodes(lines: XeroLineItem[]): XeroLineItem[] {
     return lines.map(l => {
-      if (l.TaxType) return l // respect explicit override
-      if (reverseChargeEligible) {
-        return { ...l, TaxType: 'ECOUTPUTSERVICES' }
-      }
-      return { ...l, TaxType: 'OUTPUT2' } // UK 20% standard
+      if (l.TaxType) return l // respect explicit owner override (including DRC)
+      return { ...l, TaxType: 'OUTPUT2' } // UK 20% standard — the only auto-applied code
     })
   }
 

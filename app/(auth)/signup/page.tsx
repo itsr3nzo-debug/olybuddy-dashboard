@@ -48,6 +48,7 @@ function SignupWizard() {
     industry: '',
     services: '',
     personality: 'optimistic',
+    agent_name: 'Nexley',
     plan: 'trial',
     business_whatsapp: '',
     owner_phone: '',
@@ -66,7 +67,7 @@ function SignupWizard() {
     if (step === 1) return !!form.email && form.email.includes('@') && !!form.password && form.password.length >= 10 && /\d/.test(form.password)
     if (step === 2) return !!form.business_name && !!form.industry
     if (step === 3) return phoneNumbersStepValid(form.business_whatsapp, form.owner_phone)
-    if (step === 4) return !!form.personality
+    if (step === 4) return !!form.personality && !!form.agent_name.trim() && form.agent_name.trim().length <= 30
     if (step === 5) return !!form.plan
     return false
   }
@@ -342,8 +343,33 @@ function SignupWizard() {
                 </p>
 
                 <div className="grid lg:grid-cols-2 gap-8 items-start">
-                  {/* Personality cards */}
-                  <div>
+                  {/* Personality cards + name */}
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-white mb-2">
+                        What should your AI employee be called?
+                      </label>
+                      <p className="text-xs text-slate-400 mb-3">
+                        This is the name customers see on WhatsApp. Pick a first name that feels right
+                        for your business — &ldquo;Nexley&rdquo; (branded) or anything human like &ldquo;Aiden&rdquo;, &ldquo;Sarah&rdquo;, &ldquo;Charlie&rdquo;.
+                        You can change it later in settings.
+                      </p>
+                      <input
+                        type="text"
+                        value={form.agent_name}
+                        onChange={e => update('agent_name', e.target.value.slice(0, 30))}
+                        maxLength={30}
+                        placeholder="Nexley"
+                        className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                        aria-label="AI employee name"
+                      />
+                      <p className="text-xs text-slate-500 mt-1">
+                        {form.agent_name.trim().length === 0
+                          ? 'Required'
+                          : `${form.agent_name.trim().length}/30`}
+                      </p>
+                    </div>
+
                     <PersonalityPicker
                       selected={form.personality}
                       onSelect={v => update('personality', v)}
@@ -358,6 +384,7 @@ function SignupWizard() {
                       <WhatsAppPreview
                         industry={form.industry || 'plumber'}
                         personality={form.personality}
+                        agentName={form.agent_name.trim() || 'Nexley'}
                       />
                     </div>
                   </div>

@@ -91,10 +91,10 @@ class XeroClient {
 }
 ```
 
-**UK tax logic:**
-- If contact has `IsSubcontractor=true` → apply CIS deduction rate (usually 20%)
-- If line item is construction-service AND customer is VAT-registered → tax type `ECOUTPUTSERVICES` (reverse charge)
-- Otherwise normal UK VAT 20%
+**UK tax logic (HMRC-liability-safe — updated 2026-04-18):**
+- Missing `TaxType` on a line → default to `OUTPUT2` (standard UK 20% VAT). That's the only auto-applied code.
+- `ECOUTPUTSERVICES` (Domestic Reverse Charge, DRC) is **NEVER auto-applied**. The owner must set `TaxType: 'ECOUTPUTSERVICES'` explicitly per line before authorising — DRC misclassification is HMRC liability on the supplier. The agent can draft DRC invoices but the route enforces `status=DRAFT` on any invoice with DRC lines (owner reviews + authorises manually).
+- CIS (Construction Industry Scheme) is NOT a VAT treatment — it's a PAYE income-tax deduction. The Xero org's accountant handles CIS at the org level; the agent does not touch CIS codes.
 
 ### Phase 1.4: Expose Xero to the VPS agent (1 day)
 

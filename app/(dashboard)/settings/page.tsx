@@ -9,6 +9,7 @@ import { AI_PHONE_DISPLAY } from '@/lib/constants'
 import type { AgentConfig, HoursConfig } from '@/lib/types'
 import BusinessForm from '@/components/settings/BusinessForm'
 import GreetingEditor from '@/components/settings/GreetingEditor'
+import EmployeeNameEditor from '@/components/settings/EmployeeNameEditor'
 import FaqEditor from '@/components/settings/FaqEditor'
 import NotificationSettings from '@/components/settings/NotificationSettings'
 import HoursGrid from '@/components/settings/HoursGrid'
@@ -134,6 +135,10 @@ export default async function SettingsPage() {
             <SettingRow label="Provider" value="ElevenLabs" />
             <SettingRow label="Inbound number" value={AI_PHONE_DISPLAY} mono />
           </div>
+        </Section>
+
+        <Section title="Employee Name" description="The name your customers see on WhatsApp">
+          <EmployeeNameEditor initialName={config?.agent_name ?? 'Nexley'} />
         </Section>
 
         <Section title="Greeting Message" description="What customers hear when your AI Employee picks up">

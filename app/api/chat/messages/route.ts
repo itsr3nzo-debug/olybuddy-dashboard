@@ -27,6 +27,7 @@ export async function POST(req: Request) {
     create_if_missing?: boolean;
     title?: string;
     client_id?: string;
+    attachments?: Array<{ url: string; name: string; mime: string; size: number; kind: string }>;
   };
   try {
     body = await req.json();
@@ -34,8 +35,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'bad json' }, { status: 400 });
   }
 
-  const content = typeof body.content === 'string' ? body.content.trim() : undefined;
-  if (!content) return NextResponse.json({ error: 'content required' }, { status: 400 });
+  const content = typeof body.content === 'string' ? body.content.trim() : '';
+  const attachments = Array.isArray(body.attachments) ? body.attachments : [];
+  if (!content && attachments.length === 0) {
+    return NextResponse.json({ error: 'content or attachments required' }, { status: 400 });
+  }
 
   const { clientId, isAdminOverride } = resolveClientId(user, body.client_id);
   if (!clientId) return NextResponse.json({ error: 'no client' }, { status: 400 });
@@ -76,7 +80,8 @@ export async function POST(req: Request) {
       .maybeSingle();
     const placeholder = !sess?.title || /^(new chat|chat|untitled)$/i.test(String(sess.title).trim());
     if (placeholder) {
-      const autoTitle = content.length > 48 ? content.slice(0, 48) + '…' : content;
+      const seed = content || (attachments[0]?.name ?? 'Attachment');
+      const autoTitle = seed.length > 48 ? seed.slice(0, 48) + '…' : seed;
       await writer.from('agent_chat_sessions').update({ title: autoTitle }).eq('id', session_id);
     }
   } catch {
@@ -84,17 +89,19 @@ export async function POST(req: Request) {
   }
 
   // 1. User message
+  const userPayload: Record<string, unknown> = {
+    session_id,
+    client_id: clientId,
+    role: 'user',
+    content,
+    status: 'done',
+    completed_at: new Date().toISOString(),
+  };
+  if (attachments.length > 0) userPayload.metadata = { attachments };
   const { data: userMsg, error: uErr } = await writer
     .from('agent_chat_messages')
-    .insert({
-      session_id,
-      client_id: clientId,
-      role: 'user',
-      content,
-      status: 'done',
-      completed_at: new Date().toISOString(),
-    })
-    .select('id, role, content, status, created_at, completed_at')
+    .insert(userPayload)
+    .select('id, role, content, status, created_at, completed_at, metadata')
     .single();
 
   if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 });

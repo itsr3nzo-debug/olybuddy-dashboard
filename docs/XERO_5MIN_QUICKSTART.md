@@ -29,7 +29,7 @@ One-time setup. After this, every Nexley client can connect their own Xero with 
 In terminal on your Mac:
 
 ```bash
-cd /Users/claudia/Desktop/olybuddy-dashboard
+cd /Users/claudia/Desktop/nexley-dashboard
 
 # Paste the Client ID when prompted
 vercel env add XERO_CLIENT_ID production
@@ -46,7 +46,7 @@ vercel env add XERO_CLIENT_SECRET production
 vercel --prod --yes
 ```
 
-Wait for "Aliased: https://olybuddy-dashboard.vercel.app" (it'll actually redirect to nexley.vercel.app).
+Wait for "Aliased: https://nexley.vercel.app" (it'll actually redirect to nexley.vercel.app).
 
 ## Step 4 — Verify (30 sec)
 

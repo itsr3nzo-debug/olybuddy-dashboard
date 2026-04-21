@@ -4,26 +4,36 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Sparkles, Plus, Command as CommandIcon, Settings, ArrowUp, Loader2,
   Clock, Brain, PencilLine, AlertCircle, User, PhoneCall, FileText,
-  Briefcase, Receipt, Copy, RefreshCw, ThumbsUp, ThumbsDown,
+  Briefcase, Receipt, Copy, RefreshCw, ThumbsUp, ThumbsDown, X,
+  ImageIcon, Film, FileAudio, File as FileIconLucide,
 } from 'lucide-react';
 import { cx, relativeTime } from '@/lib/chat/utils';
 import { renderMarkdown } from '@/lib/chat/markdown';
-import type { Message, Source, MessageStatus, SourceType } from '@/lib/chat/types';
+import { uploadAttachment } from '@/lib/chat/upload';
+import { useClient } from '@/lib/chat/client-context';
+import type { Message, Source, MessageStatus, SourceType, Attachment } from '@/lib/chat/types';
 
 interface ComposerProps {
-  onSend: (text: string) => void;
+  onSend: (text: string, attachments?: Attachment[]) => void;
   busy?: boolean;
   autoFocus?: boolean;
   variant?: 'panel' | 'hero';
   onOpenPalette?: () => void;
   onOpenMention?: () => void;
+  /** Current session id (null for draft / hero before first send). */
+  sessionId?: string | null;
 }
 
-function Composer({ onSend, busy, autoFocus, variant = 'panel', onOpenPalette, onOpenMention }: ComposerProps) {
+function Composer({ onSend, busy, autoFocus, variant = 'panel', onOpenPalette, onOpenMention, sessionId }: ComposerProps) {
+  const { clientId } = useClient();
   const [value, setValue] = useState('');
   const [refining, setRefining] = useState(false);
   const [refinedText, setRefinedText] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (autoFocus && textareaRef.current) textareaRef.current.focus();
@@ -38,10 +48,38 @@ function Composer({ onSend, busy, autoFocus, variant = 'panel', onOpenPalette, o
   }, [value]);
 
   const send = () => {
-    if (!value.trim() || busy) return;
-    onSend(value.trim());
+    const hasText = value.trim().length > 0;
+    const hasFiles = attachments.length > 0;
+    if ((!hasText && !hasFiles) || busy || uploading) return;
+    onSend(value.trim(), attachments.length > 0 ? attachments : undefined);
     setValue('');
+    setAttachments([]);
+    setUploadError(null);
     setRefinedText(null);
+  };
+
+  const pickFiles = () => {
+    fileInputRef.current?.click();
+  };
+
+  const onFilesPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (files.length === 0) return;
+    setUploading(true);
+    setUploadError(null);
+    const uploaded: Attachment[] = [];
+    for (const f of files) {
+      const res = await uploadAttachment(f, clientId, sessionId ?? null);
+      if (res.ok) uploaded.push(res.attachment);
+      else setUploadError(res.error);
+    }
+    setAttachments((prev) => [...prev, ...uploaded]);
+    setUploading(false);
+  };
+
+  const removeAttachment = (idx: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -85,7 +123,7 @@ function Composer({ onSend, busy, autoFocus, variant = 'panel', onOpenPalette, o
   const acceptRefined = () => { if (refinedText) setValue(refinedText); setRefinedText(null); };
   const dismissRefined = () => { setRefinedText(null); };
 
-  const isEmpty = !value.trim();
+  const isEmpty = !value.trim() && attachments.length === 0;
   const placeholder = variant === 'hero' ? 'Ask Nexley anything…' : 'Reply to Nexley…';
 
   return (
@@ -135,6 +173,33 @@ function Composer({ onSend, busy, autoFocus, variant = 'panel', onOpenPalette, o
           boxShadow: variant === 'hero' ? '0 1px 3px rgb(0 0 0 / 0.04), 0 4px 12px rgb(0 0 0 / 0.03)' : undefined,
         }}
       >
+        {(attachments.length > 0 || uploading || uploadError) && (
+          <div className="flex flex-wrap gap-2 px-3 pt-3">
+            {attachments.map((a, i) => (
+              <AttachmentChip key={i} attachment={a} onRemove={() => removeAttachment(i)} />
+            ))}
+            {uploading && (
+              <div className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] bg-subtle fg-subtle">
+                <Loader2 size={12} className="animate-spin" />
+                Uploading…
+              </div>
+            )}
+            {uploadError && (
+              <div className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] fg-danger" style={{ background: 'rgb(var(--hy-danger) / 0.1)' }}>
+                <AlertCircle size={12} />
+                {uploadError}
+              </div>
+            )}
+          </div>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*,video/*,audio/*,application/pdf,text/*,.csv,.json,.docx,.xlsx"
+          className="hidden"
+          onChange={onFilesPicked}
+        />
         <textarea
           ref={textareaRef}
           value={value}
@@ -151,7 +216,7 @@ function Composer({ onSend, busy, autoFocus, variant = 'panel', onOpenPalette, o
         />
 
         <div className="flex items-center gap-0.5 px-2 pb-2 pt-1">
-          <ComposerChip icon={Plus} label={variant === 'hero' ? 'Files and sources' : 'Files'} />
+          <ComposerChip icon={Plus} label={variant === 'hero' ? 'Files and sources' : 'Files'} onClick={pickFiles} />
           <ComposerChip icon={CommandIcon} label="Prompts" onClick={onOpenPalette} />
           {variant === 'hero' && <ComposerChip icon={Settings} label="Customize" />}
           <ComposerChip icon={Sparkles} label="Improve" onClick={doRefine} disabled={isEmpty} />
@@ -275,20 +340,113 @@ export function SourceChipLarge({ source, onOpen }: { source: Source; onOpen: (s
   );
 }
 
+/* ───────────── Attachment chip (composer draft) ───────────── */
+function iconForAttachment(a: Attachment) {
+  if (a.kind === 'image') return ImageIcon;
+  if (a.kind === 'video') return Film;
+  if (a.kind === 'audio') return FileAudio;
+  if (a.kind === 'pdf') return FileText;
+  return FileIconLucide;
+}
+
+function fmtBytes(n: number): string {
+  if (n < 1024) return `${n}B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)}KB`;
+  return `${(n / 1024 / 1024).toFixed(1)}MB`;
+}
+
+function AttachmentChip({ attachment, onRemove }: { attachment: Attachment; onRemove: () => void }) {
+  const Icon = iconForAttachment(attachment);
+  return (
+    <div
+      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] fg-subtle"
+      style={{ background: 'rgb(var(--hy-bg-subtle))', border: '1px solid rgb(var(--hy-border))' }}
+    >
+      {attachment.kind === 'image' ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={attachment.url} alt={attachment.name} className="h-5 w-5 rounded object-cover" />
+      ) : (
+        <Icon size={12} />
+      )}
+      <span className="max-w-[160px] truncate">{attachment.name}</span>
+      <span className="fg-muted text-[10.5px]">{fmtBytes(attachment.size)}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="ml-0.5 -mr-0.5 h-4 w-4 inline-flex items-center justify-center rounded hover:bg-hover fg-muted hover:fg-base"
+        aria-label="Remove"
+      >
+        <X size={10} />
+      </button>
+    </div>
+  );
+}
+
 /* ───────────── Message bubbles ───────────── */
 export function UserBubble({ message }: { message: Message }) {
+  const atts = message.attachments ?? [];
   return (
-    <div className="flex justify-end" title={relativeTime(message.createdAt)}>
-      <div
-        className="max-w-[80%] rounded-2xl px-4 py-2.5 text-[14px] fg-base"
-        style={{
-          whiteSpace: 'pre-wrap',
-          lineHeight: 1.5,
-          background: 'rgb(var(--hy-bg-subtle))',
-          border: '1px solid rgb(var(--hy-border) / 0.5)',
-        }}
-      >{message.content}</div>
+    <div className="flex flex-col items-end gap-1.5" title={relativeTime(message.createdAt)}>
+      {atts.length > 0 && (
+        <div className="flex flex-wrap justify-end gap-2 max-w-[80%]">
+          {atts.map((a, i) => <AttachmentPreview key={i} attachment={a} />)}
+        </div>
+      )}
+      {message.content && (
+        <div
+          className="max-w-[80%] rounded-2xl px-4 py-2.5 text-[14px] fg-base"
+          style={{
+            whiteSpace: 'pre-wrap',
+            lineHeight: 1.5,
+            background: 'rgb(var(--hy-bg-subtle))',
+            border: '1px solid rgb(var(--hy-border) / 0.5)',
+          }}
+        >{message.content}</div>
+      )}
     </div>
+  );
+}
+
+function AttachmentPreview({ attachment }: { attachment: Attachment }) {
+  const Icon = iconForAttachment(attachment);
+  if (attachment.kind === 'image') {
+    return (
+      <a href={attachment.url} target="_blank" rel="noopener noreferrer" className="block">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={attachment.url}
+          alt={attachment.name}
+          className="rounded-xl max-h-60 object-cover"
+          style={{ border: '1px solid rgb(var(--hy-border) / 0.5)' }}
+        />
+      </a>
+    );
+  }
+  if (attachment.kind === 'video') {
+    return (
+      <video
+        src={attachment.url}
+        controls
+        className="rounded-xl max-h-60"
+        style={{ border: '1px solid rgb(var(--hy-border) / 0.5)' }}
+      />
+    );
+  }
+  if (attachment.kind === 'audio') {
+    return <audio src={attachment.url} controls className="rounded-xl" />;
+  }
+  return (
+    <a
+      href={attachment.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[12.5px] fg-base hover:bg-hover transition-colors"
+      style={{ background: 'rgb(var(--hy-bg-subtle))', border: '1px solid rgb(var(--hy-border) / 0.5)' }}
+    >
+      <Icon size={16} />
+      <span className="max-w-[220px] truncate">{attachment.name}</span>
+      <span className="fg-muted text-[10.5px]">{fmtBytes(attachment.size)}</span>
+    </a>
   );
 }
 
