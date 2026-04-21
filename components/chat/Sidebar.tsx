@@ -348,16 +348,18 @@ function SessionItem({ session, active, onSelect, onRename, onDelete, onPin }: {
           )}
         >{session.title}</button>
       )}
-      <button
-        onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
-        aria-label="Session menu"
-        className={cx(
-          'absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded transition-opacity',
-          menuOpen ? 'opacity-100 bg-hover' : 'opacity-0 group-hover:opacity-100 hover:bg-hover'
-        )}
-      >
-        <MoreHorizontal size={14} className="fg-subtle" />
-      </button>
+      {!renameEditing && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
+          aria-label="Session menu"
+          className={cx(
+            'absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded transition-opacity',
+            menuOpen ? 'opacity-100 bg-hover' : 'opacity-0 group-hover:opacity-100 hover:bg-hover'
+          )}
+        >
+          <MoreHorizontal size={14} className="fg-subtle" />
+        </button>
+      )}
       {showPreview && !menuOpen && !active && (
         <div className="session-preview anim-fade-in">
           <div className="sp-title">{session.title}</div>

@@ -551,7 +551,7 @@ export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy
       </div>
       <div className="border-t-hy flex-shrink-0 bg-app">
         <div className="mx-auto w-full max-w-[780px] px-6 py-4">
-          <Composer variant="panel" onSend={onSend} onOpenPalette={onOpenPalette} onOpenMention={onOpenMention} busy={busy} pendingMention={pendingMention} onMentionConsumed={onMentionConsumed} />
+          <Composer variant="panel" sessionId={session.id} onSend={onSend} onOpenPalette={onOpenPalette} onOpenMention={onOpenMention} busy={busy} pendingMention={pendingMention} onMentionConsumed={onMentionConsumed} />
         </div>
       </div>
     </div>
