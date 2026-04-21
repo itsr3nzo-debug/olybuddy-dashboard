@@ -50,15 +50,27 @@ export async function authenticateAgentRequest(
     return { authenticated: true, clientId, supabase }
   }
 
-  // Method 2: Legacy shared INTERNAL_API_KEY (backwards compatibility — DEPRECATED)
+  // Method 2: Legacy shared INTERNAL_API_KEY — DISABLED BY DEFAULT.
+  // Bug: the previous implementation trusted whatever client_id was passed
+  // alongside the shared key, so a leaked INTERNAL_API_KEY let an attacker
+  // impersonate ANY client. Keep the code path so existing env vars don't
+  // silently 403, but require an explicit opt-in env flag AND an allowlist
+  // of client_ids that can be accessed with the shared key.
   if (INTERNAL_API_KEY && apiKey === INTERNAL_API_KEY) {
-    console.warn('[api-auth] DEPRECATED: Using shared INTERNAL_API_KEY. Migrate to per-client agent_api_key.')
-
+    if (process.env.ALLOW_LEGACY_INTERNAL_API_KEY !== 'true') {
+      console.error('[api-auth] INTERNAL_API_KEY use blocked — set ALLOW_LEGACY_INTERNAL_API_KEY=true to re-enable (NOT RECOMMENDED)')
+      return { authenticated: false, error: 'Legacy API key auth disabled — use per-client agent_api_key', status: 401 }
+    }
+    const allowlist = (process.env.LEGACY_INTERNAL_API_KEY_CLIENT_ALLOWLIST ?? '').split(',').map((s) => s.trim()).filter(Boolean)
     const clientId = clientIdOverride ?? new URL(request.url).searchParams.get('client_id')
     if (!clientId) {
       return { authenticated: false, error: 'client_id required for legacy API key auth', status: 400 }
     }
-
+    if (allowlist.length > 0 && !allowlist.includes(clientId)) {
+      console.error('[api-auth] INTERNAL_API_KEY denied for client_id', clientId, '— not in allowlist')
+      return { authenticated: false, error: 'client_id not allowlisted for legacy API key auth', status: 403 }
+    }
+    console.warn('[api-auth] DEPRECATED: Using shared INTERNAL_API_KEY for', clientId, '— migrate to per-client agent_api_key')
     return { authenticated: true, clientId, supabase }
   }
 

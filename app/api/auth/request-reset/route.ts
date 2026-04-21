@@ -20,7 +20,31 @@ export const runtime = 'nodejs';
 const DASHBOARD_ORIGIN = 'https://nexley.vercel.app';
 const REPLY_TO = process.env.SMTP_REPLY_TO || 'hello@nexley.ai';
 
+// Per-email rate limit. In-memory (resets on cold start, good enough for the
+// dashboard's small footprint). If we later run multiple serverless instances,
+// move to Redis / Supabase. 3 requests per 15 min per email; 10 per IP per 15 min.
+const WINDOW_MS = 15 * 60 * 1000;
+const MAX_PER_EMAIL = 3;
+const MAX_PER_IP = 10;
+const emailHits = new Map<string, number[]>();
+const ipHits = new Map<string, number[]>();
+function hit(store: Map<string, number[]>, key: string, cap: number): boolean {
+  const now = Date.now();
+  const arr = (store.get(key) ?? []).filter((t) => now - t < WINDOW_MS);
+  if (arr.length >= cap) { store.set(key, arr); return false; }
+  arr.push(now);
+  store.set(key, arr);
+  return true;
+}
+
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || req.headers.get('x-real-ip') || 'unknown';
+  // IP-level cap first (per-IP, even before we see the email — defends against
+  // enumeration with many random emails from one source).
+  if (!hit(ipHits, ip, MAX_PER_IP)) {
+    return NextResponse.json({ ok: true }); // silent — don't leak rate-limit state
+  }
+
   let email: string | undefined;
   try {
     const body = await req.json();
@@ -29,6 +53,12 @@ export async function POST(req: NextRequest) {
     // fall through
   }
   if (!email) {
+    return NextResponse.json({ ok: true });
+  }
+
+  // Per-email cap — silent pass-through on over-cap, same 200 as success to
+  // avoid leaking existence or rate state.
+  if (!hit(emailHits, email, MAX_PER_EMAIL)) {
     return NextResponse.json({ ok: true });
   }
 
