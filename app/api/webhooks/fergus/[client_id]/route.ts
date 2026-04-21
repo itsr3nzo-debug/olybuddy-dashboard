@@ -38,8 +38,8 @@ function supa() {
   return createClient(url, key, { auth: { persistSession: false } })
 }
 
-function urgencyFor(eventType: string): 'low' | 'normal' | 'high' {
-  if (eventType === 'job.completed') return 'high'
+function urgencyFor(eventType: string): 'emergency' | 'urgent' | 'normal' | 'low' {
+  if (eventType === 'job.completed') return 'urgent'
   if (eventType === 'job.created' || eventType === 'quote.modified') return 'normal'
   return 'low'
 }
@@ -149,7 +149,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cli
     summary: summaryFor(event, payload),
     urgency: urgencyFor(event),
     confidence: 1.0,
-    status: 'pending',
+    status: 'new',
     proposed_action: `Handle Fergus ${event}`,
     extracted_context: payload,
   }, { onConflict: 'client_id,signal_id', ignoreDuplicates: true })
