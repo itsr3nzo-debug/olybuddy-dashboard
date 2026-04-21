@@ -304,6 +304,9 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
   const [rating, setRating] = useState<null | 'up' | 'down'>(null);
   const isStreaming = message.status === 'drafting';
   const content = isStreaming ? (streamingText || '') : message.content;
+  // Hide the bubble entirely while in-flight — show only the final reply.
+  // Errors still render so the user gets feedback if something goes wrong.
+  if (message.status === 'pending' || message.status === 'thinking') return null;
   return (
     <div className={cx('flex flex-col gap-1.5 group', isActive && 'relative')}>
       <div className="flex items-center gap-1.5 text-[11px] fg-muted">
@@ -316,14 +319,9 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
       </div>
       {(message.status !== 'done' && message.status !== 'drafting')
         ? (
-          <div className="flex flex-col gap-1">
-            {message.status === 'error' ? (
-              <StatusPill status={message.status} errorMessage={message.errorMessage} />
-            ) : (
-              <TypingBubble />
-            )}
-            <BreadcrumbStrip crumbs={message.breadcrumbs} />
-          </div>
+          message.status === 'error'
+            ? <StatusPill status={message.status} errorMessage={message.errorMessage} />
+            : null
         )
         : (
           <div className="max-w-[95%] text-[13.5px] fg-base" style={{ lineHeight: 1.6 }}>
@@ -363,20 +361,6 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
           <InlineAction icon={ThumbsDown} label={rating === 'down' ? 'Noted' : 'Bad'} onClick={() => setRating('down')} active={rating === 'down'} />
         </div>
       )}
-    </div>
-  );
-}
-
-function TypingBubble() {
-  return (
-    <div
-      className="inline-flex items-center gap-1 rounded-2xl px-3.5 py-2.5 bg-subtle"
-      style={{ width: 'fit-content' }}
-      aria-label="Nexley is typing"
-    >
-      <span className="status-dot" style={{ animationDelay: '0ms' }} />
-      <span className="status-dot" style={{ animationDelay: '150ms' }} />
-      <span className="status-dot" style={{ animationDelay: '300ms' }} />
     </div>
   );
 }
