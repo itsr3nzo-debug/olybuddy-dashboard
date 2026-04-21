@@ -28,7 +28,7 @@ import { useChatRealtime } from '@/lib/chat/useChatRealtime';
 import { ClientContextProvider } from '@/lib/chat/client-context';
 import Sidebar from './Sidebar';
 import Dashboard from './Features';
-import { AssistPanel, ReplyCanvas } from './Views';
+import { AssistPanel } from './Views';
 import { SourceSlideOver, CommandPalette, MentionMenu } from './Overlays';
 
 interface ChatAppProps {
@@ -104,40 +104,8 @@ export default function ChatApp(props: ChatAppProps) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
 
-  // Sidebar + resize state ────────────────────────────────────────────
+  // Sidebar state ────────────────────────────────────────────
   const [sbCollapsed, setSbCollapsed] = useState(false);
-  const [assistWidth, setAssistWidth] = useState<number>(() => {
-    if (typeof window === 'undefined') return 400;
-    try {
-      return parseInt(localStorage.getItem('hy-assist-w') || '400', 10);
-    } catch {
-      return 400;
-    }
-  });
-  const [resizing, setResizing] = useState(false);
-
-  useEffect(() => {
-    if (!resizing) return;
-    const onMove = (e: MouseEvent) => {
-      const sidebar = sbCollapsed ? 56 : 200;
-      const w = Math.max(320, Math.min(560, e.clientX - sidebar));
-      setAssistWidth(w);
-    };
-    const onUp = () => setResizing(false);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-  }, [resizing, sbCollapsed]);
-  useEffect(() => {
-    try {
-      localStorage.setItem('hy-assist-w', String(assistWidth));
-    } catch {
-      // ignore
-    }
-  }, [assistWidth]);
 
   // Busy state — true while a reply is in-flight
   const [busy, setBusy] = useState(false);
@@ -414,29 +382,18 @@ export default function ChatApp(props: ChatAppProps) {
           />
         </main>
       ) : (
-        <>
-          <div style={{ width: assistWidth, flexShrink: 0 }} className="border-r-hy min-w-0">
-            <AssistPanel
-              session={currentSession}
-              onSend={sendMessage}
-              onOpenSource={setOpenSource}
-              streamingText={streamingText}
-              busy={busy}
-              onRenameSession={renameSession}
-              onOpenMention={() => setMentionOpen(true)}
-              onOpenPalette={() => setPaletteOpen(true)}
-            />
-          </div>
-          <div className={cx('resizer', resizing && 'active')} onMouseDown={() => setResizing(true)} />
-          <div className="flex-1 min-w-0">
-            <ReplyCanvas
-              session={currentSession}
-              streamingText={streamingText}
-              onOpenSource={setOpenSource}
-              onBackToDashboard={newChat}
-            />
-          </div>
-        </>
+        <main className="flex-1 min-w-0 bg-app">
+          <AssistPanel
+            session={currentSession}
+            onSend={sendMessage}
+            onOpenSource={setOpenSource}
+            streamingText={streamingText}
+            busy={busy}
+            onRenameSession={renameSession}
+            onOpenMention={() => setMentionOpen(true)}
+            onOpenPalette={() => setPaletteOpen(true)}
+          />
+        </main>
       )}
       </div>{/* /.flex flex-1 min-h-0 */}
 

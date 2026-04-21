@@ -3,25 +3,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   ChevronLeft, ChevronRight, Folder, FileText, Users, Sparkles, Search,
-  Zap, Activity, Check, Plus, Pin, MoreHorizontal, Share2, Download,
+  Zap, Activity, Check, Plus, Pin, MoreHorizontal,
   AtSign, Command as CommandIcon, Sun, Moon,
 } from 'lucide-react';
 import { cx, relativeTime } from '@/lib/chat/utils';
 import type { Session, Source, Suggestion, Workflow } from '@/lib/chat/types';
 import { useClient } from '@/lib/chat/client-context';
-import Composer, { UserBubble, AssistantBubble, SourceChipLarge } from './Composer';
+import Composer, { UserBubble, AssistantBubble } from './Composer';
 import IconButton from './IconButton';
-import {
-  CitedProse, ThinkingTrace, ReceiptFooter,
-  RedlineView, VersionTabs, ReviewTable,
-  SelectionMenu, VoicePill, ProofStrip,
-} from './Features';
-import {
-  PIPELINE_CITED, PIPELINE_VERSIONS,
-  NUDGE_DIFF, NUDGE_VERSIONS,
-  REVIEW_TABLE_PIPELINE,
-  PIPELINE_RECEIPT, NUDGE_RECEIPT,
-} from '@/lib/chat/mock';
+import { VoicePill } from './Features';
 
 /* ───────────── Browser chrome ───────────── */
 function BrowserChrome({ children }: { children: React.ReactNode }) {
@@ -442,14 +432,12 @@ export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy
   };
 
   if (!session) return null;
-  const lastMsg = session.messages[session.messages.length - 1];
-  const showTrace = lastMsg?.role === 'assistant' && (lastMsg.status === 'thinking' || lastMsg.status === 'drafting');
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="px-4 py-2.5 flex items-center gap-2 border-b-hy flex-shrink-0">
+      <div className="px-6 py-3 flex items-center gap-2 border-b-hy flex-shrink-0">
         <div className="min-w-0 flex-1">
-          <div className="text-[13px] fg-base truncate" title={session.title}>{session.title}</div>
+          <div className="text-[13px] fg-base truncate font-medium" title={session.title}>{session.title}</div>
           <div className="text-[10.5px] fg-muted">
             {relativeTime(session.updatedAt ?? session.createdAt)}
             {' · '}
@@ -463,185 +451,28 @@ export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="flex-1 min-h-0 overflow-y-auto scroll-thin px-4 py-4 space-y-4"
+        className="flex-1 min-h-0 overflow-y-auto scroll-thin"
       >
-        {session.messages.map((m) =>
-          m.role === 'user'
-            ? <UserBubble key={m.id} message={m} />
-            : <AssistantBubble
-                key={m.id}
-                message={m}
-                onOpenSource={onOpenSource}
-                streamingText={streamingText}
-                isActive={m.status === 'drafting'}
-              />
-        )}
-        {showTrace && <ThinkingTrace startAt={new Date(lastMsg.createdAt).getTime()} />}
-      </div>
-      <div className="px-4 py-3 border-t-hy flex-shrink-0">
-        <Composer variant="panel" onSend={onSend} onOpenPalette={onOpenPalette} onOpenMention={onOpenMention} busy={busy} />
-      </div>
-    </div>
-  );
-}
-
-/* ───────────── ReplyCanvas ───────────── */
-interface ReplyCanvasProps {
-  session: Session;
-  streamingText: string;
-  onOpenSource: (src: Source) => void;
-  onBackToDashboard: () => void;
-}
-
-export function ReplyCanvas({ session, streamingText, onOpenSource, onBackToDashboard }: ReplyCanvasProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const articleRef = useRef<HTMLElement>(null);
-  const [pinnedId, setPinnedId] = useState<string | null>(null);
-  const [versionIdx, setVersionIdx] = useState(0);
-  const [redlineMode, setRedlineMode] = useState('Redline');
-
-  useEffect(() => {
-    if (!scrollRef.current) return;
-    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [session?.messages, streamingText]);
-
-  if (!session) return null;
-  const lastAssistant = [...session.messages].reverse().find((m) => m.role === 'assistant');
-  const lastUser = [...session.messages].reverse().find((m) => m.role === 'user');
-
-  const title = (session.title || '').toLowerCase();
-  // Demo-only feature panels (cited paragraphs, redline diff, review table,
-  // receipt strip) contain seeded Failsworth/Sarah Barker data. They only
-  // render for the synthetic SEED_SESSIONS in `lib/chat/mock.ts`, which all
-  // use IDs of the form `s1`, `s2`, etc. Real Supabase-backed sessions use
-  // UUIDs and will NOT match this prefix, so these panels stay hidden.
-  const isDemoSession = /^s\d+$/.test(session.id);
-  const isPipeline = isDemoSession && title.includes('pipeline');
-  const isNudge = isDemoSession && (title.includes('nudge') || title.includes('draft'));
-  const isDone = lastAssistant?.status === 'done';
-
-  const sources = lastAssistant?.sources || [];
-  const cited = isPipeline ? (PIPELINE_VERSIONS[versionIdx]?.paragraphs || PIPELINE_CITED) : null;
-  const receipt = isPipeline ? PIPELINE_RECEIPT : isNudge ? NUDGE_RECEIPT : null;
-
-  const onPin = (sid: string, sourceId: string) => {
-    setPinnedId(p => p === sid ? null : sid);
-    const src = sources.find(s => s.id === sourceId);
-    if (src) onOpenSource(src);
-  };
-
-  return (
-    <div className="h-full flex flex-col min-h-0 bg-app">
-      <div className="flex items-center gap-3 px-8 py-3 border-b-hy flex-shrink-0">
-        <button
-          onClick={onBackToDashboard}
-          className="text-[11.5px] fg-muted hover:fg-base inline-flex items-center gap-1.5 transition-colors"
-        >
-          <ChevronLeft size={12} />
-          Back
-        </button>
-        <div className="flex-1" />
-        <div className="flex items-center gap-1">
-          <IconButton icon={Share2} label="Share" size={12} />
-          <IconButton icon={Download} label="Export" size={12} />
-          <IconButton icon={MoreHorizontal} label="More" size={13} />
+        <div className="mx-auto w-full max-w-[780px] px-6 py-8 space-y-6">
+          {session.messages.map((m) =>
+            m.role === 'user'
+              ? <UserBubble key={m.id} message={m} />
+              : <AssistantBubble
+                  key={m.id}
+                  message={m}
+                  onOpenSource={onOpenSource}
+                  streamingText={streamingText}
+                  isActive={m.status === 'drafting'}
+                />
+          )}
         </div>
       </div>
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto scroll-thin reply-scroll">
-        <article ref={articleRef} className="mx-auto px-10 py-10 relative" style={{ maxWidth: 760 }}>
-          {isDone && (
-            <SelectionMenu
-              containerRef={articleRef}
-              onAction={(action, text) => {
-                console.log('selection action', action, text);
-              }}
-            />
-          )}
-
-          {isDone && (
-            <div className="mb-6">
-              <ProofStrip
-                model={isPipeline ? 'opus' : 'haiku'}
-                calls={isPipeline ? 47 : 12}
-                seconds={isPipeline ? 4.2 : 1.8}
-                sources={sources.length}
-                verified
-                compact
-              />
-            </div>
-          )}
-
-          {isDone && isPipeline && (
-            <VersionTabs versions={PIPELINE_VERSIONS} activeIdx={versionIdx} onSelect={setVersionIdx} />
-          )}
-          {isDone && isNudge && (
-            <VersionTabs versions={NUDGE_VERSIONS} activeIdx={versionIdx} onSelect={setVersionIdx} />
-          )}
-
-          {lastUser && (
-            <h1
-              className="fg-base mb-8"
-              style={{ fontFamily: 'var(--font-serif)', fontSize: 28, lineHeight: 1.2, fontWeight: 400, letterSpacing: '-0.01em' }}
-            >{lastUser.content}</h1>
-          )}
-
-          {isDone && isPipeline && cited && (
-            <div className="prose-hy">
-              <CitedProse
-                paragraphs={cited}
-                sources={sources}
-                pinnedId={pinnedId}
-                onPin={onPin}
-                firstParaClass="first-para"
-              />
-              <div style={{ fontFamily: 'var(--font-sans)' }}>
-                <ReviewTable table={REVIEW_TABLE_PIPELINE} onOpenSource={onOpenSource} />
-              </div>
-            </div>
-          )}
-
-          {isDone && isNudge && (
-            <RedlineView diff={NUDGE_DIFF} mode={redlineMode} onMode={setRedlineMode} />
-          )}
-
-          {(!isDone || (!isPipeline && !isNudge)) && (
-            <div
-              className="fg-base prose-hy"
-              style={{ fontFamily: 'var(--font-serif)' }}
-            >
-              {(lastAssistant?.content || streamingText || '').split('\n\n').map((p, i) => (
-                <p key={i} className="mb-4">{p}</p>
-              ))}
-            </div>
-          )}
-
-          {isDone && sources.length > 0 && (
-            <div className="mt-10 pt-6 border-t-hy" style={{ fontFamily: 'var(--font-sans)' }}>
-              <div className="text-[11px] fg-muted mb-3 tracking-wider uppercase flex items-center justify-between">
-                <span>Sources</span>
-                <span className="normal-case tracking-normal text-[10.5px]">
-                  Click any{' '}
-                  <span className="cite-sup" style={{ verticalAlign: 0 }}>1</span>
-                  {' to pin its source'}
-                </span>
-              </div>
-              <div className="space-y-2">
-                {sources.map((s, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <span
-                      className="text-[10px] fg-muted font-mono flex-shrink-0"
-                      style={{ width: 18, fontFamily: 'var(--font-mono)' }}
-                    >{i + 1}</span>
-                    <SourceChipLarge source={s} onOpen={onOpenSource} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {isDone && receipt && <ReceiptFooter receipt={receipt} />}
-        </article>
+      <div className="border-t-hy flex-shrink-0 bg-app">
+        <div className="mx-auto w-full max-w-[780px] px-6 py-4">
+          <Composer variant="panel" onSend={onSend} onOpenPalette={onOpenPalette} onOpenMention={onOpenMention} busy={busy} />
+        </div>
       </div>
     </div>
   );
 }
+

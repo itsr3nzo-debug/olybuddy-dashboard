@@ -278,15 +278,15 @@ export function SourceChipLarge({ source, onOpen }: { source: Source; onOpen: (s
 /* ───────────── Message bubbles ───────────── */
 export function UserBubble({ message }: { message: Message }) {
   return (
-    <div className="flex flex-col gap-1 items-end">
-      <div className="flex items-center gap-1.5 text-[11px] fg-muted">
-        <span>You</span>
-        <span>·</span>
-        <time style={{ fontFamily: 'var(--font-mono)' }}>{relativeTime(message.createdAt)}</time>
-      </div>
+    <div className="flex justify-end" title={relativeTime(message.createdAt)}>
       <div
-        className="max-w-[85%] rounded-lg bg-subtle px-3 py-2 text-[13.5px] fg-base"
-        style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}
+        className="max-w-[80%] rounded-2xl px-4 py-2.5 text-[14px] fg-base"
+        style={{
+          whiteSpace: 'pre-wrap',
+          lineHeight: 1.5,
+          background: 'rgb(var(--hy-bg-subtle))',
+          border: '1px solid rgb(var(--hy-border) / 0.5)',
+        }}
       >{message.content}</div>
     </div>
   );
@@ -308,15 +308,17 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
   // Errors still render so the user gets feedback if something goes wrong.
   if (message.status === 'pending' || message.status === 'thinking') return null;
   return (
-    <div className={cx('flex flex-col gap-1.5 group', isActive && 'relative')}>
-      <div className="flex items-center gap-1.5 text-[11px] fg-muted">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'rgb(var(--hy-fg-subtle))' }} />
-          Assistant
-        </span>
-        <span>·</span>
-        <time style={{ fontFamily: 'var(--font-mono)' }}>{relativeTime(message.createdAt)}</time>
-      </div>
+    <div className={cx('flex gap-3 group', isActive && 'relative')}>
+      <div
+        className="flex-shrink-0 h-7 w-7 rounded-full inline-flex items-center justify-center text-[11px] font-semibold"
+        style={{
+          background: 'linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)',
+          color: '#fff',
+        }}
+        aria-hidden="true"
+        title="Nexley AI"
+      >N</div>
+      <div className="flex-1 min-w-0 pt-0.5">
       {(message.status !== 'done' && message.status !== 'drafting')
         ? (
           message.status === 'error'
@@ -324,9 +326,7 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
             : null
         )
         : (
-          <div className="max-w-[95%] text-[13.5px] fg-base" style={{ lineHeight: 1.6 }}>
-            {/* Show tool breadcrumbs while drafting so the user sees progress */}
-            {message.status === 'drafting' && <BreadcrumbStrip crumbs={message.breadcrumbs} />}
+          <div className="text-[14px] fg-base" style={{ lineHeight: 1.65 }}>
             <div className="assistant-inline">
               {renderMarkdown(content, { streaming: isStreaming })}
             </div>
@@ -361,6 +361,7 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
           <InlineAction icon={ThumbsDown} label={rating === 'down' ? 'Noted' : 'Bad'} onClick={() => setRating('down')} active={rating === 'down'} />
         </div>
       )}
+      </div>
     </div>
   );
 }
