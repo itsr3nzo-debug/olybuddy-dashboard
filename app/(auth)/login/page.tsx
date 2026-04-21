@@ -36,10 +36,19 @@ function LoginForm() {
       setError('If an account exists for that email, a reset link has been sent. Check your inbox.')
     }
 
-    // Legacy magic-link hash handler — still works for users coming from
-    // old links OR the password-reset flow (which uses the same hash format).
+    // Magic-link hash handler. Supabase's recovery email redirects to Site URL
+    // with a #access_token=...&type=recovery fragment; the middleware then
+    // pushes the user to /login (because they aren't authed yet). If this is
+    // a PASSWORD RESET, hand off to /reset-password preserving the hash so
+    // it can complete the flow. Otherwise treat as a sign-in magic link.
     if (typeof window !== 'undefined' && window.location.hash.includes('access_token')) {
-      const params = new URLSearchParams(window.location.hash.slice(1))
+      const hash = window.location.hash
+      const params = new URLSearchParams(hash.slice(1))
+      const type = params.get('type')
+      if (type === 'recovery') {
+        window.location.replace('/reset-password' + hash)
+        return
+      }
       const access_token = params.get('access_token')
       const refresh_token = params.get('refresh_token')
       if (access_token && refresh_token) {
