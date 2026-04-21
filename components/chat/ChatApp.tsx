@@ -184,6 +184,37 @@ export default function ChatApp(props: ChatAppProps) {
 
   useChatRealtime(currentSessionId, applyRealtime);
 
+  // Polling fallback — realtime websocket respects RLS and admin JWTs can
+  // occasionally miss events. Every 2.5s, while the active session has at
+  // least one in-flight assistant message, re-fetch messages via the API
+  // (which uses service-role for admin reads) and reconcile into state.
+  useEffect(() => {
+    if (!currentSessionId) return;
+    const poll = async () => {
+      const inFlight = sessionsRef.current
+        .find((s) => s.id === currentSessionIdRef.current)?.messages
+        .some((m) =>
+          m.role === 'assistant' && (m.status === 'pending' || m.status === 'thinking' || m.status === 'drafting')
+        );
+      if (!inFlight) return;
+      const res = await loadSession(currentSessionId, props.clientId).catch(() => null);
+      if (!res) return;
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.id !== currentSessionId) return s;
+          // Merge — preserve any optimistic local data but overwrite with DB truth
+          const byId = new Map(res.messages.map((m) => [m.id, m]));
+          const merged = s.messages.map((m) => byId.get(m.id) ?? m);
+          const seen = new Set(s.messages.map((m) => m.id));
+          for (const m of res.messages) if (!seen.has(m.id)) merged.push(m);
+          return { ...s, messages: merged };
+        })
+      );
+    };
+    const interval = setInterval(poll, 2500);
+    return () => clearInterval(interval);
+  }, [currentSessionId, props.clientId]);
+
   // Actions ───────────────────────────────────────────────────────────
   const sendMessage = useCallback(
     async (text: string) => {
