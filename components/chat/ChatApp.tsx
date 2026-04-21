@@ -23,7 +23,7 @@ import { useTheme } from 'next-themes';
 import { cx } from '@/lib/chat/utils';
 import { SUGGESTIONS, WORKFLOWS } from '@/lib/chat/mock';
 import type { Message, Session, Source } from '@/lib/chat/types';
-import { listSessions, loadSession, postMessage, renameSession as apiRenameSession, rowToMessage, summaryToSession } from '@/lib/chat/api';
+import { listSessions, loadSession, postMessage, renameSession as apiRenameSession, deleteSession as apiDeleteSession, pinSession as apiPinSession, rowToMessage, summaryToSession } from '@/lib/chat/api';
 import { useChatRealtime } from '@/lib/chat/useChatRealtime';
 import { ClientContextProvider } from '@/lib/chat/client-context';
 import Sidebar from './Sidebar';
@@ -103,6 +103,7 @@ export default function ChatApp(props: ChatAppProps) {
   const [openSource, setOpenSource] = useState<Source | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
+  const [pendingMention, setPendingMention] = useState<string | null>(null);
 
   // Sidebar state ────────────────────────────────────────────
   const [sbCollapsed, setSbCollapsed] = useState(false);
@@ -252,9 +253,18 @@ export default function ChatApp(props: ChatAppProps) {
 
   const renameSession = useCallback((id: string, title: string) => {
     setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)));
-    apiRenameSession(id, title).catch(() => {
-      /* silently fail — DA says don't hassle the user for a label change */
-    });
+    apiRenameSession(id, title).catch(() => {});
+  }, []);
+
+  const deleteSession = useCallback((id: string) => {
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+    if (currentSessionId === id) setCurrentSessionId(null);
+    apiDeleteSession(id).catch(() => {});
+  }, [currentSessionId]);
+
+  const pinSession = useCallback((id: string, pinned: boolean) => {
+    setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, pinned } : s)));
+    apiPinSession(id, pinned).catch(() => {});
   }, []);
 
   const toggleTheme = useCallback(() => {
@@ -371,6 +381,9 @@ export default function ChatApp(props: ChatAppProps) {
         collapsed={sbCollapsed}
         onToggleCollapse={() => setSbCollapsed((c) => !c)}
         onGoHome={newChat}
+        onRenameSession={renameSession}
+        onDeleteSession={deleteSession}
+        onPinSession={pinSession}
       />
 
       {!currentSession ? (
@@ -381,6 +394,8 @@ export default function ChatApp(props: ChatAppProps) {
             onSend={sendMessage}
             onOpenPalette={() => setPaletteOpen(true)}
             onOpenMention={() => setMentionOpen(true)}
+            pendingMention={pendingMention}
+            onMentionConsumed={() => setPendingMention(null)}
           />
         </main>
       ) : (
@@ -392,8 +407,12 @@ export default function ChatApp(props: ChatAppProps) {
             streamingText={streamingText}
             busy={busy}
             onRenameSession={renameSession}
+            onDeleteSession={deleteSession}
+            onPinSession={pinSession}
             onOpenMention={() => setMentionOpen(true)}
             onOpenPalette={() => setPaletteOpen(true)}
+            pendingMention={pendingMention}
+            onMentionConsumed={() => setPendingMention(null)}
           />
         </main>
       )}
@@ -409,12 +428,13 @@ export default function ChatApp(props: ChatAppProps) {
         onNewChat={newChat}
         onToggleTheme={toggleTheme}
         onSend={sendMessage}
+        currentSession={currentSession}
       />
       <MentionMenu
         open={mentionOpen}
         onClose={() => setMentionOpen(false)}
-        onPick={() => {
-          /* future: inject @mention into active composer */
+        onPick={(customer) => {
+          setPendingMention('@' + customer.name + ' ');
         }}
       />
     </div>

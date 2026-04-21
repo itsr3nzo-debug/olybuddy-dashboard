@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   X, Search, AtSign, Clock, ChevronRight, PencilLine, Sun, Settings,
-  MessageSquare, Zap,
+  MessageSquare, Zap, Plus, Tag,
 } from 'lucide-react';
 import { cx, relativeTime } from '@/lib/chat/utils';
 import type { Session, Source, MentionCustomer } from '@/lib/chat/types';
@@ -146,7 +146,7 @@ function SourceTabContent({ source, tab }: { source: Source; tab: string }) {
         ))}
       </ul>
     );
-    if (tab === 'Tags') return <div className="text-[13px] fg-subtle">Tag management lives here.</div>;
+    if (tab === 'Tags') return <TagsTab initialTags={d.tags || []} />;
   }
 
   if (source.type === 'call') {
@@ -242,7 +242,7 @@ function SourceTabContent({ source, tab }: { source: Source; tab: string }) {
         </div>
       </div>
     );
-    if (tab === 'Timeline') return <div className="text-[13px] fg-subtle">Timeline events appear here.</div>;
+    if (tab === 'Timeline') return <TimelineTab source={source} />;
     if (tab === 'Raw') return (
       <pre
         className="text-[11.5px] fg-subtle bg-subtle rounded p-3 overflow-x-auto"
@@ -269,6 +269,121 @@ function SourceTabContent({ source, tab }: { source: Source; tab: string }) {
   return null;
 }
 
+const PRESET_TAGS = ['Residential', 'Commercial', 'Fencing', 'Patio', 'Planting', 'Repeat', 'High value', 'Quote pending', 'Follow-up', 'VIP'];
+
+function TagsTab({ initialTags }: { initialTags: string[] }) {
+  const [tags, setTags] = useState<string[]>(initialTags);
+  const [adding, setAdding] = useState(false);
+  const [newTag, setNewTag] = useState('');
+  const addTag = (t: string) => {
+    const v = t.trim();
+    if (!v || tags.includes(v)) return;
+    setTags((prev) => [...prev, v]);
+    setNewTag('');
+    setAdding(false);
+  };
+  const removeTag = (t: string) => setTags((prev) => prev.filter((x) => x !== t));
+  const available = PRESET_TAGS.filter((t) => !tags.includes(t));
+  return (
+    <div className="space-y-5">
+      <div>
+        <div className="text-[11px] uppercase tracking-wider fg-muted mb-2 font-semibold">Applied tags</div>
+        {tags.length === 0
+          ? <p className="text-[12.5px] fg-muted">No tags yet.</p>
+          : (
+            <div className="flex flex-wrap gap-1.5">
+              {tags.map((t) => (
+                <span key={t} className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11.5px] bg-subtle fg-subtle">
+                  <Tag size={10} />
+                  {t}
+                  <button onClick={() => removeTag(t)} className="ml-0.5 fg-muted hover:fg-base transition-colors" aria-label={`Remove ${t}`}>
+                    <X size={9} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )
+        }
+      </div>
+      {adding ? (
+        <div className="flex items-center gap-2">
+          <input
+            autoFocus
+            value={newTag}
+            onChange={(e) => setNewTag(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') addTag(newTag);
+              if (e.key === 'Escape') { setAdding(false); setNewTag(''); }
+            }}
+            placeholder="Tag name…"
+            className="flex-1 rounded-md border-hy bg-surface px-3 py-1.5 text-[13px] fg-base outline-none focus:border-hy-strong"
+          />
+          <button onClick={() => addTag(newTag)} className="text-[12px] px-2.5 py-1.5 rounded-md fg-inverse font-medium" style={{ background: 'rgb(var(--hy-fg-base))' }}>Add</button>
+          <button onClick={() => { setAdding(false); setNewTag(''); }} className="text-[12px] px-2 py-1.5 rounded-md fg-subtle hover:bg-hover">Cancel</button>
+        </div>
+      ) : (
+        <button onClick={() => setAdding(true)} className="inline-flex items-center gap-1.5 text-[12.5px] fg-subtle hover:fg-base transition-colors">
+          <Plus size={13} />
+          Add tag
+        </button>
+      )}
+      {available.length > 0 && (
+        <div>
+          <div className="text-[11px] uppercase tracking-wider fg-muted mb-2 font-semibold">Suggestions</div>
+          <div className="flex flex-wrap gap-1.5">
+            {available.map((t) => (
+              <button
+                key={t}
+                onClick={() => setTags((prev) => [...prev, t])}
+                className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11.5px] bg-surface border-hy fg-muted hover:fg-base hover:bg-hover transition-colors"
+              >
+                <Plus size={9} />
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TimelineTab({ source }: { source: Source }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const d: any = source.details || {};
+  type TimelineEvent = { when: string; kind: string; note: string };
+  const events: TimelineEvent[] = d.interactions
+    ? d.interactions.map((it: { when: string; kind: string; note: string }) => ({ when: it.when, kind: it.kind, note: it.note }))
+    : source.type === 'quote' || source.type === 'invoice'
+      ? [
+          { when: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), kind: 'Created', note: `${source.label} created` },
+          { when: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), kind: 'Sent', note: `Sent to ${d.customer || 'customer'}` },
+          { when: new Date().toISOString(), kind: 'Viewed', note: 'Opened by recipient' },
+        ]
+      : source.type === 'job'
+        ? [
+            { when: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), kind: 'Job created', note: 'Added to pipeline' },
+            { when: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), kind: 'Updated', note: 'Stage changed' },
+          ]
+        : [];
+  if (events.length === 0) return <p className="text-[12.5px] fg-muted">No events recorded.</p>;
+  return (
+    <ol className="relative space-y-4 pl-4" style={{ borderLeft: '2px solid rgb(var(--hy-border))' }}>
+      {[...events].reverse().map((ev, i) => (
+        <li key={i} className="relative pl-4">
+          <span
+            className="absolute -left-[13px] top-1 h-2.5 w-2.5 rounded-full border-2"
+            style={{ background: 'rgb(var(--hy-accent))', borderColor: 'rgb(var(--hy-bg-surface))' }}
+          />
+          <div className="text-[11px] fg-muted mb-0.5" style={{ fontFamily: 'var(--font-mono)' }}>{relativeTime(ev.when)}</div>
+          <div className="text-[13px] fg-base font-medium">{ev.kind}</div>
+          <div className="text-[12px] fg-subtle">{ev.note}</div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
@@ -287,6 +402,7 @@ interface CommandPaletteProps {
   onNewChat: () => void;
   onToggleTheme: () => void;
   onSend: (text: string) => void;
+  currentSession?: Session | null;
 }
 
 const COMMAND_ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
@@ -303,7 +419,7 @@ interface PaletteItem {
   onRun: () => void;
 }
 
-export function CommandPalette({ open, onClose, sessions, onSelectSession, onNewChat, onToggleTheme }: CommandPaletteProps) {
+export function CommandPalette({ open, onClose, sessions, onSelectSession, onNewChat, onToggleTheme, currentSession }: CommandPaletteProps) {
   const [q, setQ] = useState('');
   const [idx, setIdx] = useState(0);
 
@@ -312,18 +428,40 @@ export function CommandPalette({ open, onClose, sessions, onSelectSession, onNew
   }, [open]);
 
   const items = useMemo<PaletteItem[]>(() => {
+    const exportSession = (sess: Session | null | undefined) => {
+      if (!sess) return;
+      const md = sess.messages.map(m =>
+        `**${m.role === 'user' ? 'You' : 'Nexley'}** (${new Date(m.createdAt).toLocaleString()}):\n\n${m.content}`
+      ).join('\n\n---\n\n');
+      const blob = new Blob([`# ${sess.title}\n\n${md}`], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${sess.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
+
     const actions: PaletteItem[] = [
       { id: 'new', section: 'Suggested', label: 'New chat', icon: PencilLine, kbd: '⌘N', onRun: onNewChat },
       { id: 'theme', section: 'Suggested', label: 'Toggle theme', icon: Sun, kbd: '⌘.', onRun: onToggleTheme },
-      { id: 'settings', section: 'Suggested', label: 'Settings', icon: Settings, onRun: () => {} },
+      { id: 'settings', section: 'Suggested', label: 'Settings', icon: Settings, onRun: () => { window.location.href = '/settings'; } },
     ];
     const recent: PaletteItem[] = sessions.slice(0, 5).map(s => ({
       id: s.id, section: 'Recent sessions', label: s.title,
       icon: MessageSquare, onRun: () => onSelectSession(s.id),
     }));
+    const cmdHandlers: Record<string, () => void> = {
+      'cmd-refine': () => { /* palette closes; user clicks Improve in composer */ },
+      'cmd-export': () => exportSession(currentSession),
+      'cmd-clear': onNewChat,
+      'cmd-history': () => { /* palette IS the history search */ },
+    };
     const cmds: PaletteItem[] = (COMMANDS || []).map(c => ({
       id: c.id, section: 'Commands', label: c.label, sub: c.sub,
-      icon: COMMAND_ICON_MAP[c.icon] || Zap, onRun: () => {},
+      icon: COMMAND_ICON_MAP[c.icon] || Zap, onRun: cmdHandlers[c.id] ?? (() => {}),
     }));
     const all = [...actions, ...recent, ...cmds];
     if (!q.trim()) return all;

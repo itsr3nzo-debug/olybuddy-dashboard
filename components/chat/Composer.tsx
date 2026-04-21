@@ -22,9 +22,13 @@ interface ComposerProps {
   onOpenMention?: () => void;
   /** Current session id (null for draft / hero before first send). */
   sessionId?: string | null;
+  /** Text to inject at cursor (e.g. @mention picked from the mention menu). */
+  pendingMention?: string | null;
+  /** Called after pendingMention has been consumed so the parent can clear it. */
+  onMentionConsumed?: () => void;
 }
 
-function Composer({ onSend, busy, autoFocus, variant = 'panel', onOpenPalette, onOpenMention, sessionId }: ComposerProps) {
+function Composer({ onSend, busy, autoFocus, variant = 'panel', onOpenPalette, onOpenMention, sessionId, pendingMention, onMentionConsumed }: ComposerProps) {
   const { clientId } = useClient();
   const [value, setValue] = useState('');
   const [refining, setRefining] = useState(false);
@@ -38,6 +42,23 @@ function Composer({ onSend, busy, autoFocus, variant = 'panel', onOpenPalette, o
   useEffect(() => {
     if (autoFocus && textareaRef.current) textareaRef.current.focus();
   }, [autoFocus]);
+
+  useEffect(() => {
+    if (!pendingMention) return;
+    const ta = textareaRef.current;
+    const pos = ta ? (ta.selectionStart ?? value.length) : value.length;
+    const before = value.slice(0, pos);
+    const after = value.slice(pos);
+    setValue(before + pendingMention + after);
+    onMentionConsumed?.();
+    requestAnimationFrame(() => {
+      if (!ta) return;
+      ta.focus();
+      const newPos = pos + pendingMention.length;
+      ta.setSelectionRange(newPos, newPos);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingMention]);
 
   useEffect(() => {
     const ta = textareaRef.current;
@@ -218,7 +239,7 @@ function Composer({ onSend, busy, autoFocus, variant = 'panel', onOpenPalette, o
         <div className="flex items-center gap-0.5 px-2 pb-2 pt-1">
           <ComposerChip icon={Plus} label={variant === 'hero' ? 'Files and sources' : 'Files'} onClick={pickFiles} />
           <ComposerChip icon={CommandIcon} label="Prompts" onClick={onOpenPalette} />
-          {variant === 'hero' && <ComposerChip icon={Settings} label="Customize" />}
+          {variant === 'hero' && <ComposerChip icon={Settings} label="Customize" onClick={onOpenPalette} />}
           <ComposerChip icon={Sparkles} label="Improve" onClick={doRefine} disabled={isEmpty} />
           <div className="flex-1" />
           <button

@@ -56,6 +56,15 @@ export async function deleteSession(id: string): Promise<void> {
   if (!res.ok) throw new Error('deleteSession failed');
 }
 
+export async function pinSession(id: string, pinned: boolean): Promise<void> {
+  const res = await fetch(`/api/chat/sessions/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pinned }),
+  });
+  if (!res.ok) throw new Error('pinSession failed');
+}
+
 export interface PostMessageResult {
   session_id: string;
   user_message: Message;

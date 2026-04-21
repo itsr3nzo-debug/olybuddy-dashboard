@@ -305,9 +305,11 @@ interface DashboardProps {
   onSend: (text: string) => void;
   onOpenPalette: () => void;
   onOpenMention: () => void;
+  pendingMention?: string | null;
+  onMentionConsumed?: () => void;
 }
 
-export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows }: DashboardProps) {
+export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows, pendingMention, onMentionConsumed }: DashboardProps) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(['crm', 'calls']));
   const toggle = (id: string) => setSelected((s) => {
     const n = new Set(s);
@@ -343,11 +345,11 @@ export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows }: D
           </div>
 
           <div className="flex items-center gap-6 text-[12px] fg-subtle mb-2.5 px-1">
-            <button className="inline-flex items-center gap-1.5 hover:fg-base transition-colors">
+            <button onClick={onOpenPalette} className="inline-flex items-center gap-1.5 hover:fg-base transition-colors">
               <Folder size={12} />
               Choose Vault project
             </button>
-            <button className="inline-flex items-center gap-1.5 hover:fg-base transition-colors">
+            <button onClick={onOpenPalette} className="inline-flex items-center gap-1.5 hover:fg-base transition-colors">
               <Users size={12} />
               Set client matter
             </button>
@@ -360,6 +362,8 @@ export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows }: D
             onOpenPalette={onOpenPalette}
             onOpenMention={onOpenMention}
             busy={false}
+            pendingMention={pendingMention}
+            onMentionConsumed={onMentionConsumed}
           />
 
           <div className="flex items-center justify-end mt-2 px-1">
@@ -411,13 +415,47 @@ interface AssistPanelProps {
   streamingText: string;
   busy: boolean;
   onRenameSession: (id: string, title: string) => void;
+  onDeleteSession?: (id: string) => void;
+  onPinSession?: (id: string, pinned: boolean) => void;
   onOpenMention: () => void;
   onOpenPalette: () => void;
+  pendingMention?: string | null;
+  onMentionConsumed?: () => void;
 }
 
-export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy, onOpenMention, onOpenPalette }: AssistPanelProps) {
+export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy, onOpenMention, onOpenPalette, onRenameSession, onDeleteSession, onPinSession, pendingMention, onMentionConsumed }: AssistPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [renameVal, setRenameVal] = useState('');
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const close = () => setMoreOpen(false);
+    const id = setTimeout(() => window.addEventListener('click', close, { once: true }));
+    return () => { clearTimeout(id); window.removeEventListener('click', close); };
+  }, [moreOpen]);
+
+  const commitRename = () => {
+    if (renameVal.trim()) onRenameSession(session.id, renameVal.trim());
+    setRenaming(false);
+  };
+
+  const exportSession = () => {
+    const md = session.messages.map(m =>
+      `**${m.role === 'user' ? 'You' : 'Nexley'}** (${new Date(m.createdAt).toLocaleString()}):\n\n${m.content}`
+    ).join('\n\n---\n\n');
+    const blob = new Blob([`# ${session.title}\n\n${md}`], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${session.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   useEffect(() => {
     if (!scrollRef.current || !autoScroll) return;
@@ -437,7 +475,18 @@ export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy
     <div className="h-full flex flex-col min-h-0">
       <div className="px-6 py-3 flex items-center gap-2 border-b-hy flex-shrink-0">
         <div className="min-w-0 flex-1">
-          <div className="text-[13px] fg-base truncate font-medium" title={session.title}>{session.title}</div>
+          {renaming ? (
+            <input
+              autoFocus
+              value={renameVal}
+              onChange={(e) => setRenameVal(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenaming(false); }}
+              className="w-full text-[13px] fg-base font-medium bg-surface border-hy rounded px-2 py-0.5 outline-none"
+            />
+          ) : (
+            <div className="text-[13px] fg-base truncate font-medium" title={session.title}>{session.title}</div>
+          )}
           <div className="text-[10.5px] fg-muted">
             {relativeTime(session.updatedAt ?? session.createdAt)}
             {' · '}
@@ -445,8 +494,41 @@ export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy
             {' messages'}
           </div>
         </div>
-        <IconButton icon={Pin} label="Pin" size={12} />
-        <IconButton icon={MoreHorizontal} label="More" size={13} />
+        <IconButton
+          icon={Pin}
+          label={session.pinned ? 'Unpin' : 'Pin'}
+          size={12}
+          onClick={() => onPinSession?.(session.id, !session.pinned)}
+          active={session.pinned}
+        />
+        <div className="relative">
+          <IconButton
+            icon={MoreHorizontal}
+            label="More"
+            size={13}
+            onClick={(e) => { e.stopPropagation(); setMoreOpen((o) => !o); }}
+          />
+          {moreOpen && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="absolute right-0 top-full mt-1 w-40 rounded-md border-hy bg-surface anim-fade-in z-20 py-1"
+              style={{ boxShadow: '0 10px 24px rgb(0 0 0 / 0.2)' }}
+            >
+              {([
+                { label: 'Rename', action: () => { setRenameVal(session.title); setRenaming(true); setMoreOpen(false); } },
+                { label: session.pinned ? 'Unpin' : 'Pin', action: () => { onPinSession?.(session.id, !session.pinned); setMoreOpen(false); } },
+                { label: 'Export', action: () => { exportSession(); setMoreOpen(false); } },
+                { label: 'Delete', action: () => { onDeleteSession?.(session.id); setMoreOpen(false); }, danger: true },
+              ] as Array<{ label: string; action: () => void; danger?: boolean }>).map((it, i) => (
+                <button
+                  key={i}
+                  onClick={it.action}
+                  className={cx('w-full flex items-center px-3 py-1.5 text-[12px] hover:bg-hover transition-colors text-left', it.danger ? 'fg-danger' : 'fg-subtle')}
+                >{it.label}</button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       <div
         ref={scrollRef}
@@ -469,7 +551,7 @@ export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy
       </div>
       <div className="border-t-hy flex-shrink-0 bg-app">
         <div className="mx-auto w-full max-w-[780px] px-6 py-4">
-          <Composer variant="panel" onSend={onSend} onOpenPalette={onOpenPalette} onOpenMention={onOpenMention} busy={busy} />
+          <Composer variant="panel" onSend={onSend} onOpenPalette={onOpenPalette} onOpenMention={onOpenMention} busy={busy} pendingMention={pendingMention} onMentionConsumed={onMentionConsumed} />
         </div>
       </div>
     </div>

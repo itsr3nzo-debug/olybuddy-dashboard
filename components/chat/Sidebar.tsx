@@ -9,6 +9,7 @@ import {
 import { cx, relativeTime, groupSessionsByDate } from '@/lib/chat/utils';
 import type { Session } from '@/lib/chat/types';
 import { useClient } from '@/lib/chat/client-context';
+import { createClient } from '@/lib/supabase/client';
 import IconButton from './IconButton';
 
 interface SidebarProps {
@@ -22,9 +23,12 @@ interface SidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   onGoHome: () => void;
+  onRenameSession: (id: string, title: string) => void;
+  onDeleteSession: (id: string) => void;
+  onPinSession: (id: string, pinned: boolean) => void;
 }
 
-function Sidebar({ sessions, currentSessionId, onSelectSession, onNewChat, onOpenPalette, onToggleTheme, theme, collapsed, onToggleCollapse, onGoHome }: SidebarProps) {
+function Sidebar({ sessions, currentSessionId, onSelectSession, onNewChat, onOpenPalette, onToggleTheme, theme, collapsed, onToggleCollapse, onGoHome, onRenameSession, onDeleteSession, onPinSession }: SidebarProps) {
   const { clientName } = useClient();
   const groups = groupSessionsByDate(sessions);
   const clientInitials = (clientName || 'N')
@@ -40,7 +44,7 @@ function Sidebar({ sessions, currentSessionId, onSelectSession, onNewChat, onOpe
     >
       {collapsed
         ? <SidebarRail onNewChat={onNewChat} onOpenPalette={onOpenPalette} onToggleTheme={onToggleTheme} theme={theme} onToggleCollapse={onToggleCollapse} onGoHome={onGoHome} />
-        : <SidebarFull clientInitials={clientInitials} sessions={sessions} groups={groups} currentSessionId={currentSessionId} onSelectSession={onSelectSession} onNewChat={onNewChat} onOpenPalette={onOpenPalette} onToggleTheme={onToggleTheme} theme={theme} onToggleCollapse={onToggleCollapse} onGoHome={onGoHome} />
+        : <SidebarFull clientInitials={clientInitials} sessions={sessions} groups={groups} currentSessionId={currentSessionId} onSelectSession={onSelectSession} onNewChat={onNewChat} onOpenPalette={onOpenPalette} onToggleTheme={onToggleTheme} theme={theme} onToggleCollapse={onToggleCollapse} onGoHome={onGoHome} onRenameSession={onRenameSession} onDeleteSession={onDeleteSession} onPinSession={onPinSession} />
       }
     </aside>
   );
@@ -83,9 +87,12 @@ interface SidebarFullProps extends SidebarRailProps {
   groups: Array<[string, Session[]]>;
   currentSessionId: string | null;
   onSelectSession: (id: string) => void;
+  onRenameSession: (id: string, title: string) => void;
+  onDeleteSession: (id: string) => void;
+  onPinSession: (id: string, pinned: boolean) => void;
 }
 
-function SidebarFull({ clientInitials, groups, currentSessionId, onSelectSession, onNewChat, onOpenPalette, onToggleTheme, theme, onToggleCollapse, onGoHome }: SidebarFullProps) {
+function SidebarFull({ clientInitials, groups, currentSessionId, onSelectSession, onNewChat, onOpenPalette, onToggleTheme, theme, onToggleCollapse, onGoHome, onRenameSession, onDeleteSession, onPinSession }: SidebarFullProps) {
   const [showAll, setShowAll] = useState<Record<string, boolean>>({});
   const [vaultOpen, setVaultOpen] = useState(true);
   const { clientName } = useClient();
@@ -141,6 +148,9 @@ function SidebarFull({ clientInitials, groups, currentSessionId, onSelectSession
                     session={s}
                     active={s.id === currentSessionId}
                     onSelect={() => onSelectSession(s.id)}
+                    onRename={(title) => onRenameSession(s.id, title)}
+                    onDelete={() => onDeleteSession(s.id)}
+                    onPin={(pinned) => onPinSession(s.id, pinned)}
                   />
                 ))}
               </div>
@@ -176,10 +186,16 @@ function SidebarBottom({ onToggleTheme, theme }: { onToggleTheme: () => void; th
     return () => { clearTimeout(id); window.removeEventListener('click', close); };
   }, [open]);
 
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.href = '/auth/login';
+  };
+
   const menuItems: Array<{ icon: React.ComponentType<{ size?: number }>; label: string; onClick?: () => void }> = [
     { icon: theme === 'dark' ? Sun : Moon, label: theme === 'dark' ? 'Light mode' : 'Dark mode', onClick: onToggleTheme },
-    { icon: Settings, label: 'Settings' },
-    { icon: LogOut, label: 'Sign out' },
+    { icon: Settings, label: 'Settings', onClick: () => { window.location.href = '/settings'; } },
+    { icon: LogOut, label: 'Sign out', onClick: handleSignOut },
   ];
 
   return (
@@ -258,10 +274,19 @@ function NavItem({ icon: IconC, iconActive, label, active, onClick }: NavItemPro
   );
 }
 
-function SessionItem({ session, active, onSelect }: { session: Session; active: boolean; onSelect: () => void }) {
+function SessionItem({ session, active, onSelect, onRename, onDelete, onPin }: {
+  session: Session;
+  active: boolean;
+  onSelect: () => void;
+  onRename: (title: string) => void;
+  onDelete: () => void;
+  onPin: (pinned: boolean) => void;
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [hoverTimer, setHoverTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [renameEditing, setRenameEditing] = useState(false);
+  const [renameVal, setRenameVal] = useState('');
 
   const onEnter = () => {
     const t = setTimeout(() => setShowPreview(true), 450);
@@ -278,22 +303,51 @@ function SessionItem({ session, active, onSelect }: { session: Session; active: 
   const snippet = firstAssistant?.content?.replace(/\n+/g, ' ').slice(0, 180) || 'No reply yet.';
   const msgCount = session.messages?.length || 0;
 
-  const menuItems: Array<{ icon: React.ComponentType<{ size?: number }>; label: string; danger?: boolean }> = [
-    { icon: Pencil, label: 'Rename' },
-    { icon: Pin, label: session.pinned ? 'Unpin' : 'Pin' },
-    { icon: Download, label: 'Export' },
-    { icon: Trash2, label: 'Delete', danger: true },
+  const exportSession = () => {
+    const md = session.messages.map(m =>
+      `**${m.role === 'user' ? 'You' : 'Nexley'}** (${new Date(m.createdAt).toLocaleString()}):\n\n${m.content}`
+    ).join('\n\n---\n\n');
+    const blob = new Blob([`# ${session.title}\n\n${md}`], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${session.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const menuItems: Array<{ icon: React.ComponentType<{ size?: number }>; label: string; danger?: boolean; action: () => void }> = [
+    { icon: Pencil, label: 'Rename', action: () => { setRenameVal(session.title); setRenameEditing(true); setMenuOpen(false); } },
+    { icon: Pin, label: session.pinned ? 'Unpin' : 'Pin', action: () => { onPin(!session.pinned); setMenuOpen(false); } },
+    { icon: Download, label: 'Export', action: () => { exportSession(); setMenuOpen(false); } },
+    { icon: Trash2, label: 'Delete', danger: true, action: () => { onDelete(); setMenuOpen(false); } },
   ];
 
   return (
     <div className="group relative" onMouseEnter={onEnter} onMouseLeave={onLeave}>
-      <button
-        onClick={onSelect}
-        className={cx(
-          'w-full text-left pl-2 pr-7 py-1 rounded-md text-[12.5px] truncate transition-colors focus-ring',
-          active ? 'bg-subtle fg-base' : 'fg-subtle hover:bg-hover hover:fg-base'
-        )}
-      >{session.title}</button>
+      {renameEditing ? (
+        <input
+          autoFocus
+          value={renameVal}
+          onChange={(e) => setRenameVal(e.target.value)}
+          onBlur={() => { if (renameVal.trim()) onRename(renameVal.trim()); setRenameEditing(false); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { if (renameVal.trim()) onRename(renameVal.trim()); setRenameEditing(false); }
+            if (e.key === 'Escape') setRenameEditing(false);
+          }}
+          className="w-full pl-2 pr-2 py-1 rounded-md text-[12.5px] bg-surface border-hy fg-base outline-none"
+        />
+      ) : (
+        <button
+          onClick={onSelect}
+          className={cx(
+            'w-full text-left pl-2 pr-7 py-1 rounded-md text-[12.5px] truncate transition-colors focus-ring',
+            active ? 'bg-subtle fg-base' : 'fg-subtle hover:bg-hover hover:fg-base'
+          )}
+        >{session.title}</button>
+      )}
       <button
         onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
         aria-label="Session menu"
@@ -326,7 +380,7 @@ function SessionItem({ session, active, onSelect }: { session: Session; active: 
             return (
               <button
                 key={i}
-                onClick={(e) => { e.stopPropagation(); setMenuOpen(false); }}
+                onClick={(e) => { e.stopPropagation(); item.action(); }}
                 className={cx(
                   'w-full flex items-center gap-2 px-2.5 py-1.5 text-[12px] hover:bg-hover transition-colors',
                   item.danger ? 'fg-danger' : 'fg-subtle'
