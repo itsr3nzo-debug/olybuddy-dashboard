@@ -73,9 +73,7 @@ export async function POST(req: NextRequest) {
     /* non-fatal — send the fallback link */
   }
 
-  // Send via Gmail SMTP (Resend is gated to unverified-domain sandbox until
-  // nexley.ai is verified at resend.com/domains; we fall back to the same
-  // Gmail SMTP the rest of the app uses for system emails).
+  // Primary: Gmail SMTP via nodemailer (branded sender).
   const sent = await sendSystemEmail({
     to: email,
     subject: 'Reset your Nexley password',
@@ -83,11 +81,18 @@ export async function POST(req: NextRequest) {
     text: renderText(actionLink),
     replyTo: REPLY_TO,
   });
-  if (!sent.success) {
-    console.error('[request-reset] SMTP send failed:', sent.error);
-    // Still return 200 to avoid leaking — the user sees "check your inbox"
-    // and we get an alert in the logs.
+  if (sent.success) {
+    return NextResponse.json({ ok: true });
   }
+
+  // Fallback: fire Supabase's built-in recovery email. Delivery works but the
+  // link in the email honours the project's Site URL — if that's still the
+  // dead olybuddy-dashboard origin, the user's click lands on a 404. This is
+  // purely a "better than nothing" path while SMTP/Resend creds are fixed.
+  console.error('[request-reset] SMTP send failed — falling back to Supabase mailer:', sent.error);
+  await service.auth.resetPasswordForEmail(email, {
+    redirectTo: `${DASHBOARD_ORIGIN}/reset-password`,
+  }).catch((e) => console.error('[request-reset] Supabase fallback also failed:', e));
 
   return NextResponse.json({ ok: true });
 }
