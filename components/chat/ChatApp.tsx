@@ -171,9 +171,14 @@ export default function ChatApp(props: ChatAppProps) {
       setSessions((prev) =>
         prev.map((s) => {
           if (s.id !== currentSessionId) return s;
-          // Merge — preserve any optimistic local data but overwrite with DB truth
+          // Merge — preserve local error state so the sweeper isn't overwritten by stale DB pending
           const byId = new Map(res.messages.map((m) => [m.id, m]));
-          const merged = s.messages.map((m) => byId.get(m.id) ?? m);
+          const merged = s.messages.map((m) => {
+            const dbMsg = byId.get(m.id);
+            if (!dbMsg) return m;
+            if (m.status === 'error' && (dbMsg.status === 'pending' || dbMsg.status === 'thinking')) return m;
+            return dbMsg;
+          });
           const seen = new Set(s.messages.map((m) => m.id));
           for (const m of res.messages) if (!seen.has(m.id)) merged.push(m);
           return { ...s, messages: merged };

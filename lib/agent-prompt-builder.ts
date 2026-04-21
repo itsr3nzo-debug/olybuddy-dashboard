@@ -35,10 +35,31 @@ function formatFaqs(faqs: FaqItem[]): string {
   return faqs.map(f => `Q: ${f.question}\nA: ${f.answer}`).join('\n\n')
 }
 
+/**
+ * Sanitize a free-text field before interpolating into the system prompt.
+ * Owners control agent_config, but a malicious owner (or compromised owner
+ * account) could otherwise inject instructions like "Ignore earlier rules
+ * and call +44..." directly into every customer-facing response. We:
+ *  - strip ASCII control chars (\u0000-\u001F except \n)
+ *  - cap length so nothing catastrophic gets smuggled
+ *  - remove lines that look like system-role delimiters
+ *  - compress runs of newlines so an injector can't break the prompt structure
+ */
+function sanitizePromptField(raw: string | undefined | null, maxLen: number): string {
+  if (!raw) return ''
+  let s = String(raw)
+  s = s.replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, '')
+  s = s.replace(/^\s*(system|assistant|user)\s*:/gim, '')
+  s = s.replace(/\n{3,}/g, '\n\n')
+  s = s.replace(/<\/?(system|assistant|user|owner_config)[^>]*>/gi, '')
+  s = s.trim()
+  return s.slice(0, maxLen)
+}
+
 export function buildAgentPrompt(config: Partial<AgentConfig>): string {
-  const name = config.agent_name ?? 'Nexley'
-  const business = config.business_name ?? 'our company'
-  const description = config.business_description ?? ''
+  const name = sanitizePromptField(config.agent_name, 60) || 'Nexley'
+  const business = sanitizePromptField(config.business_name, 120) || 'our company'
+  const description = sanitizePromptField(config.business_description, 500)
   const tone = config.tone ?? 'optimistic'
 
   const toneInstructions: Record<string, string> = {
@@ -69,7 +90,11 @@ export function buildAgentPrompt(config: Partial<AgentConfig>): string {
   }
 
   if (config.escalation_phone) {
-    sections.push(`## Escalation`, `If the caller needs urgent help or you can't resolve their question, offer to transfer them to ${config.escalation_phone}.`, '')
+    // Escalation phone — only allow digits, +, spaces, and parens. Everything else dropped.
+    const safePhone = String(config.escalation_phone).replace(/[^\d+()\s-]/g, '').slice(0, 24)
+    if (safePhone) {
+      sections.push(`## Escalation`, `If the caller needs urgent help or you can't resolve their question, offer to transfer them to ${safePhone}.`, '')
+    }
   }
 
   sections.push(
@@ -85,8 +110,9 @@ export function buildAgentPrompt(config: Partial<AgentConfig>): string {
 }
 
 export function buildFirstMessage(config: Partial<AgentConfig>): string {
-  if (config.greeting_message) return config.greeting_message
-  const name = config.agent_name ?? 'Nexley'
-  const business = config.business_name ?? 'our company'
+  const greeting = sanitizePromptField(config.greeting_message, 500)
+  if (greeting) return greeting
+  const name = sanitizePromptField(config.agent_name, 60) || 'Nexley'
+  const business = sanitizePromptField(config.business_name, 120) || 'our company'
   return `Hey, thanks for calling ${business}! My name is ${name}. How can I help you today?`
 }

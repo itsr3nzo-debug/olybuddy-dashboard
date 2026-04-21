@@ -483,9 +483,7 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
   const [rating, setRating] = useState<null | 'up' | 'down'>(null);
   const isStreaming = message.status === 'drafting';
   const content = isStreaming ? (streamingText || '') : message.content;
-  // Hide the bubble entirely while in-flight — show only the final reply.
-  // Errors still render so the user gets feedback if something goes wrong.
-  if (message.status === 'pending' || message.status === 'thinking') return null;
+  // Show status pill for in-flight states so the user isn't left staring at a blank screen.
   return (
     <div className={cx('flex gap-3 group', isActive && 'relative')}>
       <div
@@ -500,7 +498,7 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
       <div className="flex-1 min-w-0 pt-0.5">
       {(message.status !== 'done' && message.status !== 'drafting')
         ? (
-          message.status === 'error'
+          (message.status === 'error' || message.status === 'pending' || message.status === 'thinking')
             ? <StatusPill status={message.status} errorMessage={message.errorMessage} />
             : null
         )

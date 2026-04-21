@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+# Pre-commit hook — scan staged files for leaked secrets.
+# Skips if gitleaks is not installed (no hard dep), so CI is the fallback gate.
+
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --redact --config .gitleaks.toml --verbose || {
+    echo ""
+    echo "❌ gitleaks flagged a secret in your staged changes."
+    echo "   Remove it, then commit again. If it's a false positive,"
+    echo "   add a narrow allowlist rule to .gitleaks.toml."
+    exit 1
+  }
+else
+  echo "ℹ️  gitleaks not installed locally — relying on CI gate. brew install gitleaks to catch earlier."
+fi
