@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { sendSystemEmail } from '@/lib/email';
+
+export const runtime = 'nodejs';
 
 /**
  * POST /api/auth/request-reset
@@ -15,7 +18,7 @@ import { createClient as createServiceClient } from '@supabase/supabase-js';
  */
 
 const DASHBOARD_ORIGIN = 'https://nexley.vercel.app';
-const FROM_ADDRESS = process.env.SMTP_FROM || 'Nexley AI <noreply@nexley.ai>';
+const REPLY_TO = process.env.SMTP_REPLY_TO || 'hello@nexley.ai';
 
 export async function POST(req: NextRequest) {
   let email: string | undefined;
@@ -70,31 +73,18 @@ export async function POST(req: NextRequest) {
     /* non-fatal — send the fallback link */
   }
 
-  // Send via Resend (REST API, no SDK dependency).
-  const resendKey = process.env.RESEND_API_KEY;
-  if (!resendKey) {
-    console.error('[request-reset] RESEND_API_KEY not set');
-    return NextResponse.json({ ok: true });
-  }
-
-  const mailRes = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: FROM_ADDRESS,
-      to: email,
-      subject: 'Reset your Nexley password',
-      html: renderHtml(actionLink),
-      text: renderText(actionLink),
-    }),
+  // Send via Gmail SMTP (Resend is gated to unverified-domain sandbox until
+  // nexley.ai is verified at resend.com/domains; we fall back to the same
+  // Gmail SMTP the rest of the app uses for system emails).
+  const sent = await sendSystemEmail({
+    to: email,
+    subject: 'Reset your Nexley password',
+    html: renderHtml(actionLink),
+    text: renderText(actionLink),
+    replyTo: REPLY_TO,
   });
-
-  if (!mailRes.ok) {
-    const body = await mailRes.text();
-    console.error('[request-reset] Resend failed:', mailRes.status, body.slice(0, 300));
+  if (!sent.success) {
+    console.error('[request-reset] SMTP send failed:', sent.error);
     // Still return 200 to avoid leaking — the user sees "check your inbox"
     // and we get an alert in the logs.
   }
