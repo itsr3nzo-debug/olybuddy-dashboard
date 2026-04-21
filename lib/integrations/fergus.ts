@@ -371,21 +371,26 @@ export class FergusClient {
     return results.map(r => (r as { data?: Record<string, unknown> })?.data ?? (r as Record<string, unknown>))
   }
 
-  async completeJob(jobId: number): Promise<FergusJob | null> {
-    // Fergus uses PUT /jobs/{id}/complete to mark a job as completed.
-    try {
-      const res = await this.req<{ data: FergusJob } | FergusJob>('PUT', `/jobs/${jobId}/complete`, {})
-      return (res as { data: FergusJob })?.data ?? (res as FergusJob) ?? null
-    } catch {
-      // Fallback: some Fergus orgs expose status via the generic update endpoint
-      return this.updateJob(jobId, { status: 'Completed' })
-    }
+  /**
+   * NOT SUPPORTED by Fergus Partner API.
+   * The `/jobs/{id}/complete` path does not exist (verified against
+   * https://api.fergus.com/docs/json — 58 paths, no /complete endpoint).
+   * Job completion is implicit on invoicing. `/hold` and `/resume` exist
+   * if the caller wants pause/resume semantics.
+   */
+  async completeJob(_jobId: number): Promise<FergusJob | null> {
+    throw new Error('fergus_not_supported: POST /jobs/{id}/complete is not in the Fergus Partner API. Use hold/resume for pause semantics, or mark the job complete inside Fergus UI.')
   }
 
-  async generateInvoiceFromJob(jobId: number): Promise<Record<string, unknown> | null> {
-    // Fergus: POST /jobs/{id}/invoice → creates the invoice (and auto-syncs to Xero if connected).
-    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('POST', `/jobs/${jobId}/invoice`, {})
-    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
+  /**
+   * NOT SUPPORTED by Fergus Partner API.
+   * `POST /jobs/{id}/invoice` does not exist. Invoicing in Fergus happens
+   * inside the Fergus UI (or auto-sync to Xero if connected). The Partner
+   * API only exposes `GET /customerInvoices` and `GET /customerInvoices/{id}`
+   * for reading.
+   */
+  async generateInvoiceFromJob(_jobId: number): Promise<Record<string, unknown> | null> {
+    throw new Error('fergus_not_supported: POST /jobs/{id}/invoice is not in the Fergus Partner API. Invoice inside the Fergus UI; it will sync to Xero automatically if connected.')
   }
 
   /**
@@ -478,88 +483,207 @@ export class FergusClient {
     return created as Record<string, unknown>
   }
 
+  // ─── Notes (Fergus generic notes endpoint — attaches to any entity) ─
   /**
-   * Add a time entry (labour hours) to a job. Used by the agent when the
-   * owner reports "I did 3h at Smith Rd" or similar. Fergus accepts an
-   * `hours` decimal or a `startTime`/`endTime` pair — we use hours for
-   * owner-friendly input.
+   * Create a note on any Fergus entity (job, customer, site, quote, etc.).
+   * Maps to `POST /notes` with `{text, entityName, entityId, parentId?, isPinned?}`.
+   * This is the viable substitute for "tasks" — Fergus Partner API has no
+   * dedicated task-create endpoint, but notes are surfaced in the job
+   * timeline and mention-notified to assignees.
    */
-  async addTimeEntry(jobId: number, entry: {
-    hours: number
-    date?: string          // ISO YYYY-MM-DD; defaults to today
-    userId?: number        // Fergus user whose time this is; defaults to PAT owner
-    description?: string
-    isBillable?: boolean   // default true
+  async addNote(args: {
+    entityName: 'job' | 'customer' | 'site' | 'quote' | 'job_phase' | 'task' | 'enquiry' | 'customer_invoice'
+    entityId: number
+    text: string
+    parentId?: number
+    isPinned?: boolean
   }): Promise<Record<string, unknown> | null> {
     const body: Record<string, unknown> = {
-      hours: entry.hours,
-      date: entry.date ?? new Date().toISOString().slice(0, 10),
-      isBillable: entry.isBillable ?? true,
+      text: args.text,
+      entityName: args.entityName,
+      entityId: args.entityId,
     }
-    if (entry.userId) body.userId = entry.userId
-    if (entry.description) body.description = entry.description
-    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('POST', `/jobs/${jobId}/time-entries`, body)
+    if (args.parentId !== undefined) body.parentId = args.parentId
+    if (args.isPinned !== undefined) body.isPinned = args.isPinned
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('POST', '/notes', body)
     return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
   }
 
+  // ─── Time entries (read-only in Partner API) ────────────────
   /**
-   * Add a task (checklist item) to a job. Used by the agent for role-specific
-   * checklists — "Julian: test RCD", "James: label circuits", etc.
+   * List time entries. Fergus Partner API exposes `GET /timeEntries` only
+   * — there is NO write endpoint. Time logging must happen via Fergus Go
+   * (mobile) or the desktop UI.
    */
-  async addJobTask(jobId: number, task: {
+  async listTimeEntries(filters: {
+    jobNo?: string
+    jobPhaseId?: number
+    userId?: number
+    dateFrom?: string   // YYYY-MM-DD
+    dateTo?: string     // YYYY-MM-DD
+    lockedOnly?: boolean
+    pageSize?: number
+    pageCursor?: string
+  } = {}): Promise<Array<Record<string, unknown>>> {
+    const params = new URLSearchParams()
+    params.set('pageSize', String(filters.pageSize ?? 50))
+    params.set('pageCursor', filters.pageCursor ?? '0')
+    params.set('sortField', 'date')
+    params.set('sortOrder', 'desc')
+    if (filters.jobNo) params.set('filterJobNo', filters.jobNo)
+    if (filters.jobPhaseId !== undefined) params.set('filterJobPhaseId', String(filters.jobPhaseId))
+    if (filters.userId !== undefined) params.set('filterUserId', String(filters.userId))
+    if (filters.dateFrom) params.set('filterDateFrom', filters.dateFrom)
+    if (filters.dateTo) params.set('filterDateTo', filters.dateTo)
+    if (filters.lockedOnly !== undefined) params.set('filterLockedOnly', String(filters.lockedOnly))
+    const res = await this.req<{ data: Array<Record<string, unknown>> }>('GET', `/timeEntries?${params.toString()}`)
+    return res?.data ?? []
+  }
+
+  // ─── Hold / resume a job ────────────────────────────────
+  /** Put a job on hold. `holdUntil` YYYY-MM-DD + `notes` required by Fergus. */
+  async holdJob(jobId: number, holdUntil: string, notes: string): Promise<Record<string, unknown> | null> {
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>(
+      'POST', `/jobs/${jobId}/hold`, { holdUntil, notes },
+    )
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
+  }
+
+  /** Resume a held job. */
+  async resumeJob(jobId: number): Promise<Record<string, unknown> | null> {
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>(
+      'POST', `/jobs/${jobId}/resume`, {},
+    )
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
+  }
+
+  // ─── Quote variation (via POST /jobs/{id}/quotes — a new quote version) ──
+  /**
+   * Create a variation-as-quote for a job. Fergus doesn't have a dedicated
+   * variation endpoint; variations are modelled as a new quote version.
+   * Minimal body: `{title, dueDays (7-180), sections:[{name, lineItems:[{itemName,itemPrice,itemQuantity}]}]}`.
+   * Use this for "customer approved extra £X of work, add it as a variation".
+   */
+  async createJobQuote(jobId: number, quote: {
     title: string
     description?: string
-    assigneeUserId?: number
-    dueDate?: string         // ISO date
-    completed?: boolean      // default false
+    dueDays?: number              // 7-180, defaults 30
+    versionNumber?: number        // if present, creates a new version
+    sections: Array<{
+      name: string
+      description?: string
+      lineItems?: Array<{
+        itemName?: string
+        itemPrice?: number
+        itemCost?: number
+        itemQuantity?: number
+        isLabour?: boolean
+        priceBookLineItemId?: number
+      }>
+    }>
   }): Promise<Record<string, unknown> | null> {
     const body: Record<string, unknown> = {
-      title: task.title,
-      completed: task.completed ?? false,
+      title: quote.title,
+      dueDays: quote.dueDays ?? 30,
+      sections: quote.sections,
     }
-    if (task.description) body.description = task.description
-    if (task.assigneeUserId) body.assigneeUserId = task.assigneeUserId
-    if (task.dueDate) body.dueDate = task.dueDate
-    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('POST', `/jobs/${jobId}/tasks`, body)
+    if (quote.description) body.description = quote.description
+    if (quote.versionNumber !== undefined) body.versionNumber = quote.versionNumber
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>(
+      'POST', `/jobs/${jobId}/quotes`, body,
+    )
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
+  }
+
+  // ─── Quote lifecycle actions ────────────────────────────
+  async publishQuote(quoteId: number, publishedBy?: string): Promise<Record<string, unknown> | null> {
+    const body: Record<string, unknown> = {}
+    if (publishedBy) body.publishedBy = publishedBy
+    body.publishedAt = new Date().toISOString()
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>(
+      'POST', `/jobs/quotes/${quoteId}/publish`, body,
+    )
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
+  }
+
+  async markQuoteSent(quoteId: number, isSent = true): Promise<Record<string, unknown> | null> {
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>(
+      'POST', `/jobs/quotes/${quoteId}/markAsSent`, { isSent },
+    )
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
+  }
+
+  async acceptQuote(quoteId: number, acceptedBy: string, selectedSectionIds?: number[]): Promise<Record<string, unknown> | null> {
+    const body: Record<string, unknown> = { acceptedBy, acceptedAt: new Date().toISOString() }
+    if (selectedSectionIds?.length) body.selectedSectionIds = selectedSectionIds
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>(
+      'POST', `/jobs/quotes/${quoteId}/accept`, body,
+    )
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
+  }
+
+  async declineQuote(quoteId: number, rejectedBy?: string, reasonNotes?: string): Promise<Record<string, unknown> | null> {
+    const body: Record<string, unknown> = { declinedAt: new Date().toISOString() }
+    if (rejectedBy) body.rejectedBy = rejectedBy
+    if (reasonNotes) body.reasonNotes = reasonNotes
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>(
+      'POST', `/jobs/quotes/${quoteId}/decline`, body,
+    )
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
+  }
+
+  async voidQuote(quoteId: number): Promise<Record<string, unknown> | null> {
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>(
+      'POST', `/jobs/quotes/${quoteId}/void`, {},
+    )
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
+  }
+
+  // ─── Calendar events (scheduling) ───────────────────────
+  async createCalendarEvent(args: {
+    startTime: string                // ISO 8601 UTC
+    endTime: string                  // ISO 8601 UTC
+    eventTitle: string
+    eventType: 'JOB_PHASE' | 'QUOTE' | 'ESTIMATE' | 'OTHER'
+    userId?: number
+    linkedUserIds?: number[]
+    jobId?: number
+    jobPhaseId?: number
+    description?: string
+  }): Promise<Record<string, unknown> | null> {
+    const body: Record<string, unknown> = {
+      startTime: args.startTime,
+      endTime: args.endTime,
+      eventTitle: args.eventTitle,
+      eventType: args.eventType,
+    }
+    if (args.userId !== undefined) body.userId = args.userId
+    if (args.linkedUserIds?.length) body.linkedUserIds = args.linkedUserIds
+    if (args.jobId !== undefined) body.jobId = args.jobId
+    if (args.jobPhaseId !== undefined) body.jobPhaseId = args.jobPhaseId
+    if (args.description) body.description = args.description
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('POST', '/calendarEvents', body)
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
+  }
+
+  // ─── Site archive / restore ─────────────────────────────
+  async archiveSite(siteId: number): Promise<Record<string, unknown> | null> {
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('POST', `/sites/${siteId}/archive`, {})
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
+  }
+  async restoreSite(siteId: number): Promise<Record<string, unknown> | null> {
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('POST', `/sites/${siteId}/restore`, {})
     return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
   }
 
   /**
-   * Add a variation (change order) to a job. Extra work on top of the
-   * original quote. Fergus tracks these as separate line items that can be
-   * approved/invoiced individually.
+   * NOT SUPPORTED by Fergus Partner API.
+   * `POST /jobs/{id}/attachments` does not exist in the Partner API. File
+   * uploads happen in Fergus UI. This method is kept as a stub that throws
+   * so callers fail loudly instead of silently 404-ing.
    */
-  async addJobVariation(jobId: number, variation: {
-    title: string
-    description?: string
-    amount?: number           // price in major currency units
-    isApproved?: boolean      // default false (pending approval)
-  }): Promise<Record<string, unknown> | null> {
-    const body: Record<string, unknown> = {
-      title: variation.title,
-      isApproved: variation.isApproved ?? false,
-    }
-    if (variation.description) body.description = variation.description
-    if (variation.amount !== undefined) body.amount = variation.amount
-    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('POST', `/jobs/${jobId}/variations`, body)
-    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
-  }
-
-  async uploadJobAttachment(jobId: number, fileName: string, content: Buffer, mimeType: string): Promise<Record<string, unknown> | null> {
-    // Fergus attachments: multipart/form-data POST /jobs/{id}/attachments
-    const form = new FormData()
-    const blob = new Blob([new Uint8Array(content)], { type: mimeType })
-    form.append('file', blob, fileName)
-    const res = await fetch(`${FERGUS_BASE}/jobs/${jobId}/attachments`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${this.token}`, Accept: 'application/json' },
-      body: form,
-    })
-    if (!res.ok) {
-      throw new Error(`Fergus uploadJobAttachment failed ${res.status}`)
-    }
-    const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>
-    return (payload as { data?: Record<string, unknown> })?.data ?? payload
+  async uploadJobAttachment(_jobId: number, _fileName: string, _content: Buffer, _mimeType: string): Promise<Record<string, unknown> | null> {
+    throw new Error('fergus_not_supported: POST /jobs/{id}/attachments is not in the Fergus Partner API. Attach files in the Fergus UI.')
   }
 
   /** Validate a PAT by hitting a read-only endpoint that returns 401 on bad token. */

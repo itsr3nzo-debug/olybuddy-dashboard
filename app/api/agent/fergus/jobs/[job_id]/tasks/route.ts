@@ -7,27 +7,22 @@ import { FergusClient } from '@/lib/integrations/fergus'
 /**
  * POST /api/agent/fergus/jobs/<id>/tasks
  *
- * Add a task (checklist item) to a job. Typical use: role-specific
- * checklists from the agent — e.g.
- *   "Julian: test RCD at CU"
- *   "James: label final circuits"
+ * Fergus Partner API has NO task-create endpoint. The closest semantic
+ * match is a pinned note on the job — notes appear in the timeline and
+ * can be assigned-to via @mentions inside the text. This route wraps
+ * `POST /notes` with `entityName='job'` and pins the note by default.
  *
- * Body:
- *   {
- *     title: string (req, <=200),
- *     description?: string,
- *     assignee_user_id?: number,   // Fergus user id
- *     due_date?: "YYYY-MM-DD",
- *     completed?: boolean           // default false
- *   }
+ * Body: `{title, description?, assignee_user_id?, due_date?, pin?}` —
+ * title + optional context get combined into the note body; assignee and
+ * due date are folded into the text (Fergus notes have no dedicated fields
+ * for these).
  */
-
 const Body = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
   assignee_user_id: z.number().int().positive().optional(),
   due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  completed: z.boolean().optional(),
+  pin: z.boolean().optional(),
 })
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ job_id: string }> }) {
@@ -45,14 +40,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
   const d = parsed.data
   try {
     const client = await FergusClient.forClient(auth.clientId)
-    const task = await client.addJobTask(id, {
-      title: d.title,
-      description: d.description,
-      assigneeUserId: d.assignee_user_id,
-      dueDate: d.due_date,
-      completed: d.completed,
+    // Compose the note body: title + optional details so it's readable in the timeline.
+    const lines = [`📋 ${d.title}`]
+    if (d.description) lines.push('', d.description)
+    if (d.assignee_user_id) lines.push('', `Assignee: user ${d.assignee_user_id}`)
+    if (d.due_date) lines.push(`Due: ${d.due_date}`)
+    const note = await client.addNote({
+      entityName: 'job',
+      entityId: id,
+      text: lines.join('\n'),
+      isPinned: d.pin ?? true,
     })
-    return NextResponse.json({ task })
+    return NextResponse.json({
+      task_note: note,
+      note: 'Fergus has no native task object in the Partner API — this creates a pinned note on the job instead.',
+    })
   } catch (e) {
     return NextResponse.json({ error: 'fergus_job_task_failed', detail: safeErrorDetail(e) }, { status: 502 })
   }

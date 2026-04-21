@@ -1,34 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { authenticateAgent } from '@/lib/agent-auth'
 import { safeErrorDetail } from '@/lib/agent-trust-gate'
 import { FergusClient } from '@/lib/integrations/fergus'
 
 /**
- * POST /api/agent/fergus/jobs/<id>/time-entries
+ * GET /api/agent/fergus/jobs/<id>/time-entries?date_from&date_to&user_id
  *
- * Log labour hours against a job. Used during training + on-site reporting:
- *   "I did 3h at Smith Rd today" → agent calls this.
- *
- * Body:
- *   {
- *     hours: number (>0, <=24),
- *     date?: "YYYY-MM-DD",        // defaults today (UK local)
- *     user_id?: number,           // Fergus user; defaults to PAT owner
- *     description?: string,       // what was done
- *     is_billable?: boolean       // default true
- *   }
+ * Fergus Partner API exposes time entries as READ-ONLY (`GET /timeEntries`).
+ * Writes are not available — labour logging happens in Fergus Go mobile or
+ * the Fergus desktop UI. This endpoint filters by the job's jobNo so you
+ * can pull "what has been logged against this job" for reporting/reconciliation.
  */
-
-const Body = z.object({
-  hours: z.number().gt(0).lte(24),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  user_id: z.number().int().positive().optional(),
-  description: z.string().max(500).optional(),
-  is_billable: z.boolean().optional(),
-})
-
-export async function POST(req: NextRequest, { params }: { params: Promise<{ job_id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ job_id: string }> }) {
   const auth = await authenticateAgent(req)
   if (auth instanceof NextResponse) return auth
   const { job_id } = await params
@@ -36,22 +19,34 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
   if (!Number.isFinite(id) || id <= 0) {
     return NextResponse.json({ error: 'invalid job_id' }, { status: 400 })
   }
-  const parsed = Body.safeParse(await req.json().catch(() => ({})))
-  if (!parsed.success) {
-    return NextResponse.json({ error: 'invalid body', issues: parsed.error.issues }, { status: 400 })
-  }
-  const d = parsed.data
+  const sp = new URL(req.url).searchParams
   try {
     const client = await FergusClient.forClient(auth.clientId)
-    const entry = await client.addTimeEntry(id, {
-      hours: d.hours,
-      date: d.date,
-      userId: d.user_id,
-      description: d.description,
-      isBillable: d.is_billable,
+    const job = await client.getJob(id)
+    if (!job) return NextResponse.json({ error: 'job not found', job_id: id }, { status: 404 })
+    const jobNo = (job as unknown as { jobNo?: string }).jobNo
+    const entries = await client.listTimeEntries({
+      jobNo,
+      dateFrom: sp.get('date_from') ?? undefined,
+      dateTo: sp.get('date_to') ?? undefined,
+      userId: sp.get('user_id') ? parseInt(sp.get('user_id')!, 10) : undefined,
+      pageSize: sp.get('page_size') ? Math.min(100, parseInt(sp.get('page_size')!, 10)) : 50,
     })
-    return NextResponse.json({ time_entry: entry })
+    return NextResponse.json({ count: entries.length, time_entries: entries })
   } catch (e) {
-    return NextResponse.json({ error: 'fergus_time_entry_failed', detail: safeErrorDetail(e) }, { status: 502 })
+    return NextResponse.json({ error: 'fergus_list_time_entries_failed', detail: safeErrorDetail(e) }, { status: 502 })
   }
+}
+
+/**
+ * POST is NOT SUPPORTED — Fergus Partner API does not expose a time-entry
+ * write endpoint. Return 501 with a clear pointer instead of failing silently.
+ */
+export async function POST() {
+  return NextResponse.json({
+    error: 'not_supported',
+    reason: 'Fergus Partner API has no POST endpoint for time entries. Time logging must happen in Fergus Go (mobile) or the Fergus desktop UI.',
+    fergus_endpoint_checked: 'api.fergus.com/docs/json — only GET /timeEntries exists',
+    workaround: 'Use GET this URL to read entries; log hours inside Fergus Go.',
+  }, { status: 501 })
 }
