@@ -63,6 +63,21 @@ function SignupWizard() {
     if (error) setError('')
   }
 
+  // Per-industry hints so the Business name and Services placeholders match
+  // whatever industry the user picked in step 2 (used to always say "Plumbing").
+  const INDUSTRY_HINTS: Record<string, { biz: string; services: string }> = {
+    accountant: { biz: "e.g. Smith & Co Accountants", services: 'e.g. Self-assessment, VAT returns, Bookkeeping' },
+    solicitor: { biz: 'e.g. Smith Legal', services: 'e.g. Conveyancing, Wills, Employment law' },
+    plumber: { biz: "e.g. Smith's Plumbing", services: 'e.g. Boiler repair, Bathroom install, Emergency callout' },
+    electrician: { biz: "e.g. Smith Electrical", services: 'e.g. EICR certificates, Fuse box upgrades, Emergency callout' },
+    builder: { biz: "e.g. Smith Builders", services: 'e.g. Extensions, Loft conversions, Renovations' },
+    landscaper: { biz: "e.g. Smith Landscapes", services: 'e.g. Lawn care, Fencing, Garden design' },
+    roofer: { biz: "e.g. Smith Roofing", services: 'e.g. Roof repairs, Re-roofs, Gutter cleaning' },
+    cleaner: { biz: "e.g. Smith Cleaning Co", services: 'e.g. End of tenancy, Office cleaning, Deep clean' },
+  }
+  const industryKey = (form.industry || '').toLowerCase()
+  const hints = INDUSTRY_HINTS[industryKey] || { biz: 'e.g. Your Business Ltd', services: 'e.g. Your core services' }
+
   function canProceed(): boolean {
     if (step === 1) return !!form.email && form.email.includes('@') && !!form.password && form.password.length >= 10 && /\d/.test(form.password)
     if (step === 2) return !!form.business_name && !!form.industry
@@ -283,7 +298,7 @@ function SignupWizard() {
                           type="text"
                           value={form.business_name}
                           onChange={e => update('business_name', e.target.value)}
-                          placeholder="e.g. Smith's Plumbing"
+                          placeholder={hints.biz}
                           autoFocus
                           className="w-full pl-10 pr-4 py-3 rounded-xl border border-white/10 text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all bg-white/5 text-white placeholder:text-slate-500"
                         />

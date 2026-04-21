@@ -22,7 +22,7 @@ export async function GET() {
 
     const { data: client } = await adminDb
       .from('clients')
-      .select('id, name, email, phone, onboarding_completed, onboarding_step, services_text, contact_name, dpa_accepted_at')
+      .select('id, name, email, phone, industry, onboarding_completed, onboarding_step, services_text, contact_name, dpa_accepted_at')
       .eq('id', session.clientId)
       .single()
 
@@ -37,6 +37,7 @@ export async function GET() {
       contact_name: client?.contact_name ?? '',
       phone: client?.phone ?? '',
       services_text: client?.services_text ?? '',
+      industry: (client as { industry?: string } | null)?.industry ?? '',
       greeting_message: config?.greeting_message ?? '',
       onboarding_completed: client?.onboarding_completed ?? false,
       onboarding_step: client?.onboarding_step ?? 1,

@@ -123,12 +123,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Create client row
+  // Create client row. Prefer the explicit `phone` field; fall back to the
+  // business WhatsApp number the user just entered so the contact details
+  // page is pre-populated instead of showing a blank placeholder.
+  const resolvedPhone = (phone && String(phone).trim()) || normalizedBusinessWa || normalizedOwnerPhone || null
   const { data: client, error: clientErr } = await supabase.from('clients').insert({
     name: business_name,
     slug,
     email,
-    phone: phone || null,
+    phone: resolvedPhone,
     industry,
     contact_name: contact_name || null,
     location: location || null,
@@ -173,7 +176,7 @@ export async function POST(req: NextRequest) {
     agent_status: 'offline',
     is_active: false,
     tone: personality || 'optimistic',
-    greeting_message: `Hey! I'm the AI assistant for ${business_name}. How can I help you today?`,
+    greeting_message: `Hey, I'm ${sanitizedAgentName} — the AI assistant at ${business_name}. How can I help?`,
     business_whatsapp: normalizedBusinessWa,
     owner_phone: normalizedOwnerPhone,
     owner_name: (typeof owner_name === 'string' && owner_name.trim()) || contact_name || null,

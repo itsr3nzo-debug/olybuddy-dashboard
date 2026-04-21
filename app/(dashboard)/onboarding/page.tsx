@@ -20,6 +20,18 @@ interface OnboardingData {
   greeting_message: string
   onboarding_step: number
   onboarding_completed?: boolean
+  industry?: string
+}
+
+const SERVICES_HINT_BY_INDUSTRY: Record<string, string> = {
+  accountant: 'e.g. Self-assessment, VAT returns, Bookkeeping',
+  solicitor: 'e.g. Conveyancing, Wills, Employment law',
+  plumber: 'e.g. Boiler repair, Bathroom install, Emergency callout',
+  electrician: 'e.g. EICR certificates, Fuse box upgrades, Emergency callout',
+  builder: 'e.g. Extensions, Loft conversions, Renovations',
+  landscaper: 'e.g. Lawn care, Fencing, Garden design',
+  roofer: 'e.g. Roof repairs, Re-roofs, Gutter cleaning',
+  cleaner: 'e.g. End of tenancy, Office cleaning, Deep clean',
 }
 
 export default function OnboardingPage() {
@@ -32,6 +44,7 @@ export default function OnboardingPage() {
   const [contactName, setContactName] = useState('')
   const [phone, setPhone] = useState('')
   const [servicesText, setServicesText] = useState('')
+  const [industry, setIndustry] = useState('')
   const [greeting, setGreeting] = useState('')
   const [dpaAccepted, setDpaAccepted] = useState(false)
   const [connectedCount, setConnectedCount] = useState(0)
@@ -51,6 +64,7 @@ export default function OnboardingPage() {
         setContactName(data.contact_name ?? '')
         setPhone(data.phone ?? '')
         setServicesText(data.services_text ?? '')
+        setIndustry((data.industry ?? '').toLowerCase())
         setGreeting(data.greeting_message ?? `Hey, thanks for reaching out to ${data.name || 'us'}! How can I help you today?`)
         setLoading(false)
       })
@@ -228,7 +242,7 @@ export default function OnboardingPage() {
               <label className="block">
                 <span className="text-sm font-medium mb-1 block">Services You Offer</span>
                 <textarea value={servicesText} onChange={e => setServicesText(e.target.value)} rows={3}
-                  placeholder="e.g. Boiler repair, Bathroom install, Emergency callout"
+                  placeholder={SERVICES_HINT_BY_INDUSTRY[industry] || 'e.g. Your core services'}
                   className="w-full px-3 py-2 bg-background border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/50 resize-none" />
               </label>
             </div>
@@ -253,7 +267,7 @@ export default function OnboardingPage() {
               <ul className="text-muted-foreground space-y-1 ml-5 list-disc">
                 <li>You are an authorised representative of {name || 'your business'}</li>
                 <li>You&apos;ve reviewed our <Link href="/security" target="_blank" className="text-brand-primary hover:underline">security posture</Link> and the <Link href="/legal/DPA-template.md" target="_blank" className="text-brand-primary hover:underline">full DPA</Link></li>
-                <li>Sub-processors (Supabase, Composio, Vercel, Hetzner, Anthropic) are accepted</li>
+                <li>You accept our listed sub-processors (database, hosting, integration and model providers). Full list at <a href="https://nexley.ai/legal/sub-processors" className="underline hover:text-white" target="_blank" rel="noreferrer">nexley.ai/legal/sub-processors</a></li>
                 <li>You can request a counter-signed copy at <a href="mailto:legal@nexley.ai" className="text-brand-primary hover:underline">legal@nexley.ai</a></li>
               </ul>
             </div>
