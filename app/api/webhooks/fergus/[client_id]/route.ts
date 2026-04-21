@@ -150,6 +150,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cli
     urgency: urgencyFor(event),
     confidence: 1.0,
     status: 'pending',
+    proposed_action: `Handle Fergus ${event}`,
     extracted_context: payload,
   }, { onConflict: 'client_id,signal_id', ignoreDuplicates: true })
 
