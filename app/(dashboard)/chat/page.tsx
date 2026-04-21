@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { getUserSession } from '@/lib/rbac';
 import { redirect } from 'next/navigation';
 import ChatApp from '@/components/chat/ChatApp';
@@ -100,10 +101,19 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
     );
   }
 
-  // Fetch business name + owner for the active client
+  // Fetch business name + owner for the active client.
+  // Super_admins don't have a client_id in their JWT so the clients-table RLS
+  // would return 0 rows — use service-role for admin, user-scoped for owner/member.
   let clientName = 'My Business';
   let ownerName: string | undefined;
-  const { data: client } = await supabase
+  const reader = session.role === 'super_admin'
+    ? createServiceClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+      )
+    : supabase;
+  const { data: client } = await reader
     .from('clients')
     .select('name, contact_name')
     .eq('id', activeClientId)
