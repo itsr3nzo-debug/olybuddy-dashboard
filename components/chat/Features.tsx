@@ -99,12 +99,12 @@ interface ProofStripProps {
   compact?: boolean;
 }
 
-export function ProofStrip({ model = 'opus', calls = 47, seconds = 4.2, sources = 4, verified = true, compact = false }: ProofStripProps) {
+export function ProofStrip({ calls = 47, seconds = 4.2, sources = 4, verified = true, compact = false }: ProofStripProps) {
   if (compact) {
     return (
-      <div className="proof-strip" title={`${calls} model calls routed via ${model}`}>
+      <div className="proof-strip" title="Nexley AI response">
         <span className="proof-dot" />
-        <span>{model}</span>
+        <span>Nexley AI</span>
         <span className="proof-sep" />
         <span>{`${seconds.toFixed(1)}s`}</span>
         <span className="proof-sep" />
@@ -119,11 +119,11 @@ export function ProofStrip({ model = 'opus', calls = 47, seconds = 4.2, sources 
     );
   }
   return (
-    <div className="proof-strip" title="Model routing for this reply">
+    <div className="proof-strip" title="Nexley AI response">
       <span className="proof-dot" />
-      <span>{model}</span>
+      <span>Nexley AI</span>
       <span className="proof-sep" />
-      <span>{`${calls} model calls`}</span>
+      <span>{`${calls} steps`}</span>
       <span className="proof-sep" />
       <span>{`${seconds.toFixed(1)}s`}</span>
       <span className="proof-sep" />
@@ -150,12 +150,12 @@ export function InlineBar({ value, max, width = 32 }: { value: number; max: numb
 
 /* ───────────── Thinking trace ───────────── */
 const TRACE_STEPS = [
-  { t: 0, ms: 420, label: 'Parsing intent', model: 'haiku', detail: '8 tokens · 1 call' },
-  { t: 420, ms: 620, label: 'Searching CRM', model: 'haiku', detail: '3,241 contacts · vector k=24' },
-  { t: 1040, ms: 540, label: 'Cross-referencing call log', model: 'haiku', detail: 'Last 90d · 142 calls' },
-  { t: 1580, ms: 480, label: 'Scoring priority', model: 'haiku', detail: 'Pipeline-weighted' },
-  { t: 2060, ms: 900, label: 'Drafting reply', model: 'opus', detail: 'Escalated for reasoning' },
-  { t: 2960, ms: 320, label: 'Verifying citations', model: 'haiku', detail: '4 sources matched' },
+  { t: 0, ms: 420, label: 'Parsing intent', stage: 'Understand', detail: '8 tokens · 1 step' },
+  { t: 420, ms: 620, label: 'Searching CRM', stage: 'Retrieve', detail: '3,241 contacts · vector k=24' },
+  { t: 1040, ms: 540, label: 'Cross-referencing call log', stage: 'Retrieve', detail: 'Last 90d · 142 calls' },
+  { t: 1580, ms: 480, label: 'Scoring priority', stage: 'Reason', detail: 'Pipeline-weighted' },
+  { t: 2060, ms: 900, label: 'Drafting reply', stage: 'Draft', detail: 'Business-style tone' },
+  { t: 2960, ms: 320, label: 'Verifying citations', stage: 'Verify', detail: '4 sources matched' },
 ];
 
 export function ThinkingTrace({ startAt }: { startAt?: number }) {
@@ -187,7 +187,7 @@ export function ThinkingTrace({ startAt }: { startAt?: number }) {
               style={{ opacity: started ? 1 : 0.28, transition: 'opacity 0.2s' }}
             >
               <span className="trace-tick">{done ? '✓' : active ? '›' : '·'}</span>
-              <span className="trace-model">{step.model}</span>
+              <span className="trace-model">{step.stage}</span>
               <span>
                 {step.label}
                 <span className="fg-muted" style={{ marginLeft: 8 }}>{step.detail}</span>

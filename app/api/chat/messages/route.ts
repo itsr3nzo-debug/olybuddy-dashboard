@@ -66,6 +66,23 @@ export async function POST(req: Request) {
   }
   if (!session_id) return NextResponse.json({ error: 'session_id required' }, { status: 400 });
 
+  // Auto-title the session from its first user message if it still has a
+  // placeholder title ("New chat" / "Chat" / "").
+  try {
+    const { data: sess } = await writer
+      .from('agent_chat_sessions')
+      .select('title')
+      .eq('id', session_id)
+      .maybeSingle();
+    const placeholder = !sess?.title || /^(new chat|chat|untitled)$/i.test(String(sess.title).trim());
+    if (placeholder) {
+      const autoTitle = content.length > 48 ? content.slice(0, 48) + '…' : content;
+      await writer.from('agent_chat_sessions').update({ title: autoTitle }).eq('id', session_id);
+    }
+  } catch {
+    /* non-fatal */
+  }
+
   // 1. User message
   const { data: userMsg, error: uErr } = await writer
     .from('agent_chat_messages')

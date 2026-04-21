@@ -515,16 +515,16 @@ export const PIPELINE_RECEIPT = {
   verified: '0 of 12',
   verifiedSub: 'review table',
   modelCalls: '47',
-  modelSub: '41 Haiku · 6 Opus',
+  modelSub: 'steps routed',
 };
 
 export const NUDGE_RECEIPT = {
   savedHours: '18m',
   sourcesCited: '3',
   verified: 'Voice',
-  verifiedSub: 'Failsworth style',
+  verifiedSub: 'house style',
   modelCalls: '12',
-  modelSub: '11 Haiku · 1 Opus',
+  modelSub: 'steps routed',
 };
 
 // Silence unused helper warnings at dev time

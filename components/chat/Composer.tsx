@@ -45,7 +45,12 @@ function Composer({ onSend, busy, autoFocus, variant = 'panel', onOpenPalette, o
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    // Enter submits, Shift+Enter inserts newline. Ignore during IME composition.
+    if (
+      e.key === 'Enter' &&
+      !e.shiftKey &&
+      !e.nativeEvent.isComposing
+    ) {
       e.preventDefault();
       send();
       return;
@@ -312,7 +317,11 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
       {(message.status !== 'done' && message.status !== 'drafting')
         ? (
           <div className="flex flex-col gap-1">
-            <StatusPill status={message.status} errorMessage={message.errorMessage} />
+            {message.status === 'error' ? (
+              <StatusPill status={message.status} errorMessage={message.errorMessage} />
+            ) : (
+              <TypingBubble />
+            )}
             <BreadcrumbStrip crumbs={message.breadcrumbs} />
           </div>
         )
@@ -354,6 +363,20 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
           <InlineAction icon={ThumbsDown} label={rating === 'down' ? 'Noted' : 'Bad'} onClick={() => setRating('down')} active={rating === 'down'} />
         </div>
       )}
+    </div>
+  );
+}
+
+function TypingBubble() {
+  return (
+    <div
+      className="inline-flex items-center gap-1 rounded-2xl px-3.5 py-2.5 bg-subtle"
+      style={{ width: 'fit-content' }}
+      aria-label="Nexley is typing"
+    >
+      <span className="status-dot" style={{ animationDelay: '0ms' }} />
+      <span className="status-dot" style={{ animationDelay: '150ms' }} />
+      <span className="status-dot" style={{ animationDelay: '300ms' }} />
     </div>
   );
 }
