@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Mail, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 
@@ -15,12 +14,18 @@ export default function ForgotPasswordPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const supabase = createClient()
-    // Supabase's resetPasswordForEmail silently no-ops if email doesn't exist,
-    // so we always show the generic "check your inbox" screen to avoid leaking
-    // which emails have accounts.
-    const redirect = `${window.location.origin}/reset-password`
-    await supabase.auth.resetPasswordForEmail(email, { redirectTo: redirect })
+    // Route through our own API so we can (a) pick the correct origin for the
+    // reset link regardless of Supabase Site URL config, and (b) deliver via
+    // Resend instead of Supabase's rate-limited default mailer.
+    try {
+      await fetch('/api/auth/request-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      })
+    } catch (err) {
+      console.warn('request-reset failed', err)
+    }
     setSubmitted(true)
     setLoading(false)
   }

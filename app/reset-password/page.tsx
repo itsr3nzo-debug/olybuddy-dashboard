@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Lock, Check } from 'lucide-react'
 import Link from 'next/link'
@@ -22,13 +22,34 @@ function ResetPasswordForm() {
   const [done, setDone] = useState(false)
   const [ready, setReady] = useState(false)
   const router = useRouter()
+  const search = useSearchParams()
 
   useEffect(() => {
-    // Supabase password-reset email lands here with #access_token=… hash.
-    // Claim the session so we can call updateUser() below.
     if (typeof window === 'undefined') return
     let isMounted = true
     const supabase = createClient()
+
+    // Path 1 — our custom route sends ?token_hash=...&type=recovery&email=...
+    // Exchange via verifyOtp to mint a session locally. No server-side
+    // redirect allowlist involved.
+    const tokenHash = search?.get('token_hash')
+    const type = (search?.get('type') as 'recovery' | 'email' | undefined) || 'recovery'
+    const email = search?.get('email') || undefined
+    if (tokenHash) {
+      supabase.auth
+        .verifyOtp({ token_hash: tokenHash, type, ...(email ? { email } : {}) })
+        .then(({ error }) => {
+          if (!isMounted) return
+          if (error) setError('Reset link expired or already used. Request a new one.')
+          else {
+            setReady(true)
+            window.history.replaceState({}, '', '/reset-password')
+          }
+        })
+      return () => { isMounted = false }
+    }
+
+    // Path 2 — legacy Supabase recovery redirect with #access_token=… hash.
     const hash = window.location.hash
     if (hash.includes('access_token')) {
       const p = new URLSearchParams(hash.slice(1))
@@ -46,14 +67,15 @@ function ResetPasswordForm() {
         return () => { isMounted = false }
       }
     }
-    // User hit /reset-password directly without a valid link → send back
+
+    // No token anywhere → user hit /reset-password directly.
     supabase.auth.getUser().then(({ data }) => {
       if (!isMounted) return
       if (data.user) setReady(true)
       else setError('You need to click the reset link from your email first.')
     })
     return () => { isMounted = false }
-  }, [])
+  }, [search])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
