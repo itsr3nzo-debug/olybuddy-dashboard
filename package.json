@@ -42,6 +42,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "devicon": "^2.17.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
     "simple-icons": "^16.16.0",
     "tailwindcss": "^4",
     "typescript": "^5"

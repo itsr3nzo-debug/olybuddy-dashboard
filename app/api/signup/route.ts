@@ -193,7 +193,7 @@ export async function POST(req: NextRequest) {
   // Create Supabase auth user with the password UPFRONT (works for both trial
   // and paid flows). For paid: user can log in immediately; dashboard shows
   // "payment pending" banner until the Stripe webhook flips subscription_status.
-  const { error: authErr } = await supabase.auth.admin.createUser({
+  const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
     email,
     password,
     email_confirm: true, // no email verification step — they chose their password so we trust them
@@ -243,6 +243,19 @@ export async function POST(req: NextRequest) {
       })
     } catch {
       // Email failed but account exists — they can still use /login
+    }
+
+    // Enroll in the 5-touch conversion sequence. Idempotent via PK on user_id.
+    if (authData?.user?.id) {
+      try {
+        await supabase.from('trial_sequence').insert({
+          user_id: authData.user.id,
+          client_id: clientId,
+          signed_up_at: new Date().toISOString(),
+        })
+      } catch (e) {
+        console.warn('[signup] trial_sequence enrol failed', e)
+      }
     }
 
     return NextResponse.json({ success: true, trial: true })
