@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
     agent_status: 'offline',
     is_active: false,
     tone: personality || 'optimistic',
-    greeting_message: `Hey, I'm ${sanitizedAgentName} — the AI assistant at ${business_name}. How can I help?`,
+    greeting_message: `Hey, I'm ${sanitizedAgentName} — an assistant at ${business_name}. How can I help?`,
     business_whatsapp: normalizedBusinessWa,
     owner_phone: normalizedOwnerPhone,
     owner_name: (typeof owner_name === 'string' && owner_name.trim()) || contact_name || null,

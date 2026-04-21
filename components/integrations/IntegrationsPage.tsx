@@ -325,6 +325,9 @@ export default function IntegrationsPage() {
     const { data } = await supabase
       .from('integrations')
       .select('id, provider, status, account_email, account_name, last_synced_at, created_at, error_message')
+      // Belt + suspenders — disconnect now hard-deletes rows, but any legacy
+      // rows still sitting on status='disconnected' shouldn't re-appear here.
+      .in('status', ['connected', 'expired', 'error'])
       .order('created_at', { ascending: false })
     setIntegrations(data || [])
     setLoading(false)

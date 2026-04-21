@@ -35,19 +35,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
   const providers = provider === "google" ? ["gmail", "google_calendar"] : [provider];
 
   for (const p of providers) {
-    // Get current integration to check it exists and belongs to this client
+    // Fetch ANY row for this client+provider (not just connected — covers
+    // expired/error rows the user wants gone too).
     const { data: integration } = await adminSupabase
       .from("integrations")
       .select("id, access_token_enc")
       .eq("client_id", clientId)
       .eq("provider", p)
-      .eq("status", "connected")
-      .single();
+      .maybeSingle();
 
     if (!integration) continue;
 
     // Try to revoke the token at the provider (best effort)
-    // Look up revoke URL from centralized config; for sub-providers like gmail/google_calendar, also check the parent
     const config = getOAuthConfig(p);
     const revokeUrl = config?.revokeUrl;
 
@@ -63,20 +62,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
       }
     }
 
-    // Clear tokens and mark as disconnected
-    await adminSupabase
-      .from("integrations")
-      .update({
-        status: "disconnected",
-        access_token_enc: null,
-        refresh_token_enc: null,
-        token_expires_at: null,
-        error_message: null,
-        error_count: 0,
-      })
-      .eq("id", integration.id);
-
-    // Log the disconnection
+    // Log BEFORE deletion (FK to integrations.id fires on cascade otherwise).
     await adminSupabase.from("integration_sync_logs").insert({
       client_id: clientId,
       integration_id: integration.id,
@@ -85,6 +71,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
       records_synced: 0,
       metadata: { action: "user_disconnected", provider: p },
     });
+
+    // Hard-delete the row. Keeping a status='disconnected' row was making the
+    // integration "reappear" in the UI because fetchIntegrations pulls every
+    // row regardless of status — the user had to reload twice to understand
+    // why it came back. Tokens are already revoked above, so nothing is lost.
+    await adminSupabase
+      .from("integrations")
+      .delete()
+      .eq("id", integration.id);
   }
 
   return NextResponse.json({ success: true, provider });
