@@ -60,23 +60,31 @@ interface SidebarRailProps {
 }
 
 function SidebarRail({ onNewChat, onOpenPalette, onToggleTheme, theme, onToggleCollapse, onGoHome }: SidebarRailProps) {
+  const { clientName } = useClient();
+  const initials = (clientName || 'N')
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? '')
+    .join('') || 'N';
   return (
-    <div className="flex flex-col items-center py-3 gap-1 h-full">
+    <div className="flex flex-col items-center py-3 gap-1.5 h-full">
       <button
         onClick={onGoHome}
         className="h-7 w-7 rounded flex items-center justify-center text-[10px] font-semibold focus-ring"
         style={{ background: 'rgb(var(--hy-fg-base))', color: 'rgb(var(--hy-fg-inverse))' }}
-      >FL</button>
+      >{initials}</button>
       <div className="h-px w-6 my-2" style={{ background: 'rgb(var(--hy-border))' }} />
-      <IconButton icon={Plus} label="Create" onClick={onNewChat} size={13} />
-      <IconButton icon={Search} label="Search (⌘K)" onClick={onOpenPalette} size={13} />
-      <IconButton icon={MessageSquare} label="Assistant" size={13} active />
-      <IconButton icon={Folder} label="Vault" size={13} />
-      <IconButton icon={Zap} label="Workflows" size={13} />
-      <IconButton icon={History} label="History" size={13} />
+      <IconButton icon={Plus} label="Create" onClick={onNewChat} size={14} />
+      <IconButton icon={Search} label="Search (⌘K)" onClick={onOpenPalette} size={14} />
+      <div className="h-px w-6 my-1" style={{ background: 'rgb(var(--hy-border))' }} />
+      <IconButton icon={MessageSquare} label="Assistant" size={14} active />
+      <IconButton icon={Folder} label="Vault" size={14} />
+      <IconButton icon={Zap} label="Workflows" size={14} />
+      <IconButton icon={History} label="History" size={14} />
+      <IconButton icon={Book} label="Knowledge" size={14} />
       <div className="flex-1" />
-      <IconButton icon={theme === 'dark' ? Sun : Moon} label={theme === 'dark' ? 'Light' : 'Dark'} onClick={onToggleTheme} size={13} />
-      <IconButton icon={PanelLeft} label="Expand" onClick={onToggleCollapse} size={13} />
+      <IconButton icon={theme === 'dark' ? Sun : Moon} label={theme === 'dark' ? 'Light' : 'Dark'} onClick={onToggleTheme} size={14} />
+      <IconButton icon={PanelLeft} label="Expand" onClick={onToggleCollapse} size={14} />
     </div>
   );
 }
@@ -127,7 +135,7 @@ function SidebarFull({ clientInitials, groups, currentSessionId, onSelectSession
         </button>
       </div>
 
-      <nav className="px-1.5">
+      <nav className="px-1.5 space-y-0.5">
         <NavItem icon={MessageSquare} label="Assistant" active />
         <NavItem icon={Folder} label="Vault" onClick={() => setVaultOpen(!vaultOpen)} />
         <NavItem icon={Zap} label="Workflows" />
@@ -263,12 +271,12 @@ function NavItem({ icon: IconC, iconActive, label, active, onClick }: NavItemPro
     <button
       onClick={onClick}
       className={cx(
-        'w-full flex items-center gap-2 px-2.5 py-[5px] rounded-md text-[12.5px] transition-colors focus-ring',
+        'w-full flex items-center gap-2.5 px-2.5 py-[7px] rounded-md text-[13px] transition-colors focus-ring',
         active ? 'fg-base font-medium' : 'fg-subtle hover:fg-base'
       )}
       style={active ? { background: 'rgb(var(--hy-bg-subtle) / 0.6)' } : undefined}
     >
-      <IconToUse size={13} />
+      <IconToUse size={14} />
       {label}
     </button>
   );

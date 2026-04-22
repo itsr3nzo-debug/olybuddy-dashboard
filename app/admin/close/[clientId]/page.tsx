@@ -59,17 +59,21 @@ export default async function TrialClosePage({ params }: { params: Promise<{ cli
 
   if (!client) notFound()
 
-  // Trial window — trial_started_at doesn't exist; derive from trial_ends_at - 5 days
+  // Window selection:
+  //   Trial clients → their trial window (trial_ends_at - 5d to trial_ends_at)
+  //     so the closing tool reflects the trial they actually had
+  //   Everyone else → last 5 days from now
+  //     so paid/active clients see their recent usage, not stale trial data
   const MS_5D = 5 * 24 * 60 * 60 * 1000
+  const isTrial =
+    client.subscription_status === 'trial' || client.subscription_status === 'ai-employee-trial'
+
   let windowStart: Date
   let windowEnd: Date
 
-  if (client.trial_ends_at) {
+  if (isTrial && client.trial_ends_at) {
     windowEnd = new Date(client.trial_ends_at)
     windowStart = new Date(windowEnd.getTime() - MS_5D)
-  } else if (client.created_at) {
-    windowStart = new Date(client.created_at)
-    windowEnd = new Date(Math.min(windowStart.getTime() + MS_5D, Date.now()))
   } else {
     windowEnd = new Date()
     windowStart = new Date(Date.now() - MS_5D)
@@ -138,6 +142,8 @@ export default async function TrialClosePage({ params }: { params: Promise<{ cli
 
   const stats: TrialCloseStats = {
     clientName: client.name || client.slug || 'Client',
+    subscriptionStatus: client.subscription_status ?? 'unknown',
+    isTrial,
     trialStartedAt: windowStart.toISOString(),
     trialEndsAt: client.trial_ends_at ?? null,
     activity: {

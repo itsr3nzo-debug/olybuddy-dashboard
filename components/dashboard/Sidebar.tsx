@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Sparkles, LayoutDashboard, BarChart3, PoundSterling, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Kanban, MessageSquare, Calendar, ScrollText, FileBarChart, Plug, Shield, Users, Mic, FileEdit, FileText, Pause, Webhook, Bot } from 'lucide-react'
+import { Sparkles, LayoutDashboard, BarChart3, PoundSterling, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Kanban, MessageSquare, Calendar, ScrollText, FileBarChart, Plug, Shield, Users, Mic, FileEdit, FileText, Pause, Webhook, Bot, Target } from 'lucide-react'
 import type { UserRole } from '@/lib/rbac'
 import { MEMBER_BLOCKED_PAGES } from '@/lib/rbac'
 
@@ -37,7 +37,11 @@ function getNavItems(role: UserRole) {
     items = items.filter(item => !MEMBER_BLOCKED_PAGES.includes(item.href))
   }
   if (role === 'super_admin') {
-    items = [{ href: '/admin', label: 'Admin', Icon: Shield }, ...items]
+    items = [
+      { href: '/admin', label: 'Admin', Icon: Shield },
+      { href: '/admin/close', label: 'Client Usage', Icon: Target },
+      ...items,
+    ]
   }
   return items
 }

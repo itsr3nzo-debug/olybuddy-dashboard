@@ -31,6 +31,8 @@ interface TrialActivity {
 
 export interface TrialCloseStats {
   clientName: string
+  subscriptionStatus: string
+  isTrial: boolean
   trialStartedAt: string
   trialEndsAt: string | null
   activity: TrialActivity
@@ -69,10 +71,10 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
             className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft size={16} />
-            Back to trials
+            All clients
           </Link>
           <span className="text-xs font-medium text-muted-foreground">
-            5-day trial · {stats.clientName}
+            {stats.isTrial ? '5-day trial' : 'Last 5 days'} · {stats.clientName}
           </span>
         </div>
       </div>
@@ -86,10 +88,10 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
           className="text-center mb-10"
         >
           <h1 className="text-3xl sm:text-4xl font-bold mb-3">
-            Here&apos;s what your AI Employee did.
+            Here&apos;s what <span className="text-purple-500">{stats.clientName}</span>&apos;s AI Employee did.
           </h1>
           <p className="text-base text-muted-foreground">
-            In 5 days — without you lifting a finger.
+            {stats.isTrial ? 'In 5 days — without lifting a finger.' : 'In the last 5 days.'}
           </p>
         </motion.div>
 
@@ -218,7 +220,7 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
 
                 <div className="relative z-10">
                   <p className="text-base text-muted-foreground mb-3">
-                    Your AI Employee was worth
+                    Their AI Employee was worth
                   </p>
                   <div
                     className="text-7xl sm:text-8xl font-black tracking-tight leading-none mb-3"
@@ -227,7 +229,7 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
                     <AnimatedNumber target={debouncedTarget} prefix="£" duration={600} />
                   </div>
                   <p className="text-base text-muted-foreground">
-                    to you — in 5 days.
+                    {stats.isTrial ? 'to them — in 5 days.' : 'in the last 5 days.'}
                   </p>
                 </div>
               </div>

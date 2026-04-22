@@ -13,32 +13,10 @@ import Composer, { UserBubble, AssistantBubble } from './Composer';
 import IconButton from './IconButton';
 import { VoicePill } from './Features';
 
-/* ───────────── Browser chrome ───────────── */
+/* ───────────── Chat shell ───────────── */
 function BrowserChrome({ children }: { children: React.ReactNode }) {
   return (
     <div className="h-full w-full flex flex-col">
-      <div
-        className="flex items-center gap-3 px-3 py-2 border-b-hy flex-shrink-0"
-        style={{ background: 'rgb(var(--hy-bg-subtle))' }}
-      >
-        <div className="flex items-center gap-1.5">
-          <span style={{ width: 11, height: 11, borderRadius: 99, background: '#ed6a5e' }} />
-          <span style={{ width: 11, height: 11, borderRadius: 99, background: '#f5bf4f' }} />
-          <span style={{ width: 11, height: 11, borderRadius: 99, background: '#61c454' }} />
-        </div>
-        <div className="flex items-center gap-1 fg-muted">
-          <ChevronLeft size={14} />
-          <ChevronRight size={14} />
-        </div>
-        <div
-          className="flex-1 mx-auto max-w-md flex items-center justify-center gap-2 rounded-md px-3 py-1 text-[11.5px] fg-subtle"
-          style={{ background: 'rgb(var(--hy-bg-app))', border: '1px solid rgb(var(--hy-border))' }}
-        >
-          <span style={{ width: 10, height: 10, borderRadius: 2, background: 'rgb(var(--hy-fg-muted))', opacity: 0.6 }} />
-          app.nexley.ai
-        </div>
-        <div style={{ width: 40 }} />
-      </div>
       <div className="flex-1 min-h-0">{children}</div>
     </div>
   );
