@@ -26,9 +26,10 @@ import type { Message, Session, Source } from '@/lib/chat/types';
 import { listSessions, loadSession, postMessage, renameSession as apiRenameSession, deleteSession as apiDeleteSession, pinSession as apiPinSession, rowToMessage, summaryToSession } from '@/lib/chat/api';
 import { useChatRealtime } from '@/lib/chat/useChatRealtime';
 import { ClientContextProvider } from '@/lib/chat/client-context';
-import Sidebar from './Sidebar';
+import Sidebar, { type ChatView } from './Sidebar';
 import Dashboard from './Features';
 import { AssistPanel } from './Views';
+import { VaultView, WorkflowsView, HistoryView, KnowledgeView } from './TabViews';
 import { SourceSlideOver, CommandPalette, MentionMenu } from './Overlays';
 
 interface ChatAppProps {
@@ -107,6 +108,7 @@ export default function ChatApp(props: ChatAppProps) {
 
   // Sidebar state ────────────────────────────────────────────
   const [sbCollapsed, setSbCollapsed] = useState(false);
+  const [activeView, setActiveView] = useState<ChatView>('assistant');
 
   // Busy state — true while a reply is in-flight
   const [busy, setBusy] = useState(false);
@@ -250,10 +252,17 @@ export default function ChatApp(props: ChatAppProps) {
 
   const newChat = useCallback(() => {
     setCurrentSessionId(null);
+    setActiveView('assistant');
   }, []);
 
   const selectSession = useCallback((id: string) => {
     setCurrentSessionId(id);
+    setActiveView('assistant');
+  }, []);
+
+  const navChange = useCallback((view: ChatView) => {
+    setActiveView(view);
+    if (view !== 'assistant') setCurrentSessionId(null);
   }, []);
 
   const renameSession = useCallback((id: string, title: string) => {
@@ -389,10 +398,12 @@ export default function ChatApp(props: ChatAppProps) {
         onRenameSession={renameSession}
         onDeleteSession={deleteSession}
         onPinSession={pinSession}
+        activeView={activeView}
+        onNavChange={navChange}
       />
 
-      {!currentSession ? (
-        <main className="flex-1 min-w-0 bg-app">
+      <main className="flex-1 min-w-0 bg-app">
+        {activeView === 'assistant' && !currentSession && (
           <Dashboard
             suggestions={SUGGESTIONS}
             workflows={WORKFLOWS}
@@ -402,9 +413,8 @@ export default function ChatApp(props: ChatAppProps) {
             pendingMention={pendingMention}
             onMentionConsumed={() => setPendingMention(null)}
           />
-        </main>
-      ) : (
-        <main className="flex-1 min-w-0 bg-app">
+        )}
+        {activeView === 'assistant' && currentSession && (
           <AssistPanel
             session={currentSession}
             onSend={sendMessage}
@@ -419,8 +429,26 @@ export default function ChatApp(props: ChatAppProps) {
             pendingMention={pendingMention}
             onMentionConsumed={() => setPendingMention(null)}
           />
-        </main>
-      )}
+        )}
+        {activeView === 'vault' && <VaultView />}
+        {activeView === 'workflows' && (
+          <WorkflowsView
+            workflows={WORKFLOWS}
+            onStart={(prompt) => {
+              setActiveView('assistant');
+              sendMessage(prompt);
+            }}
+          />
+        )}
+        {activeView === 'history' && (
+          <HistoryView
+            sessions={sessions}
+            onSelectSession={selectSession}
+            onPinSession={pinSession}
+          />
+        )}
+        {activeView === 'knowledge' && <KnowledgeView />}
+      </main>
       </div>{/* /.flex flex-1 min-h-0 */}
 
       {/* Overlays */}

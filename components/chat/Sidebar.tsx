@@ -12,6 +12,8 @@ import { useClient } from '@/lib/chat/client-context';
 import { createClient } from '@/lib/supabase/client';
 import IconButton from './IconButton';
 
+export type ChatView = 'assistant' | 'vault' | 'workflows' | 'history' | 'knowledge';
+
 interface SidebarProps {
   sessions: Session[];
   currentSessionId: string | null;
@@ -26,9 +28,11 @@ interface SidebarProps {
   onRenameSession: (id: string, title: string) => void;
   onDeleteSession: (id: string) => void;
   onPinSession: (id: string, pinned: boolean) => void;
+  activeView: ChatView;
+  onNavChange: (view: ChatView) => void;
 }
 
-function Sidebar({ sessions, currentSessionId, onSelectSession, onNewChat, onOpenPalette, onToggleTheme, theme, collapsed, onToggleCollapse, onGoHome, onRenameSession, onDeleteSession, onPinSession }: SidebarProps) {
+function Sidebar({ sessions, currentSessionId, onSelectSession, onNewChat, onOpenPalette, onToggleTheme, theme, collapsed, onToggleCollapse, onGoHome, onRenameSession, onDeleteSession, onPinSession, activeView, onNavChange }: SidebarProps) {
   const { clientName } = useClient();
   const groups = groupSessionsByDate(sessions);
   const clientInitials = (clientName || 'N')
@@ -43,8 +47,8 @@ function Sidebar({ sessions, currentSessionId, onSelectSession, onNewChat, onOpe
       style={{ width: collapsed ? 52 : 200, minWidth: collapsed ? 52 : 200, flexShrink: 0, transition: 'width 0.18s ease' }}
     >
       {collapsed
-        ? <SidebarRail onNewChat={onNewChat} onOpenPalette={onOpenPalette} onToggleTheme={onToggleTheme} theme={theme} onToggleCollapse={onToggleCollapse} onGoHome={onGoHome} />
-        : <SidebarFull clientInitials={clientInitials} sessions={sessions} groups={groups} currentSessionId={currentSessionId} onSelectSession={onSelectSession} onNewChat={onNewChat} onOpenPalette={onOpenPalette} onToggleTheme={onToggleTheme} theme={theme} onToggleCollapse={onToggleCollapse} onGoHome={onGoHome} onRenameSession={onRenameSession} onDeleteSession={onDeleteSession} onPinSession={onPinSession} />
+        ? <SidebarRail onNewChat={onNewChat} onOpenPalette={onOpenPalette} onToggleTheme={onToggleTheme} theme={theme} onToggleCollapse={onToggleCollapse} onGoHome={onGoHome} activeView={activeView} onNavChange={onNavChange} />
+        : <SidebarFull clientInitials={clientInitials} sessions={sessions} groups={groups} currentSessionId={currentSessionId} onSelectSession={onSelectSession} onNewChat={onNewChat} onOpenPalette={onOpenPalette} onToggleTheme={onToggleTheme} theme={theme} onToggleCollapse={onToggleCollapse} onGoHome={onGoHome} onRenameSession={onRenameSession} onDeleteSession={onDeleteSession} onPinSession={onPinSession} activeView={activeView} onNavChange={onNavChange} />
       }
     </aside>
   );
@@ -57,9 +61,11 @@ interface SidebarRailProps {
   theme: 'light' | 'dark';
   onToggleCollapse: () => void;
   onGoHome: () => void;
+  activeView: ChatView;
+  onNavChange: (view: ChatView) => void;
 }
 
-function SidebarRail({ onNewChat, onOpenPalette, onToggleTheme, theme, onToggleCollapse, onGoHome }: SidebarRailProps) {
+function SidebarRail({ onNewChat, onOpenPalette, onToggleTheme, theme, onToggleCollapse, onGoHome, activeView, onNavChange }: SidebarRailProps) {
   const { clientName } = useClient();
   const initials = (clientName || 'N')
     .split(/\s+/)
@@ -77,11 +83,11 @@ function SidebarRail({ onNewChat, onOpenPalette, onToggleTheme, theme, onToggleC
       <IconButton icon={Plus} label="Create" onClick={onNewChat} size={14} />
       <IconButton icon={Search} label="Search (⌘K)" onClick={onOpenPalette} size={14} />
       <div className="h-px w-6 my-1" style={{ background: 'rgb(var(--hy-border))' }} />
-      <IconButton icon={MessageSquare} label="Assistant" size={14} active />
-      <IconButton icon={Folder} label="Vault" size={14} />
-      <IconButton icon={Zap} label="Workflows" size={14} />
-      <IconButton icon={History} label="History" size={14} />
-      <IconButton icon={Book} label="Knowledge" size={14} />
+      <IconButton icon={MessageSquare} label="Assistant" size={14} active={activeView === 'assistant'} onClick={() => onNavChange('assistant')} />
+      <IconButton icon={Folder} label="Vault" size={14} active={activeView === 'vault'} onClick={() => onNavChange('vault')} />
+      <IconButton icon={Zap} label="Workflows" size={14} active={activeView === 'workflows'} onClick={() => onNavChange('workflows')} />
+      <IconButton icon={History} label="History" size={14} active={activeView === 'history'} onClick={() => onNavChange('history')} />
+      <IconButton icon={Book} label="Knowledge" size={14} active={activeView === 'knowledge'} onClick={() => onNavChange('knowledge')} />
       <div className="flex-1" />
       <IconButton icon={theme === 'dark' ? Sun : Moon} label={theme === 'dark' ? 'Light' : 'Dark'} onClick={onToggleTheme} size={14} />
       <IconButton icon={PanelLeft} label="Expand" onClick={onToggleCollapse} size={14} />
@@ -100,9 +106,8 @@ interface SidebarFullProps extends SidebarRailProps {
   onPinSession: (id: string, pinned: boolean) => void;
 }
 
-function SidebarFull({ clientInitials, groups, currentSessionId, onSelectSession, onNewChat, onOpenPalette, onToggleTheme, theme, onToggleCollapse, onGoHome, onRenameSession, onDeleteSession, onPinSession }: SidebarFullProps) {
+function SidebarFull({ clientInitials, groups, currentSessionId, onSelectSession, onNewChat, onOpenPalette, onToggleTheme, theme, onToggleCollapse, onGoHome, onRenameSession, onDeleteSession, onPinSession, activeView, onNavChange }: SidebarFullProps) {
   const [showAll, setShowAll] = useState<Record<string, boolean>>({});
-  const [vaultOpen, setVaultOpen] = useState(true);
   const { clientName } = useClient();
   return (
     <>
@@ -136,11 +141,11 @@ function SidebarFull({ clientInitials, groups, currentSessionId, onSelectSession
       </div>
 
       <nav className="px-1.5 space-y-0.5">
-        <NavItem icon={MessageSquare} label="Assistant" active />
-        <NavItem icon={Folder} label="Vault" onClick={() => setVaultOpen(!vaultOpen)} />
-        <NavItem icon={Zap} label="Workflows" />
-        <NavItem icon={History} label="History" />
-        <NavItem icon={Book} label="Knowledge" />
+        <NavItem icon={MessageSquare} label="Assistant" active={activeView === 'assistant'} onClick={() => onNavChange('assistant')} />
+        <NavItem icon={Folder} label="Vault" active={activeView === 'vault'} onClick={() => onNavChange('vault')} />
+        <NavItem icon={Zap} label="Workflows" active={activeView === 'workflows'} onClick={() => onNavChange('workflows')} />
+        <NavItem icon={History} label="History" active={activeView === 'history'} onClick={() => onNavChange('history')} />
+        <NavItem icon={Book} label="Knowledge" active={activeView === 'knowledge'} onClick={() => onNavChange('knowledge')} />
       </nav>
 
       <div className="flex-1 overflow-y-auto scroll-thin mt-7 px-1.5 pb-4">

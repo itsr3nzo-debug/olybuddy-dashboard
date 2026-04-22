@@ -15,8 +15,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import Link from 'next/link'
 import AnimatedNumber from '@/components/shared/AnimatedNumber'
 import {
-  ArrowLeft, Clock, MessageCircle, Calendar, UserPlus,
-  TrendingUp, PoundSterling,
+  ArrowLeft, Clock, MessageCircle, Calendar, UserPlus, Phone,
 } from 'lucide-react'
 
 const MONTHLY_COST = 500
@@ -31,11 +30,13 @@ interface TrialActivity {
   newContacts: number
   actionsFromLog: number
   minutesSavedFromLog: number
+  chatSessions: number
+  callsHandled: number
 }
 
 export type ActivityItem = {
   id: string
-  kind: 'message' | 'booking' | 'lead'
+  kind: 'message' | 'booking' | 'lead' | 'call'
   when: string  // ISO
   title: string
   preview?: string
@@ -133,7 +134,7 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
             </p>
           </motion.div>
 
-          {/* Four big stats */}
+          {/* Four big stats — hours always shown, then 3 biggest real numbers */}
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -142,7 +143,7 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
           >
             <StatTile
               icon={<Clock size={16} />}
-              value={stats.hoursSaved > 0 ? `${stats.hoursSaved}h` : '—'}
+              value={stats.hoursSaved > 0 ? `${stats.hoursSaved}h` : '0h'}
               label="Hours saved"
               highlight
             />
@@ -151,17 +152,45 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
               value={String(activity.messagesHandled)}
               label="Messages handled"
             />
-            <StatTile
-              icon={<Calendar size={16} />}
-              value={String(activity.bookingsMade)}
-              label="Bookings made"
-            />
+            {activity.callsHandled > 0 ? (
+              <StatTile
+                icon={<Phone size={16} />}
+                value={String(activity.callsHandled)}
+                label="Calls handled"
+              />
+            ) : (
+              <StatTile
+                icon={<Calendar size={16} />}
+                value={String(activity.bookingsMade)}
+                label="Bookings made"
+              />
+            )}
             <StatTile
               icon={<UserPlus size={16} />}
               value={String(activity.newContacts)}
               label="New leads"
             />
           </motion.div>
+
+          {/* Secondary line — shown only when there's additional data */}
+          {(activity.chatSessions > 0 || activity.bookingsMade > 0 || activity.followUpsSent > 0) && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.12 }}
+              className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-xs text-muted-foreground mb-8"
+            >
+              {activity.chatSessions > 0 && (
+                <span>· {activity.chatSessions} chat conversation{activity.chatSessions !== 1 ? 's' : ''}</span>
+              )}
+              {activity.callsHandled > 0 && activity.bookingsMade > 0 && (
+                <span>· {activity.bookingsMade} booking{activity.bookingsMade !== 1 ? 's' : ''}</span>
+              )}
+              {activity.followUpsSent > 0 && (
+                <span>· {activity.followUpsSent} automated follow-up{activity.followUpsSent !== 1 ? 's' : ''}</span>
+              )}
+            </motion.div>
+          )}
 
           {/* Activity timeline */}
           <motion.div
@@ -360,6 +389,11 @@ function TimelineRow({ item }: { item: ActivityItem }) {
       icon: <UserPlus size={14} />,
       bg: 'rgb(245 158 11 / 0.12)',
       fg: '#F59E0B',
+    },
+    call: {
+      icon: <Phone size={14} />,
+      bg: 'rgb(14 165 233 / 0.12)',
+      fg: '#0EA5E9',
     },
   }
   const m = colorByKind[item.kind]
