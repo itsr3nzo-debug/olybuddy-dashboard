@@ -456,6 +456,14 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
           </AnimatePresence>
         </section>
       </div>
+
+      {/* Scoped keyframes for CSS-based stagger animations */}
+      <style>{`
+        @keyframes fadeInLeft {
+          from { opacity: 0; transform: translateX(-6px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+      `}</style>
     </div>
   )
 }
@@ -474,19 +482,13 @@ function PeriodTab({ clientId, period, current, label }: {
       href={`/admin/close/${clientId}?period=${period}`}
       scroll={false}
       prefetch={!active}
-      className={`relative px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-        active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
+      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+        active
+          ? 'bg-card text-foreground shadow-sm'
+          : 'text-muted-foreground hover:text-foreground hover:bg-card/50'
       }`}
     >
-      {active && (
-        <motion.span
-          layoutId="period-pill"
-          transition={{ type: 'spring', stiffness: 380, damping: 34 }}
-          className="absolute inset-0 rounded-lg bg-card shadow-sm"
-          style={{ zIndex: -1 }}
-        />
-      )}
-      <span className="relative">{label}</span>
+      {label}
     </Link>
   )
 }
@@ -575,13 +577,14 @@ function TimelineRow({ item, index }: { item: ActivityItem; index: number }) {
   const valueLabel = formatPence(item.valuePence)
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: -6 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: 0.05 + index * 0.03, duration: 0.3 }}
-      whileHover={{ x: 2 }}
-      className="flex items-start gap-3 rounded-xl px-4 py-3 cursor-default"
-      style={{ background: 'rgb(var(--muted-foreground) / 0.04)', border: '1px solid rgb(var(--border) / 0.4)' }}
+    <div
+      className="flex items-start gap-3 rounded-xl px-4 py-3 cursor-default transition-colors hover:bg-accent/20"
+      style={{
+        background: 'rgb(var(--muted-foreground) / 0.04)',
+        border: '1px solid rgb(var(--border) / 0.4)',
+        opacity: 0,
+        animation: `fadeInLeft 300ms ${50 + index * 30}ms cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards`,
+      }}
     >
       <div
         className="flex-shrink-0 w-7 h-7 rounded-lg inline-flex items-center justify-center mt-0.5"
@@ -605,6 +608,6 @@ function TimelineRow({ item, index }: { item: ActivityItem; index: number }) {
       <span className="text-[11px] text-muted-foreground flex-shrink-0 mt-1 tabular-nums">
         {timeAgo(item.when)}
       </span>
-    </motion.div>
+    </div>
   )
 }

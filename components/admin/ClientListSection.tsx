@@ -47,54 +47,59 @@ export default function ClientListSection({
         {clients.map((client, i) => {
           const badge = withTrialBadges && trialStatusFor ? trialStatusFor(client) : undefined
           return (
-            <motion.div
+            <Link
               key={client.id}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.04, duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
-              whileHover={{ y: -1 }}
+              href={`/admin/close/${client.id}`}
+              className="group flex items-center justify-between rounded-xl border border-border/70 hover:border-purple-500/60 bg-card hover:bg-accent/30 transition-colors px-5 py-4"
+              style={{
+                opacity: 0,
+                animation: `fadeInUp 300ms ${40 + i * 30}ms cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards`,
+              }}
             >
-              <Link
-                href={`/admin/close/${client.id}`}
-                className="group flex items-center justify-between rounded-xl border border-border/70 hover:border-purple-500/60 bg-card hover:bg-accent/30 hover:shadow-md hover:shadow-purple-500/5 transition-all duration-200 px-5 py-4"
-              >
-                <div className="flex flex-col min-w-0 gap-0.5">
-                  <span className="text-base font-semibold truncate group-hover:text-purple-500 transition-colors">
-                    {client.name || client.slug}
-                  </span>
-                  <span className="text-xs text-muted-foreground flex items-center gap-2">
-                    <span className="font-mono">{client.slug}</span>
-                    <span className="opacity-40">·</span>
-                    <span className="capitalize">{client.subscription_status ?? 'unknown'}</span>
-                  </span>
-                </div>
+              <div className="flex flex-col min-w-0 gap-0.5">
+                <span className="text-base font-semibold truncate group-hover:text-purple-500 transition-colors">
+                  {client.name || client.slug}
+                </span>
+                <span className="text-xs text-muted-foreground flex items-center gap-2">
+                  <span className="font-mono">{client.slug}</span>
+                  <span className="opacity-40">·</span>
+                  <span className="capitalize">{client.subscription_status ?? 'unknown'}</span>
+                </span>
+              </div>
 
-                <div className="flex items-center gap-3 ml-4 flex-shrink-0">
-                  {badge && (
-                    <span
-                      className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full ${
-                        badge.tone === 'expired'
-                          ? 'bg-red-500/15 text-red-500 dark:text-red-400'
-                          : badge.tone === 'urgent'
-                            ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 animate-pulse'
-                            : 'bg-muted/50 text-muted-foreground'
-                      }`}
-                    >
-                      {badge.tone === 'expired' && <AlertCircle size={12} />}
-                      {badge.tone === 'normal' && <CheckCircle2 size={12} />}
-                      {badge.label}
-                    </span>
-                  )}
-                  <ChevronRight
-                    size={18}
-                    className="text-muted-foreground group-hover:text-purple-500 group-hover:translate-x-0.5 transition-all"
-                  />
-                </div>
-              </Link>
-            </motion.div>
+              <div className="flex items-center gap-3 ml-4 flex-shrink-0">
+                {badge && (
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full ${
+                      badge.tone === 'expired'
+                        ? 'bg-red-500/15 text-red-500 dark:text-red-400'
+                        : badge.tone === 'urgent'
+                          ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                          : 'bg-muted/50 text-muted-foreground'
+                    }`}
+                  >
+                    {badge.tone === 'expired' && <AlertCircle size={12} />}
+                    {badge.tone === 'normal' && <CheckCircle2 size={12} />}
+                    {badge.label}
+                  </span>
+                )}
+                <ChevronRight
+                  size={18}
+                  className="text-muted-foreground group-hover:text-purple-500 group-hover:translate-x-0.5 transition-all"
+                />
+              </div>
+            </Link>
           )
         })}
       </div>
+
+      {/* Keyframes for stagger fade-in */}
+      <style>{`
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </motion.div>
   )
 }
