@@ -12,6 +12,28 @@ export const metadata: Metadata = { title: 'Trial Close · Nexley Admin' }
 const MINS_PER_MESSAGE = 5
 const MINS_PER_BOOKING = 30
 
+/**
+ * Safely run a Supabase count query. Returns 0 on any error (missing column,
+ * RLS block, network failure) so a single broken query never crashes the page.
+ */
+async function safeCount(promise: PromiseLike<{ count: number | null }>): Promise<number> {
+  try {
+    const res = await promise
+    return res.count ?? 0
+  } catch {
+    return 0
+  }
+}
+
+async function safeRows<T>(promise: PromiseLike<{ data: T[] | null }>): Promise<T[]> {
+  try {
+    const res = await promise
+    return res.data ?? []
+  } catch {
+    return []
+  }
+}
+
 export default async function TrialClosePage({ params }: { params: Promise<{ clientId: string }> }) {
   const { clientId } = await params
 
@@ -38,7 +60,6 @@ export default async function TrialClosePage({ params }: { params: Promise<{ cli
   if (!client) notFound()
 
   // Trial window — trial_started_at doesn't exist; derive from trial_ends_at - 5 days
-  // Fallback: created_at to created_at + 5 days
   const MS_5D = 5 * 24 * 60 * 60 * 1000
   let windowStart: Date
   let windowEnd: Date
@@ -54,68 +75,60 @@ export default async function TrialClosePage({ params }: { params: Promise<{ cli
     windowStart = new Date(Date.now() - MS_5D)
   }
 
-  // Parallel fetch — all queries are defensive: errors are tolerated and treated as 0
-  // This prevents one broken query from crashing the whole page.
-  const [msgsRes, bookingsRes, contactsRes, actionsRes, followUpsRes] = await Promise.allSettled([
-    // Outbound messages the AI sent (every message = something the owner didn't have to type)
-    service
-      .from('comms_log')
-      .select('id', { count: 'exact', head: true })
-      .eq('client_id', clientId)
-      .eq('direction', 'outbound')
-      .gte('sent_at', windowStart.toISOString())
-      .lte('sent_at', windowEnd.toISOString()),
+  const startIso = windowStart.toISOString()
+  const endIso = windowEnd.toISOString()
 
-    // Bookings / opportunities created in trial window
-    service
-      .from('opportunities')
-      .select('id', { count: 'exact', head: true })
-      .eq('client_id', clientId)
-      .gte('created_at', windowStart.toISOString())
-      .lte('created_at', windowEnd.toISOString()),
-
-    // New contacts (leads captured)
-    service
-      .from('contacts')
-      .select('id', { count: 'exact', head: true })
-      .eq('client_id', clientId)
-      .gte('created_at', windowStart.toISOString())
-      .lte('created_at', windowEnd.toISOString()),
-
-    // agent_actions — use minutes_saved directly if rows exist (often empty in practice)
-    service
-      .from('agent_actions')
-      .select('category, minutes_saved')
-      .eq('client_id', clientId)
-      .gte('occurred_at', windowStart.toISOString())
-      .lte('occurred_at', windowEnd.toISOString()),
-
-    // Follow-ups — outbound messages tied to a sequence (automated follow-ups)
-    service
-      .from('comms_log')
-      .select('id', { count: 'exact', head: true })
-      .eq('client_id', clientId)
-      .eq('direction', 'outbound')
-      .not('sequence_id', 'is', null)
-      .gte('sent_at', windowStart.toISOString())
-      .lte('sent_at', windowEnd.toISOString()),
+  // Parallel fetch — each query wrapped in safeCount so one bad query can't crash the page
+  const [messagesHandled, bookingsMade, newContacts, followUpsSent, actionRows] = await Promise.all([
+    safeCount(
+      service
+        .from('comms_log')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', clientId)
+        .eq('direction', 'outbound')
+        .gte('sent_at', startIso)
+        .lte('sent_at', endIso)
+    ),
+    safeCount(
+      service
+        .from('opportunities')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', clientId)
+        .gte('created_at', startIso)
+        .lte('created_at', endIso)
+    ),
+    safeCount(
+      service
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', clientId)
+        .gte('created_at', startIso)
+        .lte('created_at', endIso)
+    ),
+    safeCount(
+      service
+        .from('comms_log')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', clientId)
+        .eq('direction', 'outbound')
+        .not('sequence_id', 'is', null)
+        .gte('sent_at', startIso)
+        .lte('sent_at', endIso)
+    ),
+    safeRows<{ category: string; minutes_saved: number | null }>(
+      service
+        .from('agent_actions')
+        .select('category, minutes_saved')
+        .eq('client_id', clientId)
+        .gte('occurred_at', startIso)
+        .lte('occurred_at', endIso)
+    ),
   ])
 
-  // Unwrap settled results defensively — any failed query becomes 0, page still renders
-  const count = (r: PromiseSettledResult<{ count: number | null }>) =>
-    r.status === 'fulfilled' ? (r.value.count ?? 0) : 0
-  const rows = <T,>(r: PromiseSettledResult<{ data: T[] | null }>) =>
-    r.status === 'fulfilled' ? (r.value.data ?? []) : []
+  const actionsFromLog = actionRows.length
+  const minutesSavedFromLog = actionRows.reduce((sum, r) => sum + (r.minutes_saved ?? 0), 0)
 
-  const messagesHandled = count(msgsRes)
-  const bookingsMade = count(bookingsRes)
-  const newContacts = count(contactsRes)
-  const followUpsSent = count(followUpsRes)
-  const actions = rows<{ category: string; minutes_saved: number | null }>(actionsRes)
-  const actionsFromLog = actions.length
-  const minutesSavedFromLog = actions.reduce((sum, r) => sum + (r.minutes_saved ?? 0), 0)
-
-  // Time saved — concrete signals first, agent_actions supplement
+  // Time saved
   const minutesFromMessages = messagesHandled * MINS_PER_MESSAGE
   const minutesFromBookings = bookingsMade * MINS_PER_BOOKING
   const totalMinutesSaved = minutesFromMessages + minutesFromBookings + minutesSavedFromLog

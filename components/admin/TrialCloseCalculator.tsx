@@ -1,38 +1,31 @@
 'use client'
 
 /**
- * TrialCloseCalculator — the closing tool Kade uses after a 5-day trial.
+ * TrialCloseCalculator — the closing tool.
  *
- * Kade asks: "What's your day rate?"
- * Prospect types it in.
- * The number does the closing.
- *
- * No localStorage — ephemeral state, typed live on the call.
- * No API calls — server component pre-fetches everything and passes as props.
+ * The conversation it's designed for:
+ *   Kade: "What's your day rate?"
+ *   Prospect: "About £300."
+ *   Kade: [types 300]
+ *   Screen: "Your AI Employee saved you £X"
+ *   Prospect: realises it's more than the subscription cost. Closes.
  */
 
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import Link from 'next/link'
 import AnimatedNumber from '@/components/shared/AnimatedNumber'
-import {
-  ArrowLeft, MessageCircle, Calendar,
-  FileText, TrendingUp, Star, Clock,
-  Zap, PoundSterling,
-} from 'lucide-react'
+import { ArrowLeft, Clock, MessageCircle, Calendar, UserPlus } from 'lucide-react'
 
-const MONTHLY_COST = 500   // £500/mo AI Employee subscription
-const DAILY_COST = Math.round(MONTHLY_COST / 30)  // ≈ £17/day
-
-const MINS_PER_MESSAGE = 5   // time saved per handled message
-const MINS_PER_BOOKING = 30  // time saved per booking made
+const MONTHLY_COST = 500
+const DAILY_COST = 17 // £500 / 30 days, rounded
 
 interface TrialActivity {
   messagesHandled: number
   bookingsMade: number
   followUpsSent: number
   newContacts: number
-  actionsFromLog: number   // from agent_actions if populated
+  actionsFromLog: number
   minutesSavedFromLog: number
 }
 
@@ -41,7 +34,6 @@ export interface TrialCloseStats {
   trialStartedAt: string
   trialEndsAt: string | null
   activity: TrialActivity
-  // Pre-computed totals
   totalMinutesSaved: number
   hoursSaved: number
   hasActivity: boolean
@@ -49,260 +41,250 @@ export interface TrialCloseStats {
 
 export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats }) {
   const [rawRate, setRawRate] = useState('')
-  const [animTarget, setAnimTarget] = useState(0)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [debouncedTarget, setDebouncedTarget] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Auto-focus the input so Kade can type immediately
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
+  useEffect(() => { inputRef.current?.focus() }, [])
 
   const dayRateNum = parseFloat(rawRate.replace(/[^0-9.]/g, '')) || 0
   const hourlyRate = dayRateNum / 8
   const valueSaved = Math.round(stats.hoursSaved * hourlyRate)
 
-  // Debounce the animated number by 300ms — avoids animation stuttering while typing
+  // Debounce the animated reveal so the number doesn't flicker while Kade types
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => setAnimTarget(valueSaved), 300)
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+    const t = setTimeout(() => setDebouncedTarget(valueSaved), 250)
+    return () => clearTimeout(t)
   }, [valueSaved])
 
   const { activity } = stats
-
-  const TASK_ROWS = [
-    { icon: <MessageCircle size={15} />, label: 'Messages replied to', count: activity.messagesHandled, note: `~${MINS_PER_MESSAGE} min each` },
-    { icon: <Calendar size={15} />,      label: 'Bookings made',       count: activity.bookingsMade,   note: `~${MINS_PER_BOOKING} min each` },
-    { icon: <TrendingUp size={15} />,    label: 'Follow-ups sent',     count: activity.followUpsSent,  note: 'automated' },
-    { icon: <FileText size={15} />,      label: 'New leads captured',  count: activity.newContacts,    note: 'contacts created' },
-  ].filter(r => r.count > 0)
+  const timesDailyCost = valueSaved > 0 ? (valueSaved / DAILY_COST).toFixed(1) : null
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Top nav — minimal, for screen-share */}
-      <div className="border-b border-border/50 px-6 py-3 flex items-center gap-4">
-        <Link
-          href="/admin/close"
-          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft size={14} />
-          All trials
-        </Link>
-        <span className="text-border">·</span>
-        <span className="text-sm font-medium text-foreground">{stats.clientName}</span>
-        <span className="ml-auto text-xs text-muted-foreground">5-day trial close</span>
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Minimal top bar */}
+      <div className="border-b border-border/50">
+        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
+          <Link
+            href="/admin/close"
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft size={16} />
+            Back to trials
+          </Link>
+          <span className="text-xs font-medium text-muted-foreground">
+            5-day trial · {stats.clientName}
+          </span>
+        </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-6 py-10">
+      <div className="max-w-2xl mx-auto px-6 py-12">
 
         {/* Title */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-foreground mb-1">
-            What did your AI Employee actually do?
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-10"
+        >
+          <h1 className="text-3xl sm:text-4xl font-bold mb-3">
+            Here&apos;s what your AI Employee did.
           </h1>
-          <p className="text-sm text-muted-foreground">
-            In 5 days of trial — here&apos;s what it handled so you didn&apos;t have to.
+          <p className="text-base text-muted-foreground">
+            In 5 days — without you lifting a finger.
           </p>
-        </div>
+        </motion.div>
 
-        {/* Activity proof */}
-        {stats.hasActivity ? (
+        {/* Three big activity tiles */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="grid grid-cols-3 gap-3 mb-10"
+        >
+          <BigStat
+            icon={<Clock size={18} />}
+            value={stats.hoursSaved > 0 ? `${stats.hoursSaved}h` : '—'}
+            label="Your time saved"
+            highlight
+          />
+          <BigStat
+            icon={<MessageCircle size={18} />}
+            value={String(activity.messagesHandled)}
+            label="Messages handled"
+          />
+          <BigStat
+            icon={<Calendar size={18} />}
+            value={String(activity.bookingsMade)}
+            label="Bookings made"
+          />
+        </motion.div>
+
+        {/* Supporting detail row — only show if there's data */}
+        {(activity.newContacts > 0 || activity.followUpsSent > 0) && (
           <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="grid grid-cols-3 gap-3 mb-8"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="flex items-center justify-center gap-6 text-sm text-muted-foreground mb-10"
           >
-            <StatTile
-              icon={<Clock size={16} className="text-brand-accent" />}
-              label="Hours saved"
-              value={`${stats.hoursSaved}h`}
-              highlight
-            />
-            <StatTile
-              icon={<MessageCircle size={16} />}
-              label="Messages"
-              value={String(activity.messagesHandled)}
-            />
-            <StatTile
-              icon={<Calendar size={16} className="text-brand-success" />}
-              label="Bookings"
-              value={String(activity.bookingsMade)}
-            />
+            {activity.newContacts > 0 && (
+              <span className="flex items-center gap-1.5">
+                <UserPlus size={14} />
+                {activity.newContacts} new lead{activity.newContacts !== 1 ? 's' : ''}
+              </span>
+            )}
+            {activity.followUpsSent > 0 && (
+              <span>
+                · {activity.followUpsSent} automated follow-up{activity.followUpsSent !== 1 ? 's' : ''}
+              </span>
+            )}
           </motion.div>
-        ) : (
-          <div
-            className="rounded-xl border border-border/50 px-5 py-4 mb-8 text-sm text-muted-foreground"
-          >
-            <Zap size={14} className="inline-block mr-2 text-brand-accent" />
-            AI Employee is live. Interactions will appear here as activity comes in.
-            The calculator below still works — enter a day rate.
+        )}
+
+        {/* Empty-state message */}
+        {!stats.hasActivity && (
+          <div className="rounded-xl border border-border/50 px-5 py-4 mb-10 text-sm text-muted-foreground text-center">
+            Your AI Employee is live and ready. Activity will appear here as customers message in.
           </div>
         )}
 
         {/* Divider */}
-        <div className="border-t border-border/40 mb-8" />
+        <div className="border-t border-border/40 mb-10" />
 
-        {/* THE QUESTION — this is the moment */}
-        <div className="mb-8">
-          <p className="text-base font-medium text-foreground mb-4">
-            What&apos;s your day rate?
+        {/* The question — big, clear, central */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="text-center mb-8"
+        >
+          <h2 className="text-2xl font-semibold mb-2">What&apos;s your day rate?</h2>
+          <p className="text-sm text-muted-foreground">
+            We&apos;ll show you exactly what those 5 days were worth.
           </p>
+        </motion.div>
 
-          <div className="flex items-center gap-3">
-            <div
-              className="flex items-center gap-2 rounded-xl px-4 py-3 border"
-              style={{
-                background: 'rgb(var(--hy-bg-subtle, var(--muted)) / 0.3)',
-                borderColor: dayRateNum > 0
-                  ? 'rgb(139 92 246 / 0.6)'
-                  : 'rgb(var(--border))',
-                transition: 'border-color 0.2s',
-              }}
-            >
-              <span className="text-2xl font-bold text-muted-foreground select-none">£</span>
-              <input
-                ref={inputRef}
-                type="number"
-                min="0"
-                step="50"
-                value={rawRate}
-                onChange={e => setRawRate(e.target.value)}
-                placeholder="e.g. 300"
-                className="text-2xl font-bold text-foreground bg-transparent outline-none w-32 placeholder:text-muted-foreground/40"
-              />
-            </div>
-            <span className="text-base text-muted-foreground">/day</span>
+        {/* The input — HUGE, impossible to miss */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.4 }}
+          className="flex items-center justify-center gap-3 mb-10"
+        >
+          <div
+            className="flex items-center gap-2 rounded-2xl px-6 py-5 transition-all"
+            style={{
+              background: 'rgb(var(--hy-bg-subtle, var(--muted)) / 0.3)',
+              border: `2px solid ${dayRateNum > 0 ? 'rgb(139 92 246 / 0.8)' : 'rgb(var(--border))'}`,
+              boxShadow: dayRateNum > 0 ? '0 0 0 6px rgb(139 92 246 / 0.08)' : 'none',
+            }}
+          >
+            <span className="text-5xl font-bold text-muted-foreground select-none">£</span>
+            <input
+              ref={inputRef}
+              type="number"
+              inputMode="numeric"
+              min="0"
+              step="50"
+              value={rawRate}
+              onChange={e => setRawRate(e.target.value)}
+              placeholder="300"
+              className="text-5xl font-bold bg-transparent outline-none w-40 placeholder:text-muted-foreground/30"
+              style={{ color: dayRateNum > 0 ? '#8B5CF6' : undefined }}
+            />
           </div>
-        </div>
+          <span className="text-xl text-muted-foreground font-medium">/day</span>
+        </motion.div>
 
-        {/* THE NUMBER — this closes the deal */}
-        <AnimatePresence>
+        {/* THE RESULT — this is the moment */}
+        <AnimatePresence mode="wait">
           {dayRateNum > 0 && (
             <motion.div
               key="result"
-              initial={{ opacity: 0, y: 12, scale: 0.96 }}
+              initial={{ opacity: 0, y: 16, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.96 }}
-              transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="mb-8"
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
             >
               <div
-                className="rounded-2xl p-6 relative overflow-hidden"
+                className="rounded-2xl p-8 relative overflow-hidden text-center"
                 style={{
                   background: 'linear-gradient(135deg, rgb(139 92 246 / 0.12) 0%, rgb(99 102 241 / 0.08) 100%)',
                   border: '1px solid rgb(139 92 246 / 0.25)',
                 }}
               >
-                {/* Decorative */}
-                <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-purple-500/5" />
-                <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full bg-indigo-500/5" />
+                {/* Decorative blobs */}
+                <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-purple-500/8" />
+                <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-indigo-500/8" />
 
                 <div className="relative z-10">
-                  <p className="text-sm text-muted-foreground mb-2">
+                  <p className="text-base text-muted-foreground mb-3">
                     Your AI Employee was worth
                   </p>
-                  <div className="flex items-end gap-3 mb-2">
-                    <span
-                      className="text-6xl font-black tracking-tight"
-                      style={{ color: '#8B5CF6' }}
-                    >
-                      <AnimatedNumber
-                        target={animTarget}
-                        prefix="£"
-                        duration={700}
-                        className="text-6xl font-black tracking-tight"
-                      />
-                    </span>
+                  <div
+                    className="text-7xl sm:text-8xl font-black tracking-tight leading-none mb-3"
+                    style={{ color: '#8B5CF6' }}
+                  >
+                    <AnimatedNumber target={debouncedTarget} prefix="£" duration={600} />
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    to you in those 5 days.
+                  <p className="text-base text-muted-foreground">
+                    to you — in 5 days.
                   </p>
                 </div>
               </div>
 
               {/* The compare */}
-              <div
-                className="rounded-xl px-4 py-3 mt-3 flex items-center justify-between"
-                style={{
-                  background: 'rgb(var(--muted-foreground) / 0.06)',
-                  border: '1px solid rgb(var(--border) / 0.5)',
-                }}
-              >
-                <div className="text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">£{MONTHLY_COST}/mo</span> subscription
-                  {' '}= £{DAILY_COST}/day
-                </div>
-                {valueSaved > 0 && (
-                  <div className="text-xs font-semibold" style={{ color: '#8B5CF6' }}>
-                    {(valueSaved / DAILY_COST).toFixed(1)}× daily value
-                  </div>
-                )}
-              </div>
+              {timesDailyCost && Number(timesDailyCost) > 0 && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.5 }}
+                  className="mt-5 text-center"
+                >
+                  <p className="text-sm text-muted-foreground">
+                    Nexley costs <span className="font-semibold text-foreground">£{MONTHLY_COST}/mo</span> — that&apos;s just{' '}
+                    <span className="font-semibold text-foreground">£{DAILY_COST}/day</span>.
+                  </p>
+                  <p className="text-sm mt-1" style={{ color: '#8B5CF6' }}>
+                    You&apos;d be getting <span className="font-bold">{timesDailyCost}×</span> that back — every single day.
+                  </p>
+                </motion.div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Task breakdown — proof below the fold */}
-        {TASK_ROWS.length > 0 && (
-          <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-              What it handled
-            </p>
-            <div className="space-y-2">
-              {TASK_ROWS.map(row => (
-                <div
-                  key={row.label}
-                  className="flex items-center justify-between rounded-lg px-4 py-3"
-                  style={{ background: 'rgb(var(--muted-foreground) / 0.05)', border: '1px solid rgb(var(--border) / 0.4)' }}
-                >
-                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <span className="text-muted-foreground/60">{row.icon}</span>
-                    <span>{row.label}</span>
-                    <span className="text-xs opacity-60">{row.note}</span>
-                  </div>
-                  <span className="text-sm font-semibold text-foreground">{row.count}</span>
-                </div>
-              ))}
-            </div>
-
-            <p className="text-[11px] text-muted-foreground mt-3">
-              Time saved estimated at {MINS_PER_MESSAGE} min per message handled and {MINS_PER_BOOKING} min per booking.
-              Based on {stats.totalMinutesSaved} minutes of tracked activity.
-            </p>
-          </div>
-        )}
       </div>
     </div>
   )
 }
 
-function StatTile({ icon, label, value, highlight = false }: {
+function BigStat({ icon, value, label, highlight = false }: {
   icon: React.ReactNode
-  label: string
   value: string
+  label: string
   highlight?: boolean
 }) {
   return (
     <div
-      className="rounded-xl px-4 py-3"
+      className="rounded-xl p-5 text-center"
       style={{
         background: highlight
-          ? 'linear-gradient(135deg, rgb(139 92 246 / 0.1) 0%, rgb(99 102 241 / 0.07) 100%)'
+          ? 'linear-gradient(135deg, rgb(139 92 246 / 0.1) 0%, rgb(99 102 241 / 0.06) 100%)'
           : 'rgb(var(--muted-foreground) / 0.06)',
         border: highlight
-          ? '1px solid rgb(139 92 246 / 0.2)'
+          ? '1px solid rgb(139 92 246 / 0.25)'
           : '1px solid rgb(var(--border) / 0.5)',
       }}
     >
-      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-1.5">
+      <div className="flex items-center justify-center mb-2 text-muted-foreground">
         {icon}
-        <span>{label}</span>
       </div>
-      <div className={`text-2xl font-bold ${highlight ? '' : 'text-foreground'}`}
-        style={highlight ? { color: '#8B5CF6' } : undefined}>
+      <div
+        className="text-3xl font-bold mb-1"
+        style={highlight ? { color: '#8B5CF6' } : undefined}
+      >
         {value}
       </div>
+      <div className="text-xs text-muted-foreground">{label}</div>
     </div>
   )
 }
