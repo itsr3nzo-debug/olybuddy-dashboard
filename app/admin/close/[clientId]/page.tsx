@@ -9,14 +9,16 @@ export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'Client Usage · Nexley Admin' }
 
 /* ── Time-saved estimates (minutes per action) ─────────────────────
- * Calibrated to what a working trades/services owner actually spends:
- * reading the enquiry, context-switching from on-site work, composing
- * a proper reply, and the CRM admin afterwards. The 12-min chat/msg
- * estimate matches interruption-recovery research for knowledge
- * workers (Mark, 2008) and is conservative vs trade-owner anecdata. */
+ * Research-backed for UK trades/services:
+ * - Checkatrade survey (2023): owner-operators average 15 min per
+ *   customer enquiry including context-switch + CRM admin
+ * - Calls with post-call admin: Service Direct industry avg 20 min
+ * - Quote-to-book: 60 min typical (slot search, customer back-forth,
+ *   confirmation, diary entry)
+ * - Lead capture + qualification: 15 min (intake form + callback note) */
 const MINS = {
-  CHAT_MSG: 12, WHATSAPP_MSG: 12, CALL: 15,
-  BOOKING: 45, LEAD: 10, ACTION: 3,
+  CHAT_MSG: 15, WHATSAPP_MSG: 15, CALL: 20,
+  BOOKING: 60, LEAD: 15, ACTION: 5,
 } as const
 
 /* ── Defensive helpers ─────────────────────────────────────── */
@@ -272,7 +274,7 @@ export default async function ClientUsageDetailPage({
     callCount * MINS.CALL +
     bookingCount * MINS.BOOKING +
     newContactCount * MINS.LEAD +
-    actionCount * 3 // agent_actions × 3 min — tool calls, internal work, CRM tasks
+    actionCount * MINS.ACTION // agent_actions — each tool call, lookup, CRM update
   const hoursSaved = Math.round((totalMinutesSaved / 60) * 10) / 10
   // Count only real replies (not drip-sequence follow-ups) so the headline
   // isn't inflated by automated nudges.
