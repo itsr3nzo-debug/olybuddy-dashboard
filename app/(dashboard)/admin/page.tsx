@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { requireRole } from '@/lib/rbac-guard'
 import { getSupabase } from '@/lib/supabase'
 import Link from 'next/link'
-import { Users, Phone, TrendingUp, Calendar } from 'lucide-react'
+import { Users, Phone, TrendingUp, Calendar, Target, ChevronRight } from 'lucide-react'
 import { DeployButton, MarkLiveButton } from '@/components/admin/DeployActions'
 
 export const metadata: Metadata = { title: 'Admin | Nexley AI' }
@@ -48,6 +48,47 @@ export default async function AdminPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold">Admin Dashboard</h1>
         <p className="text-muted-foreground mt-1">Manage all Nexley AI clients</p>
+      </div>
+
+      {/* Quick actions */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
+        <Link
+          href="/admin/close"
+          className="group flex items-center justify-between rounded-xl border p-5 transition-all hover:border-purple-500/60 hover:shadow-md hover:shadow-purple-500/10"
+          style={{
+            background: 'linear-gradient(135deg, rgb(139 92 246 / 0.08) 0%, rgb(99 102 241 / 0.04) 100%)',
+            borderColor: 'rgb(139 92 246 / 0.25)',
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="inline-flex items-center justify-center w-10 h-10 rounded-xl text-white"
+              style={{ background: 'linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)' }}
+            >
+              <Target size={18} strokeWidth={2.5} />
+            </div>
+            <div>
+              <p className="text-base font-semibold">Client Usage</p>
+              <p className="text-xs text-muted-foreground">See AI activity + close trials</p>
+            </div>
+          </div>
+          <ChevronRight size={18} className="text-muted-foreground group-hover:text-purple-500 group-hover:translate-x-0.5 transition-all" />
+        </Link>
+        <Link
+          href="/admin/fleet"
+          className="group flex items-center justify-between rounded-xl border p-5 transition-all hover:border-border hover:shadow-md"
+        >
+          <div className="flex items-center gap-3">
+            <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-muted text-foreground">
+              <Users size={18} strokeWidth={2.5} />
+            </div>
+            <div>
+              <p className="text-base font-semibold">Fleet</p>
+              <p className="text-xs text-muted-foreground">VPS health · provisioning</p>
+            </div>
+          </div>
+          <ChevronRight size={18} className="text-muted-foreground group-hover:translate-x-0.5 transition-all" />
+        </Link>
       </div>
 
       {/* Global stats */}
