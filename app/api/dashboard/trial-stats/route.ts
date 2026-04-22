@@ -103,10 +103,9 @@ export async function GET(req: NextRequest) {
   }[] = []
 
   const MS_PER_DAY = 24 * 60 * 60 * 1000
-  const daysElapsed = Math.max(1, Math.ceil((windowEnd.getTime() - windowStart.getTime()) / MS_PER_DAY))
-  const totalDays = Math.min(5, daysElapsed)
-
-  for (let i = 0; i < totalDays; i++) {
+  // Always build exactly 5 buckets so the UI always shows all 5 bars.
+  // Future days (beyond now) will have 0 actions — the UI pads them with placeholders.
+  for (let i = 0; i < 5; i++) {
     const dayStart = new Date(windowStart.getTime() + i * MS_PER_DAY)
     const dayEnd = new Date(dayStart.getTime() + MS_PER_DAY)
     const dateStr = dayStart.toISOString().slice(0, 10)
@@ -152,7 +151,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     trial_started_at: windowStart.toISOString(),
-    window_days: totalDays,
+    window_days: 5,
     subscription_plan: clientRow?.subscription_plan ?? 'trial',
     days,
     totals: {

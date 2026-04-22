@@ -20,12 +20,12 @@ import {
 } from 'lucide-react'
 
 const LS_KEY = 'nexley_day_rate_gbp'
-const TRIAL_COST = 249 // £ (free trial cost — displayed for ROI framing)
+const TRIAL_COST = 20 // £20 — the 5-day AI Employee trial price
 
 /* ── Helpers ─────────────────────────────────── */
 
 function fmt(n: number, prefix = '') {
-  if (n >= 1000) return `${prefix}${(n / 1000).toFixed(1)}k`
+  if (n >= 1000) return `${prefix}${Math.round(n / 1000)}k`
   return `${prefix}${n.toLocaleString('en-GB')}`
 }
 
@@ -79,7 +79,6 @@ type Stats = {
 
 function DayBar({ day, maxActions, index }: { day: DayData; maxActions: number; index: number }) {
   const pct = maxActions > 0 ? Math.max(4, Math.round((day.actions / maxActions) * 100)) : 4
-  const isToday = index === (day.label === `Day ${index + 1}` ? index : -1)
 
   return (
     <motion.div
@@ -144,18 +143,19 @@ function HeadlineStat({ icon, label, value, sub, accent = false }: {
 export default function TrialROICard() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState(false)
 
   // Day rate state — persisted to localStorage
   const [dayRate, setDayRate] = useState<string>('')
   const [editing, setEditing] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount (always after hydration, no SSR mismatch)
   useEffect(() => {
     try {
       const saved = localStorage.getItem(LS_KEY)
       if (saved) setDayRate(saved)
-    } catch { /* SSR / private mode — ignore */ }
+    } catch { /* private/SSR mode — ignore */ }
   }, [])
 
   const saveDayRate = (val: string) => {
@@ -173,7 +173,7 @@ export default function TrialROICard() {
         const json = await res.json()
         if (!cancelled) { setStats(json); setLoading(false) }
       } catch {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) { setErr(true); setLoading(false) }
       }
     })()
     return () => { cancelled = true }
@@ -184,17 +184,20 @@ export default function TrialROICard() {
   }, [editing])
 
   if (loading) return <div className="skeleton rounded-2xl h-72 mb-6" />
-  if (!stats) return null
+  // Silent fail — don't show a broken scorecard to a trial customer
+  if (err || !stats) return null
+  // Only show for trial plans — paid customers don't need the £20 ROI framing
+  if (stats.subscription_plan !== 'trial' && stats.subscription_plan !== 'ai-employee-trial') return null
 
   const { totals, days } = stats
   const maxActions = Math.max(...days.map(d => d.actions), 1)
 
-  // Money saved at their day rate
+  // Money saved at their day rate (assuming 8hr working day)
   const dayRateNum = parseFloat(dayRate.replace(/[^0-9.]/g, '')) || 0
   const hourlyRate = dayRateNum / 8
   const valueSavedAtDayRate = Math.round(totals.hours_saved * hourlyRate)
-  const roiMultiple = valueSavedAtDayRate > 0 && TRIAL_COST > 0
-    ? (valueSavedAtDayRate / TRIAL_COST).toFixed(1)
+  const roiMultiple: number | null = valueSavedAtDayRate > 0 && TRIAL_COST > 0
+    ? parseFloat((valueSavedAtDayRate / TRIAL_COST).toFixed(1))
     : null
 
   // Top categories across all days
@@ -393,14 +396,14 @@ export default function TrialROICard() {
                 </div>
               </div>
 
-              {roiMultiple && (
+              {roiMultiple !== null && roiMultiple > 0 && (
                 <div
                   className="flex items-center justify-between rounded-lg px-3 py-2"
                   style={{ background: 'rgb(139 92 246 / 0.08)' }}
                 >
                   <div className="flex items-center gap-1.5">
                     <TrendingUp size={12} style={{ color: '#8B5CF6' }} />
-                    <span className="text-xs text-muted-foreground">Trial ROI</span>
+                    <span className="text-xs text-muted-foreground">vs £{TRIAL_COST} trial cost</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-bold" style={{ color: '#8B5CF6' }}>
@@ -412,13 +415,13 @@ export default function TrialROICard() {
               )}
 
               <p className="text-[10px] text-muted-foreground">
-                Based on {fmtHours(totals.hours_saved)} saved at £{Math.round(hourlyRate)}/hr ({dayRateNum > 0 ? Number(dayRate).toLocaleString('en-GB') : 0}/day ÷ 8hr day).
-                Calculated from actions logged by your AI Employee.
+                Hourly rate calculated as £{Number(dayRate).toLocaleString('en-GB')}/day ÷ 8hr working day = £{Math.round(hourlyRate)}/hr.
+                Based on actions logged by your AI Employee.
               </p>
             </div>
           ) : (
             <p className="text-[11px] text-muted-foreground">
-              Once you enter your day rate, we'll calculate exactly how much your AI Employee saved you in pound terms.
+              Once you enter your day rate, we&apos;ll calculate exactly how much your AI Employee saved you in pound terms.
             </p>
           )}
         </div>
