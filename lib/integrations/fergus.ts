@@ -440,6 +440,20 @@ export class FergusClient {
   }
 
   /**
+   * Fetch a job's financial summary — totals, invoiced, balance remaining.
+   * Maps to `GET /jobs/{jobId}/financialSummary` (public Partner API).
+   * Used by the "invoice-ready" flow to populate the WhatsApp nudge message.
+   */
+  async getJobFinancialSummary(jobId: number): Promise<Record<string, unknown> | null> {
+    try {
+      const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('GET', `/jobs/${jobId}/financialSummary`)
+      return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
+    } catch {
+      return null
+    }
+  }
+
+  /**
    * Fetch a job's phases — needed to add line items (which live on phases, not
    * jobs directly — POST /phases/{phaseId}/stockOnHand).
    */
