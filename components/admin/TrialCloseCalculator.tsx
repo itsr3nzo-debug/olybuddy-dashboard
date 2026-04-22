@@ -237,13 +237,13 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
               Recent activity
             </h2>
             {timeline.length === 0 ? (
-              <div className="rounded-xl border border-border/50 px-5 py-6 text-sm text-muted-foreground text-center">
-                No activity in this period. Try &apos;All time&apos; above, or the AI Employee is set up and listening.
+              <div className="rounded-xl border border-border/50 bg-card/30 px-5 py-8 text-sm text-muted-foreground text-center">
+                No activity in this period. Try <span className="font-semibold text-foreground">All time</span> above — or the AI Employee is set up and listening.
               </div>
             ) : (
               <div className="space-y-1.5">
-                {timeline.map((item) => (
-                  <TimelineRow key={item.id} item={item} />
+                {timeline.map((item, i) => (
+                  <TimelineRow key={item.id} item={item} index={i} />
                 ))}
               </div>
             )}
@@ -285,7 +285,7 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
                   label="Interactions handled outside 9–6"
                   compare={
                     reliability.afterHoursPct >= 25
-                      ? `${reliability.afterHoursPct}% of everything — when they&apos;d be off the clock.`
+                      ? `${reliability.afterHoursPct}% of everything — when they\u2019d be off the clock.`
                       : 'Evenings and weekends — covered automatically.'
                   }
                 />
@@ -336,12 +336,18 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
             transition={{ delay: 0.35 }}
             className="flex items-center justify-center gap-3 mb-8"
           >
-            <div
-              className="flex items-center gap-2 rounded-2xl px-6 py-5 transition-all"
+            <motion.div
+              animate={{
+                boxShadow: dayRateNum > 0
+                  ? '0 0 0 6px rgb(139 92 246 / 0.10), 0 8px 32px -12px rgb(139 92 246 / 0.4)'
+                  : '0 0 0 0px rgb(139 92 246 / 0.0)',
+              }}
+              transition={{ duration: 0.25 }}
+              className="flex items-center gap-2 rounded-2xl px-6 py-5"
               style={{
                 background: 'rgb(var(--hy-bg-subtle, var(--muted)) / 0.3)',
                 border: `2px solid ${dayRateNum > 0 ? 'rgb(139 92 246 / 0.8)' : 'rgb(var(--border))'}`,
-                boxShadow: dayRateNum > 0 ? '0 0 0 6px rgb(139 92 246 / 0.08)' : 'none',
+                transition: 'border-color 0.25s',
               }}
             >
               <span className="text-5xl font-bold text-muted-foreground select-none">£</span>
@@ -354,10 +360,10 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
                 value={rawRate}
                 onChange={e => setRawRate(e.target.value)}
                 placeholder="300"
-                className="text-5xl font-bold bg-transparent outline-none w-40 placeholder:text-muted-foreground/30"
+                className="text-5xl font-bold bg-transparent outline-none w-40 tabular-nums placeholder:text-muted-foreground/30"
                 style={{ color: dayRateNum > 0 ? '#8B5CF6' : undefined }}
               />
-            </div>
+            </motion.div>
             <span className="text-xl text-muted-foreground font-medium">/day</span>
           </motion.div>
 
@@ -371,21 +377,31 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
                 transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
               >
                 <div
-                  className="rounded-2xl p-8 relative overflow-hidden text-center"
+                  className="rounded-2xl p-10 relative overflow-hidden text-center"
                   style={{
-                    background: 'linear-gradient(135deg, rgb(139 92 246 / 0.12) 0%, rgb(99 102 241 / 0.08) 100%)',
-                    border: '1px solid rgb(139 92 246 / 0.25)',
+                    background: 'linear-gradient(135deg, rgb(139 92 246 / 0.14) 0%, rgb(99 102 241 / 0.08) 50%, rgb(139 92 246 / 0.04) 100%)',
+                    border: '1px solid rgb(139 92 246 / 0.3)',
+                    boxShadow: '0 12px 40px -12px rgb(139 92 246 / 0.3)',
                   }}
                 >
-                  <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-purple-500/8" />
-                  <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-indigo-500/8" />
+                  {/* Decorative animated blobs */}
+                  <motion.div
+                    animate={{ scale: [1, 1.12, 1], opacity: [0.4, 0.6, 0.4] }}
+                    transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
+                    className="absolute -top-14 -right-14 w-48 h-48 rounded-full bg-purple-500/10"
+                  />
+                  <motion.div
+                    animate={{ scale: [1.05, 1, 1.05], opacity: [0.3, 0.5, 0.3] }}
+                    transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut', delay: 0.6 }}
+                    className="absolute -bottom-10 -left-10 w-40 h-40 rounded-full bg-indigo-500/10"
+                  />
 
                   <div className="relative z-10">
-                    <p className="text-base text-muted-foreground mb-3">
+                    <p className="text-sm text-muted-foreground mb-3 font-medium uppercase tracking-wider">
                       Their AI Employee was worth
                     </p>
                     <div
-                      className="text-7xl sm:text-8xl font-black tracking-tight leading-none mb-3"
+                      className="text-7xl sm:text-8xl font-black tracking-tight leading-none mb-3 tabular-nums"
                       style={{ color: '#8B5CF6' }}
                     >
                       <AnimatedNumber target={debouncedTarget} prefix="£" duration={600} />
@@ -457,13 +473,20 @@ function PeriodTab({ clientId, period, current, label }: {
     <Link
       href={`/admin/close/${clientId}?period=${period}`}
       scroll={false}
-      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-        active
-          ? 'bg-card text-foreground shadow-sm'
-          : 'text-muted-foreground hover:text-foreground'
+      prefetch={!active}
+      className={`relative px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+        active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
       }`}
     >
-      {label}
+      {active && (
+        <motion.span
+          layoutId="period-pill"
+          transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+          className="absolute inset-0 rounded-lg bg-card shadow-sm"
+          style={{ zIndex: -1 }}
+        />
+      )}
+      <span className="relative">{label}</span>
     </Link>
   )
 }
@@ -475,15 +498,18 @@ function StatTile({ icon, value, label, highlight = false }: {
   highlight?: boolean
 }) {
   return (
-    <div
-      className="rounded-xl p-4"
+    <motion.div
+      whileHover={{ y: -2 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+      className="rounded-xl p-4 cursor-default"
       style={{
         background: highlight
-          ? 'linear-gradient(135deg, rgb(139 92 246 / 0.1) 0%, rgb(99 102 241 / 0.06) 100%)'
+          ? 'linear-gradient(135deg, rgb(139 92 246 / 0.12) 0%, rgb(99 102 241 / 0.07) 100%)'
           : 'rgb(var(--muted-foreground) / 0.05)',
         border: highlight
-          ? '1px solid rgb(139 92 246 / 0.25)'
+          ? '1px solid rgb(139 92 246 / 0.3)'
           : '1px solid rgb(var(--border) / 0.5)',
+        boxShadow: highlight ? '0 1px 20px -8px rgb(139 92 246 / 0.3)' : undefined,
       }}
     >
       <div className="flex items-center gap-1.5 text-muted-foreground mb-1.5">
@@ -491,12 +517,12 @@ function StatTile({ icon, value, label, highlight = false }: {
         <span className="text-[11px] font-medium">{label}</span>
       </div>
       <div
-        className="text-2xl sm:text-3xl font-bold"
+        className="text-2xl sm:text-3xl font-bold tabular-nums"
         style={highlight ? { color: '#8B5CF6' } : undefined}
       >
         {value}
       </div>
-    </div>
+    </motion.div>
   )
 }
 
@@ -508,28 +534,37 @@ function ReliabilityRow({ icon, color, headline, label, compare }: {
   compare: string
 }) {
   return (
-    <div
-      className="flex items-start gap-4 rounded-xl px-5 py-4"
-      style={{ background: 'rgb(var(--muted-foreground) / 0.04)', border: '1px solid rgb(var(--border) / 0.5)' }}
+    <motion.div
+      whileHover={{ x: 2 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+      className="flex items-start gap-4 rounded-xl px-5 py-4 cursor-default"
+      style={{
+        background: 'rgb(var(--muted-foreground) / 0.04)',
+        border: '1px solid rgb(var(--border) / 0.5)',
+      }}
     >
       <div
-        className="flex-shrink-0 w-10 h-10 rounded-xl inline-flex items-center justify-center"
+        className="flex-shrink-0 w-10 h-10 rounded-xl inline-flex items-center justify-center relative overflow-hidden"
         style={{ background: `${color}1F`, color }}
       >
         {icon}
+        <div
+          className="absolute inset-0 opacity-30"
+          style={{ background: `linear-gradient(135deg, ${color}44 0%, transparent 70%)` }}
+        />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2 mb-0.5">
-          <span className="text-xl font-bold" style={{ color }}>{headline}</span>
+        <div className="flex items-baseline gap-2 mb-0.5 flex-wrap">
+          <span className="text-xl font-bold tabular-nums" style={{ color }}>{headline}</span>
           <span className="text-sm font-medium text-foreground">{label}</span>
         </div>
-        <p className="text-xs text-muted-foreground">{compare}</p>
+        <p className="text-xs text-muted-foreground leading-relaxed">{compare}</p>
       </div>
-    </div>
+    </motion.div>
   )
 }
 
-function TimelineRow({ item }: { item: ActivityItem }) {
+function TimelineRow({ item, index }: { item: ActivityItem; index: number }) {
   const colorByKind: Record<ActivityItem['kind'], { icon: React.ReactNode; bg: string; fg: string }> = {
     message: { icon: <MessageCircle size={14} />, bg: 'rgb(139 92 246 / 0.12)', fg: '#8B5CF6' },
     booking: { icon: <Calendar size={14} />, bg: 'rgb(34 197 94 / 0.12)', fg: '#22C55E' },
@@ -540,8 +575,12 @@ function TimelineRow({ item }: { item: ActivityItem }) {
   const valueLabel = formatPence(item.valuePence)
 
   return (
-    <div
-      className="flex items-start gap-3 rounded-xl px-4 py-3"
+    <motion.div
+      initial={{ opacity: 0, x: -6 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: 0.05 + index * 0.03, duration: 0.3 }}
+      whileHover={{ x: 2 }}
+      className="flex items-start gap-3 rounded-xl px-4 py-3 cursor-default"
       style={{ background: 'rgb(var(--muted-foreground) / 0.04)', border: '1px solid rgb(var(--border) / 0.4)' }}
     >
       <div
@@ -563,9 +602,9 @@ function TimelineRow({ item }: { item: ActivityItem }) {
           <p className="text-xs text-muted-foreground truncate mt-0.5">{item.preview}</p>
         )}
       </div>
-      <span className="text-[11px] text-muted-foreground flex-shrink-0 mt-1">
+      <span className="text-[11px] text-muted-foreground flex-shrink-0 mt-1 tabular-nums">
         {timeAgo(item.when)}
       </span>
-    </div>
+    </motion.div>
   )
 }
