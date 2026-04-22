@@ -462,6 +462,16 @@ export class FergusClient {
     return (res as { data?: Array<Record<string, unknown>> })?.data ?? (res as Array<Record<string, unknown>>) ?? []
   }
 
+  /** List a phase's line items (materials + labour) — for building an invoice. */
+  async listPhaseStockOnHand(phaseId: number): Promise<Array<Record<string, unknown>>> {
+    try {
+      const res = await this.req<{ data: Array<Record<string, unknown>> } | Array<Record<string, unknown>>>('GET', `/phases/${phaseId}/stockOnHand`)
+      return (res as { data?: Array<Record<string, unknown>> })?.data ?? (res as Array<Record<string, unknown>>) ?? []
+    } catch {
+      return []
+    }
+  }
+
   /** Add a labour or materials line item to a job phase. */
   async addPhaseStockOnHand(phaseId: number, item: {
     itemDescription: string
@@ -610,6 +620,16 @@ export class FergusClient {
   }
 
   // ─── Quote lifecycle actions ────────────────────────────
+  /** Read a quote (sections + line items + totals). Maps to GET /jobs/quotes/{id}. */
+  async getQuote(quoteId: number): Promise<Record<string, unknown> | null> {
+    try {
+      const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('GET', `/jobs/quotes/${quoteId}`)
+      return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
+    } catch {
+      return null
+    }
+  }
+
   async publishQuote(quoteId: number, publishedBy?: string): Promise<Record<string, unknown> | null> {
     const body: Record<string, unknown> = {}
     if (publishedBy) body.publishedBy = publishedBy
