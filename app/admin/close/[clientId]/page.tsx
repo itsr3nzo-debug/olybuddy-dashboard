@@ -22,38 +22,24 @@ async function safeRows<T>(promise: PromiseLike<{ data: T[] | null }>): Promise<
   try { return (await promise).data ?? [] } catch { return [] }
 }
 
-/* ── Row types ───────────────────────────────────────────── */
-type JoinedContact = { first_name: string | null; last_name: string | null }
+/* ── Row types (no customer PII — just aggregate shape of activity) ── */
 type CommsRow = {
-  id: string; body: string | null; sent_at: string; channel: string | null
-  contacts: JoinedContact[] | null
+  id: string; sent_at: string; channel: string | null
 }
 type OppRow = {
   id: string; stage: string | null; value_pence: number | null; created_at: string
-  contacts: JoinedContact[] | null
 }
 type ContactRow = {
-  id: string; first_name: string | null; last_name: string | null; created_at: string
+  id: string; created_at: string
 }
 type ChatMsgRow = {
-  id: string; content: string | null; created_at: string
-  completed_at: string | null; session_id: string
+  id: string; created_at: string; session_id: string
 }
 type CallRow = {
   id: string; started_at: string | null; duration_seconds: number | null; status: string | null
 }
 
 /* ── Helpers ───────────────────────────────────────────────── */
-function contactName(c: JoinedContact[] | null | undefined): string {
-  const first = c?.[0]
-  if (!first) return 'a customer'
-  return [first.first_name, first.last_name].filter(Boolean).join(' ').trim() || 'a customer'
-}
-function snippet(body: string | null, max = 75): string {
-  if (!body) return ''
-  const clean = body.replace(/\s+/g, ' ').trim()
-  return clean.length > max ? clean.slice(0, max).trim() + '…' : clean
-}
 
 /** UK-timezone-aware: is this timestamp outside Mon-Fri 9am-6pm? */
 function isAfterHoursUK(iso: string): boolean {
@@ -161,10 +147,13 @@ export default async function ClientUsageDetailPage({
     whatsappMsgCount, whatsappFollowUpCount,
     bookingCount, newContactCount, callCount, actionCount,
     recentChatMsgs, recentComms, recentOpps, recentContacts, recentCalls,
-    // Reliability-specific: fetch ALL chat message timestamps in the window
-    allChatMsgTimestamps,
+    // Reliability: need user AND assistant chat messages (paired by session)
+    // for real response time + coverage rate calculation
+    allUserChatMsgs, allAssistantChatMsgs,
     // And all comms and calls for after-hours detection
     allCommsTimestamps, allCallTimestamps,
+    // Non-follow-up WhatsApp count (real replies, not drip sequences)
+    whatsappRealReplyCount,
   ] = await Promise.all([
     safeCount(service.from('agent_chat_messages').select('id', { count: 'exact', head: true })
       .eq('client_id', clientId).eq('role', 'assistant')
@@ -186,21 +175,21 @@ export default async function ClientUsageDetailPage({
     safeCount(service.from('agent_actions').select('id', { count: 'exact', head: true })
       .eq('client_id', clientId).gte('occurred_at', startIso).lte('occurred_at', endIso)),
     safeRows<ChatMsgRow>(service.from('agent_chat_messages')
-      .select('id, content, created_at, completed_at, session_id')
+      .select('id, created_at, session_id')
       .eq('client_id', clientId).eq('role', 'assistant').eq('status', 'done')
       .gte('created_at', startIso).lte('created_at', endIso)
       .order('created_at', { ascending: false }).limit(8)),
     safeRows<CommsRow>(service.from('comms_log')
-      .select('id, body, sent_at, channel, contacts(first_name, last_name)')
+      .select('id, sent_at, channel')
       .eq('client_id', clientId).eq('direction', 'outbound')
       .gte('sent_at', startIso).lte('sent_at', endIso)
       .order('sent_at', { ascending: false }).limit(6)),
     safeRows<OppRow>(service.from('opportunities')
-      .select('id, stage, value_pence, created_at, contacts(first_name, last_name)')
+      .select('id, stage, value_pence, created_at')
       .eq('client_id', clientId).gte('created_at', startIso).lte('created_at', endIso)
       .order('created_at', { ascending: false }).limit(5)),
     safeRows<ContactRow>(service.from('contacts')
-      .select('id, first_name, last_name, created_at')
+      .select('id, created_at')
       .eq('client_id', clientId).gte('created_at', startIso).lte('created_at', endIso)
       .order('created_at', { ascending: false }).limit(5)),
     safeRows<CallRow>(service.from('call_logs')
@@ -208,37 +197,50 @@ export default async function ClientUsageDetailPage({
       .eq('client_id', clientId).gte('started_at', startIso).lte('started_at', endIso)
       .order('started_at', { ascending: false }).limit(5)),
 
-    // Reliability-specific
-    safeRows<{ created_at: string; completed_at: string | null }>(
+    // Reliability-specific: user + assistant messages paired for real response time
+    safeRows<{ id: string; session_id: string; created_at: string }>(
       service.from('agent_chat_messages')
-        .select('created_at, completed_at')
-        .eq('client_id', clientId).eq('role', 'assistant').eq('status', 'done')
+        .select('id, session_id, created_at')
+        .eq('client_id', clientId).eq('role', 'user')
         .gte('created_at', startIso).lte('created_at', endIso)
-        .limit(500)
+        .order('created_at', { ascending: true }).limit(500)
+    ),
+    safeRows<{ session_id: string; created_at: string; status: string }>(
+      service.from('agent_chat_messages')
+        .select('session_id, created_at, status')
+        .eq('client_id', clientId).eq('role', 'assistant')
+        .gte('created_at', startIso).lte('created_at', endIso)
+        .order('created_at', { ascending: true }).limit(500)
     ),
     safeRows<{ sent_at: string }>(
       service.from('comms_log')
         .select('sent_at')
         .eq('client_id', clientId).eq('direction', 'outbound')
         .gte('sent_at', startIso).lte('sent_at', endIso)
-        .limit(500)
+        .order('sent_at', { ascending: true }).limit(500)
     ),
     safeRows<{ started_at: string | null }>(
       service.from('call_logs')
         .select('started_at')
-        .eq('client_id', clientId).gte('started_at', startIso).lte('started_at', endIso)
-        .limit(500)
+        .eq('client_id', clientId)
+        .gte('started_at', startIso).lte('started_at', endIso)
+        .order('started_at', { ascending: true }).limit(500)
     ),
+    safeCount(service.from('comms_log').select('id', { count: 'exact', head: true })
+      .eq('client_id', clientId).eq('direction', 'outbound').is('sequence_id', null)
+      .gte('sent_at', startIso).lte('sent_at', endIso)),
   ])
 
   // ─── Time saved ──────────────────────────────────────────
+  // Only count REAL replies (not automated follow-up sequences) for hours saved.
+  // Drop agent_actions entirely — its relationship to user-facing events is unclear
+  // and double-counting risk is too high for a pitch number.
   const totalMinutesSaved =
     chatMsgCount * MINS.CHAT_MSG +
-    whatsappMsgCount * MINS.WHATSAPP_MSG +
+    whatsappRealReplyCount * MINS.WHATSAPP_MSG +
     callCount * MINS.CALL +
     bookingCount * MINS.BOOKING +
-    newContactCount * MINS.LEAD +
-    Math.max(0, actionCount - chatMsgCount - whatsappMsgCount) * MINS.ACTION
+    newContactCount * MINS.LEAD
   const hoursSaved = Math.round((totalMinutesSaved / 60) * 10) / 10
   const messagesHandled = chatMsgCount + whatsappMsgCount
   const hasActivity =
@@ -246,9 +248,10 @@ export default async function ClientUsageDetailPage({
     callCount > 0 || actionCount > 0
 
   // ─── Reliability metrics ─────────────────────────────────
-  // After-hours count: interactions outside Mon-Fri 9am-6pm UK time
+  // After-hours: interactions outside UK Mon-Fri 9am-6pm
   const allTimestamps = [
-    ...allChatMsgTimestamps.map(r => r.created_at),
+    ...allUserChatMsgs.map(r => r.created_at),
+    ...allAssistantChatMsgs.map(r => r.created_at),
     ...allCommsTimestamps.map(r => r.sent_at),
     ...allCallTimestamps.map(r => r.started_at).filter((t): t is string => Boolean(t)),
   ]
@@ -258,56 +261,94 @@ export default async function ClientUsageDetailPage({
     ? Math.round((afterHoursCount / totalInteractions) * 100)
     : 0
 
-  // Avg response time from chat messages (only source with both timestamps)
-  const responseTimes = allChatMsgTimestamps
-    .filter(r => r.completed_at && r.created_at)
-    .map(r => (new Date(r.completed_at!).getTime() - new Date(r.created_at).getTime()) / 1000)
-    .filter(s => s >= 0 && s < 3600) // Filter out bogus values (> 1h response means error)
-  const avgResponseSec = responseTimes.length > 0
+  // REAL response time: pair each user msg with the first assistant reply in
+  // the same session AFTER it. That's the time the customer actually waited.
+  // (Previous code measured assistant streaming duration — wrong metric.)
+  const responseTimes: number[] = []
+  let coveredCount = 0
+  let failedCount = 0
+
+  for (const u of allUserChatMsgs) {
+    const uTime = new Date(u.created_at).getTime()
+    // Find first assistant message in the same session after this user message
+    const reply = allAssistantChatMsgs.find(a =>
+      a.session_id === u.session_id && new Date(a.created_at).getTime() > uTime
+    )
+    if (!reply) continue
+    if (reply.status === 'error' || reply.status === 'failed') {
+      failedCount++
+      continue
+    }
+    if (reply.status === 'done') {
+      coveredCount++
+      const sec = (new Date(reply.created_at).getTime() - uTime) / 1000
+      // Cap at 5 minutes — anything longer is an edge case (agent offline, etc.)
+      if (sec >= 0 && sec <= 300) responseTimes.push(sec)
+    }
+  }
+
+  const avgResponseSec = responseTimes.length >= 3
     ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length
     : null
+  // Median is more honest than mean for response time (outliers skew mean)
+  const sortedResponseTimes = [...responseTimes].sort((a, b) => a - b)
+  const medianResponseSec = sortedResponseTimes.length >= 3
+    ? sortedResponseTimes[Math.floor(sortedResponseTimes.length / 2)]
+    : null
 
-  // ─── Timeline ───────────────────────────────────────────
+  // Coverage rate: computed from real data, not hardcoded
+  const userMsgTotal = allUserChatMsgs.length
+  const coveragePct = userMsgTotal > 0
+    ? Math.round((coveredCount / userMsgTotal) * 100)
+    : null  // null = "not enough data" — UI hides the row
+
+  // ─── Timeline (privacy-preserving: no message bodies, no customer names) ──
+  // The admin tool shows the SHAPE of activity (types, counts, timing) so
+  // Kade can pitch. It doesn't surface message content or customer identities
+  // — if Kade screen-shares during a close, the client doesn't see what feels
+  // like surveillance of their own business.
   const timeline: ActivityItem[] = []
   for (const m of recentChatMsgs) {
     timeline.push({
       id: `chat-${m.id}`, kind: 'message', when: m.created_at,
-      channel: 'chat', title: 'Replied in dashboard chat',
-      preview: snippet(m.content),
+      channel: 'chat', title: 'Replied to customer enquiry',
     })
   }
   for (const m of recentComms) {
+    const ch = m.channel ?? 'whatsapp'
     timeline.push({
       id: `comm-${m.id}`, kind: 'message', when: m.sent_at,
-      channel: m.channel ?? 'whatsapp',
-      title: `Replied to ${contactName(m.contacts ?? null)} via ${m.channel ?? 'WhatsApp'}`,
-      preview: snippet(m.body),
+      channel: ch, title: `Replied via ${ch}`,
     })
   }
   for (const o of recentOpps) {
     timeline.push({
       id: `opp-${o.id}`, kind: 'booking', when: o.created_at,
-      title: `Booking with ${contactName(o.contacts ?? null)}`,
+      title: 'Booked an opportunity',
       preview: o.stage ? `Stage: ${o.stage}` : undefined,
       valuePence: o.value_pence,
     })
   }
   for (const c of recentContacts) {
-    const name = [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'new contact'
     timeline.push({
       id: `ctc-${c.id}`, kind: 'lead', when: c.created_at,
-      title: `Captured lead: ${name}`,
+      title: 'Captured a new lead',
     })
   }
   for (const call of recentCalls) {
     if (!call.started_at) continue
-    const dur = call.duration_seconds ? `${Math.round(call.duration_seconds / 60)} min call` : 'Call'
+    const dur = call.duration_seconds ? `${Math.round(call.duration_seconds / 60)} min call` : 'Call handled'
     timeline.push({
       id: `call-${call.id}`, kind: 'call', when: call.started_at,
       title: dur, preview: call.status ?? undefined,
     })
   }
   timeline.sort((a, b) => new Date(b.when).getTime() - new Date(a.when).getTime())
+
+  // Days in period (for honest ROI math — compare value to actual period cost)
+  const daysInPeriod = Math.max(1, Math.round(
+    (windowEnd.getTime() - windowStart.getTime()) / (24 * 60 * 60 * 1000)
+  ))
 
   const stats: TrialCloseStats = {
     clientName: client.name || client.slug || 'Client',
@@ -332,9 +373,13 @@ export default async function ClientUsageDetailPage({
       totalInteractions,
       afterHoursCount,
       afterHoursPct,
-      avgResponseSec,
-      avgResponseLabel: avgResponseSec !== null ? fmtResponseTime(avgResponseSec) : null,
+      medianResponseSec,
+      medianResponseLabel: medianResponseSec !== null ? fmtResponseTime(medianResponseSec) : null,
+      coveragePct,
+      failedRepliesCount: failedCount,
+      userMsgTotal,
     },
+    daysInPeriod,
     totalMinutesSaved,
     hoursSaved,
     hasActivity,

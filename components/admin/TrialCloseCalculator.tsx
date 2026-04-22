@@ -40,8 +40,11 @@ interface ReliabilityMetrics {
   totalInteractions: number
   afterHoursCount: number
   afterHoursPct: number
-  avgResponseSec: number | null
-  avgResponseLabel: string | null
+  medianResponseSec: number | null
+  medianResponseLabel: string | null
+  coveragePct: number | null  // null = not enough data to compute
+  failedRepliesCount: number
+  userMsgTotal: number
 }
 
 export type ActivityItem = {
@@ -69,6 +72,7 @@ export interface TrialCloseStats {
   hoursSaved: number
   hasActivity: boolean
   timeline: ActivityItem[]
+  daysInPeriod: number
 }
 
 /* ── Helpers ───────────────────────────────────── */
@@ -145,7 +149,7 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
               <span className="text-purple-500">{stats.clientName}</span>&apos;s AI Employee
             </h1>
             <p className="text-base text-muted-foreground mt-2">
-              Exactly what it handled — without anyone lifting a finger.
+              Aggregate performance only — no message content or customer details are exposed.
             </p>
           </motion.div>
 
@@ -263,13 +267,13 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
               transition={{ delay: 0.25 }}
               className="space-y-2.5"
             >
-              {reliability.avgResponseLabel && (
+              {reliability.medianResponseLabel && (
                 <ReliabilityRow
                   icon={<Zap size={16} />}
                   color="#F59E0B"
-                  headline={reliability.avgResponseLabel}
-                  label="Average response time"
-                  compare="The typical UK trades business takes 4+ hours to reply."
+                  headline={reliability.medianResponseLabel}
+                  label="Median response time"
+                  compare="Most businesses take hours to reply. The AI does it in seconds — every time."
                 />
               )}
 
@@ -278,27 +282,29 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
                   icon={<Moon size={16} />}
                   color="#8B5CF6"
                   headline={`${reliability.afterHoursCount}`}
-                  label="Interactions handled outside 9-6"
+                  label="Interactions handled outside 9–6"
                   compare={
                     reliability.afterHoursPct >= 25
-                      ? `${reliability.afterHoursPct}% of everything — when most businesses are closed.`
-                      : `Evenings and weekends — when they would have been off the clock.`
+                      ? `${reliability.afterHoursPct}% of everything — when they&apos;d be off the clock.`
+                      : 'Evenings and weekends — covered automatically.'
                   }
                 />
               )}
 
-              <ReliabilityRow
-                icon={<CheckCircle2 size={16} />}
-                color="#22C55E"
-                headline="100%"
-                label="Coverage rate"
-                compare={`${reliability.totalInteractions} interactions — none missed. Humans typically miss ~30% of enquiries.`}
-              />
+              {reliability.coveragePct !== null && (
+                <ReliabilityRow
+                  icon={<CheckCircle2 size={16} />}
+                  color="#22C55E"
+                  headline={`${reliability.coveragePct}%`}
+                  label="Reply rate"
+                  compare={
+                    reliability.failedRepliesCount > 0
+                      ? `${reliability.userMsgTotal - reliability.failedRepliesCount} of ${reliability.userMsgTotal} enquiries answered. Nothing dropped silently.`
+                      : `${reliability.userMsgTotal} enquiries — every one got a reply.`
+                  }
+                />
+              )}
             </motion.div>
-
-            <p className="text-[11px] text-muted-foreground mt-4 text-center">
-              Industry response-time figure from Service Direct (2024) and Checkatrade survey data.
-            </p>
           </section>
         )}
 
@@ -392,23 +398,43 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
                   </div>
                 </div>
 
-                {valueSaved > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.4 }}
-                    className="mt-5 text-center px-4"
-                  >
-                    <p className="text-sm text-muted-foreground">
-                      Nexley costs <span className="font-semibold text-foreground">£{MONTHLY_COST}/mo</span>{' — '}
-                      just <span className="font-semibold text-foreground">£{DAILY_COST}/day</span>.
-                    </p>
-                    <p className="text-sm mt-1" style={{ color: '#8B5CF6' }}>
-                      They&apos;re getting <span className="font-bold">{(valueSaved / DAILY_COST).toFixed(1)}×</span> that back{' '}
-                      {stats.period === 'trial' ? 'in 5 days' : stats.period === '30d' ? 'per month' : 'total'}.
-                    </p>
-                  </motion.div>
-                )}
+                {valueSaved > 0 && (() => {
+                  const periodCost = DAILY_COST * stats.daysInPeriod
+                  const ratio = valueSaved / periodCost
+                  const periodLabelShort =
+                    stats.period === 'trial' ? `those ${stats.daysInPeriod} days` :
+                    stats.period === '30d' ? 'the last 30 days' :
+                                             `the past ${stats.daysInPeriod} days`
+                  return (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.4 }}
+                      className="mt-5 text-center px-4"
+                    >
+                      <p className="text-sm text-muted-foreground">
+                        Nexley would have cost{' '}
+                        <span className="font-semibold text-foreground">
+                          £{Math.round(periodCost).toLocaleString('en-GB')}
+                        </span>{' '}
+                        over {periodLabelShort}
+                        <span className="text-muted-foreground/70"> (£{DAILY_COST}/day)</span>.
+                      </p>
+                      {ratio >= 1 ? (
+                        <p className="text-sm mt-1" style={{ color: '#8B5CF6' }}>
+                          They got <span className="font-bold">{ratio.toFixed(1)}×</span> the subscription back in their own time alone.
+                        </p>
+                      ) : (
+                        <p className="text-sm mt-1" style={{ color: '#8B5CF6' }}>
+                          That covers <span className="font-bold">{Math.round(ratio * 100)}%</span> of the subscription from time-saved alone — before counting the 24/7 cover, faster replies, and lead capture.
+                        </p>
+                      )}
+                      <p className="text-[11px] text-muted-foreground/70 mt-2">
+                        Hourly rate assumes an 8-hour working day.
+                      </p>
+                    </motion.div>
+                  )
+                })()}
               </motion.div>
             )}
           </AnimatePresence>
