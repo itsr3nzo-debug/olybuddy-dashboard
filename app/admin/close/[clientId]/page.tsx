@@ -7,9 +7,7 @@ import TrialCloseCalculator, { type TrialCloseStats } from '@/components/admin/T
 
 export const dynamic = 'force-dynamic'
 
-export async function generateMetadata({ params }: { params: Promise<{ clientId: string }> }): Promise<Metadata> {
-  return { title: 'Trial Close · Nexley Admin' }
-}
+export const metadata: Metadata = { title: 'Trial Close · Nexley Admin' }
 
 const MINS_PER_MESSAGE = 5
 const MINS_PER_BOOKING = 30
@@ -56,9 +54,10 @@ export default async function TrialClosePage({ params }: { params: Promise<{ cli
     windowStart = new Date(Date.now() - MS_5D)
   }
 
-  // Parallel fetch: comms_log (messages), opportunities (bookings), contacts (leads), agent_actions (if any)
-  const [msgsRes, bookingsRes, contactsRes, actionsRes, followUpsRes] = await Promise.all([
-    // Outbound messages the AI sent (messages handled = agent replied)
+  // Parallel fetch — all queries are defensive: errors are tolerated and treated as 0
+  // This prevents one broken query from crashing the whole page.
+  const [msgsRes, bookingsRes, contactsRes, actionsRes, followUpsRes] = await Promise.allSettled([
+    // Outbound messages the AI sent (every message = something the owner didn't have to type)
     service
       .from('comms_log')
       .select('id', { count: 'exact', head: true })
@@ -83,7 +82,7 @@ export default async function TrialClosePage({ params }: { params: Promise<{ cli
       .gte('created_at', windowStart.toISOString())
       .lte('created_at', windowEnd.toISOString()),
 
-    // agent_actions — use minutes_saved directly if rows exist
+    // agent_actions — use minutes_saved directly if rows exist (often empty in practice)
     service
       .from('agent_actions')
       .select('category, minutes_saved')
@@ -91,23 +90,28 @@ export default async function TrialClosePage({ params }: { params: Promise<{ cli
       .gte('occurred_at', windowStart.toISOString())
       .lte('occurred_at', windowEnd.toISOString()),
 
-    // Follow-ups: outbound messages specifically tagged as follow-ups
-    // (Use message_type = 'follow_up' if column exists, else fall through to 0)
+    // Follow-ups — outbound messages tied to a sequence (automated follow-ups)
     service
       .from('comms_log')
       .select('id', { count: 'exact', head: true })
       .eq('client_id', clientId)
       .eq('direction', 'outbound')
-      .eq('message_type', 'follow_up')
+      .not('sequence_id', 'is', null)
       .gte('sent_at', windowStart.toISOString())
       .lte('sent_at', windowEnd.toISOString()),
   ])
 
-  const messagesHandled = msgsRes.count ?? 0
-  const bookingsMade = bookingsRes.count ?? 0
-  const newContacts = contactsRes.count ?? 0
-  const followUpsSent = followUpsRes.count ?? 0
-  const actions = actionsRes.data ?? []
+  // Unwrap settled results defensively — any failed query becomes 0, page still renders
+  const count = (r: PromiseSettledResult<{ count: number | null }>) =>
+    r.status === 'fulfilled' ? (r.value.count ?? 0) : 0
+  const rows = <T,>(r: PromiseSettledResult<{ data: T[] | null }>) =>
+    r.status === 'fulfilled' ? (r.value.data ?? []) : []
+
+  const messagesHandled = count(msgsRes)
+  const bookingsMade = count(bookingsRes)
+  const newContacts = count(contactsRes)
+  const followUpsSent = count(followUpsRes)
+  const actions = rows<{ category: string; minutes_saved: number | null }>(actionsRes)
   const actionsFromLog = actions.length
   const minutesSavedFromLog = actions.reduce((sum, r) => sum + (r.minutes_saved ?? 0), 0)
 
