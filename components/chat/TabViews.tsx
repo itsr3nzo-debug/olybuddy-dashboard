@@ -334,12 +334,15 @@ export function HistoryView({ sessions, onSelectSession, onPinSession }: History
                   const firstUser = s.messages?.find((m) => m.role === 'user');
                   const preview = firstAssistant?.content || firstUser?.content || 'No messages yet.';
                   return (
-                    <button
+                    <div
                       key={s.id}
-                      onClick={() => onSelectSession(s.id)}
-                      className="w-full text-left py-3 px-1 flex items-start gap-3 hover:bg-hover transition-colors focus-ring rounded-md"
+                      className="group relative flex items-start gap-3 py-3 px-1 rounded-md hover:bg-hover transition-colors"
                     >
-                      <div className="flex-1 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => onSelectSession(s.id)}
+                        className="flex-1 min-w-0 text-left focus-ring rounded-sm"
+                      >
                         <div className="flex items-center gap-2 mb-0.5">
                           {s.pinned && <Pin size={11} className="fg-base flex-shrink-0" />}
                           <span className="text-[13px] fg-base font-medium truncate">{s.title}</span>
@@ -347,22 +350,20 @@ export function HistoryView({ sessions, onSelectSession, onPinSession }: History
                         <p className="text-[12px] fg-subtle line-clamp-2 leading-relaxed">
                           {preview.replace(/\n+/g, ' ')}
                         </p>
-                      </div>
+                      </button>
                       <div className="flex items-center gap-3 flex-shrink-0 mt-0.5">
                         <span className="text-[11px] fg-muted whitespace-nowrap">{relativeTime(s.updatedAt)}</span>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onPinSession(s.id, !s.pinned);
-                          }}
-                          className="p-1 rounded hover:bg-hover transition-colors"
+                          type="button"
+                          onClick={() => onPinSession(s.id, !s.pinned)}
+                          className="p-1 rounded hover:bg-hover transition-colors focus-ring"
                           aria-label={s.pinned ? 'Unpin' : 'Pin'}
                           title={s.pinned ? 'Unpin' : 'Pin'}
                         >
                           <Pin size={12} className={s.pinned ? 'fg-base' : 'fg-muted'} />
                         </button>
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
