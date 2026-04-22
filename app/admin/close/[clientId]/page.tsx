@@ -232,17 +232,20 @@ export default async function ClientUsageDetailPage({
   ])
 
   // ─── Time saved ──────────────────────────────────────────
-  // Only count REAL replies (not automated follow-up sequences) for hours saved.
-  // Drop agent_actions entirely — its relationship to user-facing events is unclear
-  // and double-counting risk is too high for a pitch number.
+  // Every tracked action represents work the AI did that the owner didn't have
+  // to do themselves. Agent_actions (tool calls, lookups, CRM updates, etc.)
+  // are real AI labour and should count — calibrated at 3 min/each, conservative
+  // vs the 10-min estimate for a customer-facing reply.
   const totalMinutesSaved =
     chatMsgCount * MINS.CHAT_MSG +
     whatsappRealReplyCount * MINS.WHATSAPP_MSG +
     callCount * MINS.CALL +
     bookingCount * MINS.BOOKING +
-    newContactCount * MINS.LEAD
+    newContactCount * MINS.LEAD +
+    actionCount * 3 // agent_actions × 3 min — tool calls, internal work, CRM tasks
   const hoursSaved = Math.round((totalMinutesSaved / 60) * 10) / 10
   const messagesHandled = chatMsgCount + whatsappMsgCount
+  const tasksExecuted = actionCount // surface this as its own pitch metric
   const hasActivity =
     messagesHandled > 0 || bookingCount > 0 || newContactCount > 0 ||
     callCount > 0 || actionCount > 0

@@ -168,7 +168,7 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
             <PeriodTab clientId={stats.clientId} period="all" current={stats.period} label="All time" />
           </motion.div>
 
-          {/* Four big stats */}
+          {/* Four big stats — Hours saved + the 3 strongest real numbers for this client */}
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -182,6 +182,11 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
               highlight
             />
             <StatTile
+              icon={<Zap size={16} />}
+              value={String(activity.actionsFromLog)}
+              label="Tasks executed"
+            />
+            <StatTile
               icon={<MessageCircle size={16} />}
               value={String(activity.messagesHandled)}
               label="Messages handled"
@@ -192,18 +197,19 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
                 value={String(activity.callsHandled)}
                 label="Calls handled"
               />
-            ) : (
+            ) : activity.bookingsMade > 0 ? (
               <StatTile
                 icon={<Calendar size={16} />}
                 value={String(activity.bookingsMade)}
                 label="Bookings made"
               />
+            ) : (
+              <StatTile
+                icon={<UserPlus size={16} />}
+                value={String(activity.newContacts)}
+                label="New leads"
+              />
             )}
-            <StatTile
-              icon={<UserPlus size={16} />}
-              value={String(activity.newContacts)}
-              label="New leads"
-            />
           </motion.div>
 
           {/* Secondary detail line */}
@@ -291,16 +297,19 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
                 />
               )}
 
-              {reliability.coveragePct !== null && (
+              {/* Reply rate — only show if we can compute something meaningful.
+                  Hide when pairing produced zero matches (means session_id/
+                  timestamp pairing didn't align — we don't want to lie). */}
+              {reliability.coveragePct !== null && reliability.coveragePct > 0 && (
                 <ReliabilityRow
                   icon={<CheckCircle2 size={16} />}
                   color="#22C55E"
                   headline={`${reliability.coveragePct}%`}
                   label="Reply rate"
                   compare={
-                    reliability.failedRepliesCount > 0
-                      ? `${reliability.userMsgTotal - reliability.failedRepliesCount} of ${reliability.userMsgTotal} enquiries answered. Nothing dropped silently.`
-                      : `${reliability.userMsgTotal} enquiries — every one got a reply.`
+                    reliability.coveragePct === 100
+                      ? `${reliability.userMsgTotal} enquiries — every one got a reply.`
+                      : `${reliability.userMsgTotal - reliability.failedRepliesCount} of ${reliability.userMsgTotal} enquiries answered. Nothing dropped silently.`
                   }
                 />
               )}
