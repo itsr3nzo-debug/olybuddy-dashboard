@@ -10,23 +10,19 @@ export interface ClientRow {
   slug: string
   subscription_status: string | null
   trial_ends_at: string | null
-}
-
-interface TrialBadge {
-  label: string
-  tone: 'expired' | 'urgent' | 'normal'
+  // Optional pre-computed badge — pass from server, not a function (RSC boundary)
+  trialBadge?: {
+    label: string
+    tone: 'expired' | 'urgent' | 'normal'
+  }
 }
 
 export default function ClientListSection({
   title,
   clients,
-  withTrialBadges,
-  trialStatusFor,
 }: {
   title: string
   clients: ClientRow[]
-  withTrialBadges?: boolean
-  trialStatusFor?: (c: ClientRow) => TrialBadge | undefined
 }) {
   if (clients.length === 0) return null
 
@@ -45,7 +41,7 @@ export default function ClientListSection({
       </div>
       <div className="space-y-2">
         {clients.map((client, i) => {
-          const badge = withTrialBadges && trialStatusFor ? trialStatusFor(client) : undefined
+          const badge = client.trialBadge
           return (
             <Link
               key={client.id}

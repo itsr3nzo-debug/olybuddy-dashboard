@@ -62,6 +62,8 @@ export default async function ClientUsageLandingPage({ searchParams }: { searchP
       const bEnd = b.trial_ends_at ? new Date(b.trial_ends_at).getTime() : Infinity
       return aEnd - bEnd
     })
+    // Pre-compute the badge server-side — functions can't cross the RSC boundary
+    .map(c => ({ ...c, trialBadge: trialStatus(c.trial_ends_at) }))
 
   const others = filtered
     .filter(c => c.subscription_status !== 'trial' && c.subscription_status !== 'ai-employee-trial')
@@ -133,19 +135,11 @@ export default async function ClientUsageLandingPage({ searchParams }: { searchP
           </div>
         </form>
 
-        {/* Trial clients — urgent section */}
-        <ClientListSection
-          title="Trials"
-          clients={trials}
-          withTrialBadges
-          trialStatusFor={(c) => trialStatus(c.trial_ends_at)}
-        />
+        {/* Trial clients — urgent section (badges pre-computed server-side) */}
+        <ClientListSection title="Trials" clients={trials} />
 
         {/* Other clients */}
-        <ClientListSection
-          title="All other clients"
-          clients={others}
-        />
+        <ClientListSection title="All other clients" clients={others} />
 
         {/* Empty state */}
         {trials.length === 0 && others.length === 0 && (
@@ -168,4 +162,3 @@ export default async function ClientUsageLandingPage({ searchParams }: { searchP
     </div>
   )
 }
-// force redeploy 1776859437
