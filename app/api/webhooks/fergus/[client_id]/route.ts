@@ -5,8 +5,14 @@ import crypto from 'node:crypto'
 /**
  * POST /api/webhooks/fergus/<client_id>
  *
- * Receives Zapier-dispatched Fergus events. Fergus has no native outbound
- * webhooks in the Partner API — Zapier is the only event source today.
+ * BACKUP PATH — the primary Fergus event bridge is the 1-min self-poller
+ * at `/api/cron/fergus-poll` (driven by launchd on the Mac Mini). This
+ * Zapier webhook receiver stays live as a contingency: if the poller ever
+ * fails persistently we can wire a client's Zapier triggers here in minutes.
+ *
+ * Kept around because (a) it costs nothing idle and (b) if Fergus ever
+ * ships native webhooks in the Enhanced API, the normalisation + dedup
+ * logic here maps 1:1.
  *
  * How Julian wires this:
  *   Zapier → trigger: Fergus "New Job" (or Job Completion / New Customer / etc.)
