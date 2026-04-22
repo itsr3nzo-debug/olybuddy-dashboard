@@ -29,15 +29,18 @@ function ResetPasswordForm() {
     let isMounted = true
     const supabase = createClient()
 
-    // Path 1 — our custom route sends ?token_hash=...&type=recovery&email=...
+    // Path 1 — our custom route sends ?token_hash=...&type=recovery
     // Exchange via verifyOtp to mint a session locally. No server-side
     // redirect allowlist involved.
+    //
+    // IMPORTANT: do NOT pass `email` here. Supabase rejects
+    //   "Only the token_hash and type should be provided"
+    // when all three arrive together — token_hash is already self-identifying.
     const tokenHash = search?.get('token_hash')
     const type = (search?.get('type') as 'recovery' | 'email' | undefined) || 'recovery'
-    const email = search?.get('email') || undefined
     if (tokenHash) {
       supabase.auth
-        .verifyOtp({ token_hash: tokenHash, type, ...(email ? { email } : {}) })
+        .verifyOtp({ token_hash: tokenHash, type })
         .then(({ error }) => {
           if (!isMounted) return
           if (error) setError('Reset link expired or already used. Request a new one.')
