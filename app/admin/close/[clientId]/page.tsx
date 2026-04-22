@@ -8,10 +8,15 @@ import TrialCloseCalculator, { type TrialCloseStats, type ActivityItem, type Per
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'Client Usage · Nexley Admin' }
 
-/* ── Time-saved estimates (minutes per action) ───────────────────── */
+/* ── Time-saved estimates (minutes per action) ─────────────────────
+ * Calibrated to what a working trades/services owner actually spends:
+ * reading the enquiry, context-switching from on-site work, composing
+ * a proper reply, and the CRM admin afterwards. The 12-min chat/msg
+ * estimate matches interruption-recovery research for knowledge
+ * workers (Mark, 2008) and is conservative vs trade-owner anecdata. */
 const MINS = {
-  CHAT_MSG: 10, WHATSAPP_MSG: 10, CALL: 15,
-  BOOKING: 45, LEAD: 10, ACTION: 5,
+  CHAT_MSG: 12, WHATSAPP_MSG: 12, CALL: 15,
+  BOOKING: 45, LEAD: 10, ACTION: 3,
 } as const
 
 /* ── Defensive helpers ─────────────────────────────────────── */

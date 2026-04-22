@@ -18,8 +18,12 @@ import {
   Zap, Moon, CheckCircle2,
 } from 'lucide-react'
 
-const MONTHLY_COST = 500
-const DAILY_COST = 17
+const MONTHLY_COST = 599
+const DAILY_COST = 20 // £599/mo ÷ 30 days, rounded up
+// Market comparables for the "what does £599 replace?" framing
+const RECEPTIONIST_COST_PER_MONTH = 2400 // UK part-time receptionist incl. NI + holiday pay
+const ANSWERING_SERVICE_MIN = 400
+const ANSWERING_SERVICE_MAX = 800
 
 /* ── Types ─────────────────────────────────────── */
 
@@ -424,38 +428,65 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
                 </div>
 
                 {valueSaved > 0 && (() => {
-                  const periodCost = DAILY_COST * stats.daysInPeriod
-                  const ratio = valueSaved / periodCost
-                  const periodLabelShort =
-                    stats.period === 'trial' ? `those ${stats.daysInPeriod} days` :
-                    stats.period === '30d' ? 'the last 30 days' :
-                                             `the past ${stats.daysInPeriod} days`
+                  // Projected monthly value — extrapolate daily average to 30 days.
+                  // Explicit projection, not a sleight-of-hand.
+                  const dailyValue = valueSaved / stats.daysInPeriod
+                  const projectedMonthly = Math.round(dailyValue * 30)
+
                   return (
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.4 }}
-                      className="mt-5 text-center px-4"
+                      className="mt-6 space-y-4"
                     >
-                      <p className="text-sm text-muted-foreground">
-                        Nexley would have cost{' '}
-                        <span className="font-semibold text-foreground">
-                          £{Math.round(periodCost).toLocaleString('en-GB')}
-                        </span>{' '}
-                        over {periodLabelShort}
-                        <span className="text-muted-foreground/70"> (£{DAILY_COST}/day)</span>.
-                      </p>
-                      {ratio >= 1 ? (
-                        <p className="text-sm mt-1" style={{ color: '#8B5CF6' }}>
-                          They got <span className="font-bold">{ratio.toFixed(1)}×</span> the subscription back in their own time alone.
+                      {/* Projected monthly — the anchor number */}
+                      <div
+                        className="rounded-xl px-5 py-4 text-center"
+                        style={{
+                          background: 'rgb(139 92 246 / 0.06)',
+                          border: '1px solid rgb(139 92 246 / 0.2)',
+                        }}
+                      >
+                        <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1 font-medium">
+                          Projected monthly value
                         </p>
-                      ) : (
-                        <p className="text-sm mt-1" style={{ color: '#8B5CF6' }}>
-                          That covers <span className="font-bold">{Math.round(ratio * 100)}%</span> of the subscription from time-saved alone — before counting the 24/7 cover, faster replies, and lead capture.
+                        <p className="text-3xl font-bold tabular-nums" style={{ color: '#8B5CF6' }}>
+                          £{projectedMonthly.toLocaleString('en-GB')}/mo
                         </p>
-                      )}
-                      <p className="text-[11px] text-muted-foreground/70 mt-2">
-                        Hourly rate assumes an 8-hour working day.
+                        <p className="text-[11px] text-muted-foreground mt-1.5">
+                          Based on this {stats.daysInPeriod}-day pace × 30 days.
+                        </p>
+                      </div>
+
+                      {/* What £{MONTHLY_COST}/mo would otherwise cost them — the real comparison */}
+                      <div>
+                        <p className="text-center text-xs uppercase tracking-wider text-muted-foreground mb-3 font-medium">
+                          What £{MONTHLY_COST}/mo replaces
+                        </p>
+                        <div className="grid grid-cols-3 gap-2">
+                          <ComparisonTile
+                            label="Part-time receptionist"
+                            value={`£${RECEPTIONIST_COST_PER_MONTH.toLocaleString('en-GB')}`}
+                            note="/mo UK avg"
+                            discount={`${Math.round((1 - MONTHLY_COST / RECEPTIONIST_COST_PER_MONTH) * 100)}% cheaper`}
+                          />
+                          <ComparisonTile
+                            label="24/7 answering service"
+                            value={`£${ANSWERING_SERVICE_MIN}–${ANSWERING_SERVICE_MAX}`}
+                            note="/mo, scripted only"
+                          />
+                          <ComparisonTile
+                            label="Nexley AI Employee"
+                            value={`£${MONTHLY_COST}`}
+                            note="/mo, 24/7, learns"
+                            highlight
+                          />
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-muted-foreground/70 text-center">
+                        Hourly value computed at £{Math.round(hourlyRate)}/hr (day rate ÷ 8h). Monthly projection is linear extrapolation from this period&apos;s daily pace — not realised savings.
                       </p>
                     </motion.div>
                   )
@@ -572,6 +603,44 @@ function ReliabilityRow({ icon, color, headline, label, compare }: {
         <p className="text-xs text-muted-foreground leading-relaxed">{compare}</p>
       </div>
     </motion.div>
+  )
+}
+
+function ComparisonTile({ label, value, note, discount, highlight = false }: {
+  label: string
+  value: string
+  note: string
+  discount?: string
+  highlight?: boolean
+}) {
+  return (
+    <div
+      className="rounded-xl px-3 py-3 text-center"
+      style={{
+        background: highlight
+          ? 'linear-gradient(135deg, rgb(139 92 246 / 0.12) 0%, rgb(99 102 241 / 0.07) 100%)'
+          : 'rgb(var(--muted-foreground) / 0.04)',
+        border: highlight
+          ? '1px solid rgb(139 92 246 / 0.3)'
+          : '1px solid rgb(var(--border) / 0.5)',
+      }}
+    >
+      <p className="text-[10px] text-muted-foreground leading-tight mb-1.5 font-medium uppercase tracking-wider">
+        {label}
+      </p>
+      <p
+        className="text-lg sm:text-xl font-bold tabular-nums leading-tight"
+        style={highlight ? { color: '#8B5CF6' } : undefined}
+      >
+        {value}
+      </p>
+      <p className="text-[10px] text-muted-foreground mt-0.5">{note}</p>
+      {discount && (
+        <p className="text-[10px] font-semibold mt-1.5" style={{ color: '#22C55E' }}>
+          {discount}
+        </p>
+      )}
+    </div>
   )
 }
 
