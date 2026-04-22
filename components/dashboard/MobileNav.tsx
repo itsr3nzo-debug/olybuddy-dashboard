@@ -2,10 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Kanban, MessageSquare, Calendar, ScrollText } from 'lucide-react'
+import { LayoutDashboard, Kanban, MessageSquare, Calendar, ScrollText, Target } from 'lucide-react'
 import type { UserRole } from '@/lib/rbac'
 
-const tabs = [
+const baseTabs = [
   { href: '/dashboard',      label: 'Home',     Icon: LayoutDashboard },
   { href: '/pipeline',       label: 'Pipeline', Icon: Kanban },
   { href: '/conversations',  label: 'Inbox',    Icon: MessageSquare },
@@ -15,6 +15,11 @@ const tabs = [
 
 export default function MobileNav({ role = 'owner' }: { role?: UserRole }) {
   const pathname = usePathname()
+
+  // Super-admins get Client Usage instead of Calendar on mobile (closer-to-hand tool)
+  const tabs = role === 'super_admin'
+    ? [...baseTabs.slice(0, 4), { href: '/admin/close', label: 'Usage', Icon: Target }]
+    : baseTabs
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 lg:hidden z-50 border-t border-border bg-card-bg/95 backdrop-blur-sm">
