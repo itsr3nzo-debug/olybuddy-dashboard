@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { getUserSession } from '@/lib/rbac';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 
 export const metadata: Metadata = { title: 'Fleet · Nexley Admin' };
 export const dynamic = 'force-dynamic';
@@ -130,7 +131,17 @@ export default async function AdminFleetPage() {
                       <span className="font-medium">{r.client_name}</span>
                       <span className="text-slate-500 font-mono text-xs">{r.slug}</span>
                     </td>
-                    <td className="px-4 py-2 text-slate-300">{r.subscription_status}</td>
+                    <td className="px-4 py-2 text-slate-300">
+                      {r.subscription_status}
+                      {(r.subscription_status === 'trial' || r.subscription_status === 'ai-employee-trial') && (
+                        <Link
+                          href={`/admin/close/${r.client_id}`}
+                          className="ml-2 text-xs font-medium text-purple-400 hover:text-purple-300 transition-colors"
+                        >
+                          Close →
+                        </Link>
+                      )}
+                    </td>
                     <td className="px-4 py-2 text-slate-400">{age == null ? 'never' : `${age}s`}</td>
                     <td className="px-4 py-2 text-slate-400">
                       {r.subscription_alert
