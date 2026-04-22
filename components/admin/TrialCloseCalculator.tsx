@@ -448,10 +448,11 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
                 </div>
 
                 {valueSaved > 0 && (() => {
-                  // Projected monthly value — extrapolate daily average to 30 days.
-                  // Explicit projection, not a sleight-of-hand.
+                  // Projected monthly value from this period's daily pace
                   const dailyValue = valueSaved / stats.daysInPeriod
                   const projectedMonthly = Math.round(dailyValue * 30)
+                  // The REAL pitch: what £MONTHLY_COST replaces vs what it costs
+                  const receptionistSavings = RECEPTIONIST_COST_PER_MONTH - MONTHLY_COST
 
                   return (
                     <motion.div
@@ -460,7 +461,27 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
                       transition={{ delay: 0.4 }}
                       className="mt-6 space-y-4"
                     >
-                      {/* Projected monthly — the anchor number */}
+                      {/* THE HEADLINE — receptionist savings, not marginal time */}
+                      <div
+                        className="rounded-2xl px-6 py-6 text-center relative overflow-hidden"
+                        style={{
+                          background: 'linear-gradient(135deg, rgb(34 197 94 / 0.12) 0%, rgb(16 185 129 / 0.07) 100%)',
+                          border: '1px solid rgb(34 197 94 / 0.3)',
+                        }}
+                      >
+                        <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2 font-semibold">
+                          Saves vs hiring a human
+                        </p>
+                        <p className="text-5xl sm:text-6xl font-black tabular-nums mb-1" style={{ color: '#22C55E' }}>
+                          £{receptionistSavings.toLocaleString('en-GB')}/mo
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          vs a <span className="font-semibold text-foreground">£{RECEPTIONIST_COST_PER_MONTH.toLocaleString('en-GB')}/mo</span> part-time receptionist —
+                          who still can&apos;t cover 24/7.
+                        </p>
+                      </div>
+
+                      {/* Secondary: their own time value during the period */}
                       <div
                         className="rounded-xl px-5 py-4 text-center"
                         style={{
@@ -469,17 +490,18 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
                         }}
                       >
                         <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1 font-medium">
-                          Projected monthly value
+                          Plus their own time back
                         </p>
-                        <p className="text-3xl font-bold tabular-nums" style={{ color: '#8B5CF6' }}>
-                          £{projectedMonthly.toLocaleString('en-GB')}/mo
+                        <p className="text-2xl font-bold tabular-nums" style={{ color: '#8B5CF6' }}>
+                          £{valueSaved.toLocaleString('en-GB')}
+                          <span className="text-base text-muted-foreground font-normal"> in {stats.daysInPeriod}d · £{projectedMonthly.toLocaleString('en-GB')}/mo projected</span>
                         </p>
                         <p className="text-[11px] text-muted-foreground mt-1.5">
-                          Based on this {stats.daysInPeriod}-day pace × 30 days.
+                          At their £{dayRateNum.toLocaleString('en-GB')}/day rate · {stats.hoursSaved}h saved
                         </p>
                       </div>
 
-                      {/* What £{MONTHLY_COST}/mo would otherwise cost them — the real comparison */}
+                      {/* Three-way comparison — what £599/mo REPLACES */}
                       <div>
                         <p className="text-center text-xs uppercase tracking-wider text-muted-foreground mb-3 font-medium">
                           What £{MONTHLY_COST}/mo replaces
@@ -506,7 +528,8 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
                       </div>
 
                       <p className="text-[11px] text-muted-foreground/70 text-center">
-                        Hourly value computed at £{Math.round(hourlyRate)}/hr (day rate ÷ 8h). Monthly projection is linear extrapolation from this period&apos;s daily pace — not realised savings.
+                        Receptionist figure: UK average £2,000-2,800/mo incl. employer NI &amp; holiday (ACAS, 2024).
+                        Time-saved assumes 15 min per customer enquiry (Checkatrade 2023).
                       </p>
                     </motion.div>
                   )
