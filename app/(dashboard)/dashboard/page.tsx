@@ -18,6 +18,7 @@ import OpportunityDonut from '@/components/dashboard/OpportunityDonut'
 import type { CallLog, AgentStatus } from '@/lib/types'
 import { MessageSquare, Calendar, PoundSterling, UserPlus, Zap, Link2, Activity } from 'lucide-react'
 import GettingStarted from '@/components/dashboard/GettingStarted'
+import TrialROICard from '@/components/dashboard/TrialROICard'
 import { AI_PHONE_DISPLAY } from '@/lib/constants'
 import { TimePeriodSelector } from '@/components/ui/time-period-selector'
 
@@ -326,6 +327,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
       {/* Weekly ROI — concrete breakdown of what the AI Employee did */}
       {clientId && <WeeklyROIWidget />}
+
+      {/* 5-Day Trial Scorecard + Day Rate ROI Calculator */}
+      {clientId && <TrialROICard />}
 
       {/* KPI Grid */}
       <Suspense fallback={
