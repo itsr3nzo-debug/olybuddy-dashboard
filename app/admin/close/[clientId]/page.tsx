@@ -108,10 +108,12 @@ export default async function ClientUsageDetailPage({
   const isTrial =
     client.subscription_status === 'trial' || client.subscription_status === 'ai-employee-trial'
 
-  // Parse period. Default: trial clients → 'trial', others → '30d'
-  const period: Period = (periodParam === 'trial' || periodParam === '30d' || periodParam === 'all')
+  // Parse period. Default: trial clients → 'trial', others → '30d'.
+  // Force non-trial clients to never land on 'trial' even if URL requests it.
+  const rawPeriod: Period = (periodParam === 'trial' || periodParam === '30d' || periodParam === 'all')
     ? (periodParam as Period)
     : (isTrial ? 'trial' : '30d')
+  const period: Period = (rawPeriod === 'trial' && !isTrial) ? '30d' : rawPeriod
 
   const now = Date.now()
   const MS_5D = 5 * 24 * 60 * 60 * 1000
@@ -121,18 +123,19 @@ export default async function ClientUsageDetailPage({
   let windowEnd: Date
 
   if (period === 'trial') {
-    // 5 days ending at trial_ends_at (or now if trial still running)
+    // 5 days leading up to trial_ends_at. For:
+    //  - Active trial (end in future): window = (end - 5d) to NOW (not future end)
+    //  - Expired trial (end in past): window = (end - 5d) to MAX(end, now) —
+    //    extend to now to capture any activity between expiry and the pitch call.
+    //  - No trial_ends_at: last 5 days from now.
     if (client.trial_ends_at) {
-      windowEnd = new Date(client.trial_ends_at)
-      windowStart = new Date(windowEnd.getTime() - MS_5D)
+      const rawEnd = new Date(client.trial_ends_at).getTime()
+      const effectiveEnd = Math.max(rawEnd, now) // expired trials still catch post-expiry activity
+      windowEnd = new Date(Math.min(effectiveEnd, now))
+      windowStart = new Date(Math.min(rawEnd, now) - MS_5D)
     } else {
       windowEnd = new Date(now)
       windowStart = new Date(now - MS_5D)
-    }
-    // Clip future end to now
-    if (windowEnd.getTime() > now) {
-      windowEnd = new Date(now)
-      windowStart = new Date(Math.max(windowStart.getTime(), now - MS_5D))
     }
   } else if (period === '30d') {
     windowEnd = new Date(now)
@@ -173,9 +176,11 @@ export default async function ClientUsageDetailPage({
     // Non-follow-up WhatsApp count (real replies, not drip sequences)
     whatsappRealReplyCount,
   ] = await Promise.all([
-    // Chat assistant messages — ALL messages in sessions that were opened in the window
+    // Chat assistant messages — ALL messages in sessions opened in the window.
+    // Defensive: also filter by client_id so a cross-tenant data bug can't leak counts.
     sessionIds.length > 0
       ? safeCount(service.from('agent_chat_messages').select('id', { count: 'exact', head: true })
+          .eq('client_id', clientId)
           .eq('role', 'assistant')
           .in('session_id', sessionIds))
       : Promise.resolve(0),
@@ -269,7 +274,9 @@ export default async function ClientUsageDetailPage({
     newContactCount * MINS.LEAD +
     actionCount * 3 // agent_actions × 3 min — tool calls, internal work, CRM tasks
   const hoursSaved = Math.round((totalMinutesSaved / 60) * 10) / 10
-  const messagesHandled = chatMsgCount + whatsappMsgCount
+  // Count only real replies (not drip-sequence follow-ups) so the headline
+  // isn't inflated by automated nudges.
+  const messagesHandled = chatMsgCount + whatsappRealReplyCount
   const tasksExecuted = actionCount // surface this as its own pitch metric
   const hasActivity =
     messagesHandled > 0 || bookingCount > 0 || newContactCount > 0 ||
@@ -296,12 +303,24 @@ export default async function ClientUsageDetailPage({
   let coveredCount = 0
   let failedCount = 0
 
+  // Index assistant messages by session_id once (O(N)), then pair each user
+  // message in O(log N) via timestamp comparison. Avoids O(N²) blow-up for
+  // active clients with hundreds of messages.
+  const assistantBySession = new Map<string, { created_at: string; status: string; ts: number }[]>()
+  for (const a of allAssistantChatMsgs) {
+    const list = assistantBySession.get(a.session_id) ?? []
+    list.push({ ...a, ts: new Date(a.created_at).getTime() })
+    assistantBySession.set(a.session_id, list)
+  }
+  // Sort each session's assistant replies ascending by timestamp once
+  for (const list of assistantBySession.values()) list.sort((x, y) => x.ts - y.ts)
+
   for (const u of allUserChatMsgs) {
     const uTime = new Date(u.created_at).getTime()
-    // Find first assistant message in the same session after this user message
-    const reply = allAssistantChatMsgs.find(a =>
-      a.session_id === u.session_id && new Date(a.created_at).getTime() > uTime
-    )
+    const sessionReplies = assistantBySession.get(u.session_id)
+    if (!sessionReplies) continue
+    // First reply after this user message (linear scan on sorted list)
+    const reply = sessionReplies.find(a => a.ts > uTime)
     if (!reply) continue
     if (reply.status === 'error' || reply.status === 'failed') {
       failedCount++
@@ -309,8 +328,7 @@ export default async function ClientUsageDetailPage({
     }
     if (reply.status === 'done') {
       coveredCount++
-      const sec = (new Date(reply.created_at).getTime() - uTime) / 1000
-      // Cap at 5 minutes — anything longer is an edge case (agent offline, etc.)
+      const sec = (reply.ts - uTime) / 1000
       if (sec >= 0 && sec <= 300) responseTimes.push(sec)
     }
   }

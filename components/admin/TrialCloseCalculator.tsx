@@ -100,10 +100,30 @@ function formatPence(pence: number | null | undefined): string | null {
 
 /* ── Main ──────────────────────────────────────── */
 
+// Storage key for the day rate — persists across period toggles for THIS client
+const rateStorageKey = (clientId: string) => `nexley_close_rate_${clientId}`
+
 export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats }) {
   const [rawRate, setRawRate] = useState('')
   const [debouncedTarget, setDebouncedTarget] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Restore day rate on mount (survives period toggle navigations)
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(rateStorageKey(stats.clientId))
+      if (saved) setRawRate(saved)
+    } catch { /* SSR / private mode */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Strip leading zeros on input so "300" doesn't become "0300" when the
+  // number input pre-fills with 0 on focus. Also persist to sessionStorage.
+  const updateRate = (raw: string) => {
+    const clean = raw.replace(/^0+(?=\d)/, '')
+    setRawRate(clean)
+    try { sessionStorage.setItem(rateStorageKey(stats.clientId), clean) } catch { /* ignore */ }
+  }
 
   const dayRateNum = parseFloat(rawRate.replace(/[^0-9.]/g, '')) || 0
   const hourlyRate = dayRateNum / 8
@@ -371,7 +391,7 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
                 min="0"
                 step="50"
                 value={rawRate}
-                onChange={e => setRawRate(e.target.value)}
+                onChange={e => updateRate(e.target.value)}
                 placeholder="300"
                 className="text-5xl font-bold bg-transparent outline-none w-40 tabular-nums placeholder:text-muted-foreground/30"
                 style={{ color: dayRateNum > 0 ? '#8B5CF6' : undefined }}
