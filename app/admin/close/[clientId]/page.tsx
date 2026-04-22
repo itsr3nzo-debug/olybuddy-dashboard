@@ -146,9 +146,22 @@ export default async function ClientUsageDetailPage({
   const startIso = windowStart.toISOString()
   const endIso = windowEnd.toISOString()
 
+  // ─── Step 1: find all chat sessions opened in the window ─────────
+  // We use SESSION-level filtering for chat counts because a single chat
+  // conversation produces 10-30 messages over multiple days. Counting
+  // messages by created_at misses later replies in the same conversation.
+  const sessionsInWindow = await safeRows<{ id: string }>(
+    service.from('agent_chat_sessions')
+      .select('id')
+      .eq('client_id', clientId)
+      .gte('created_at', startIso).lte('created_at', endIso)
+      .limit(500)
+  )
+  const sessionIds = sessionsInWindow.map(s => s.id)
+
   // ─── Fetch everything in parallel ────────────────────────────
   const [
-    chatMsgCount, chatSessionCount,
+    chatMsgCount,
     whatsappMsgCount, whatsappFollowUpCount,
     bookingCount, newContactCount, callCount, actionCount,
     recentChatMsgs, recentComms, recentOpps, recentContacts, recentCalls,
@@ -160,11 +173,12 @@ export default async function ClientUsageDetailPage({
     // Non-follow-up WhatsApp count (real replies, not drip sequences)
     whatsappRealReplyCount,
   ] = await Promise.all([
-    safeCount(service.from('agent_chat_messages').select('id', { count: 'exact', head: true })
-      .eq('client_id', clientId).eq('role', 'assistant')
-      .gte('created_at', startIso).lte('created_at', endIso)),
-    safeCount(service.from('agent_chat_sessions').select('id', { count: 'exact', head: true })
-      .eq('client_id', clientId).gte('created_at', startIso).lte('created_at', endIso)),
+    // Chat assistant messages — ALL messages in sessions that were opened in the window
+    sessionIds.length > 0
+      ? safeCount(service.from('agent_chat_messages').select('id', { count: 'exact', head: true })
+          .eq('role', 'assistant')
+          .in('session_id', sessionIds))
+      : Promise.resolve(0),
     safeCount(service.from('comms_log').select('id', { count: 'exact', head: true })
       .eq('client_id', clientId).eq('direction', 'outbound')
       .gte('sent_at', startIso).lte('sent_at', endIso)),
@@ -202,21 +216,27 @@ export default async function ClientUsageDetailPage({
       .eq('client_id', clientId).gte('started_at', startIso).lte('started_at', endIso)
       .order('started_at', { ascending: false }).limit(5)),
 
-    // Reliability-specific: user + assistant messages paired for real response time
-    safeRows<{ id: string; session_id: string; created_at: string }>(
-      service.from('agent_chat_messages')
-        .select('id, session_id, created_at')
-        .eq('client_id', clientId).eq('role', 'user')
-        .gte('created_at', startIso).lte('created_at', endIso)
-        .order('created_at', { ascending: true }).limit(500)
-    ),
-    safeRows<{ session_id: string; created_at: string; status: string }>(
-      service.from('agent_chat_messages')
-        .select('session_id, created_at, status')
-        .eq('client_id', clientId).eq('role', 'assistant')
-        .gte('created_at', startIso).lte('created_at', endIso)
-        .order('created_at', { ascending: true }).limit(500)
-    ),
+    // Reliability-specific: ALL user + assistant messages in the trial sessions,
+    // not just those in the literal date window. Matches how chat conversations
+    // actually span multiple days.
+    sessionIds.length > 0
+      ? safeRows<{ id: string; session_id: string; created_at: string }>(
+          service.from('agent_chat_messages')
+            .select('id, session_id, created_at')
+            .eq('role', 'user')
+            .in('session_id', sessionIds)
+            .order('created_at', { ascending: true }).limit(500)
+        )
+      : Promise.resolve([] as { id: string; session_id: string; created_at: string }[]),
+    sessionIds.length > 0
+      ? safeRows<{ session_id: string; created_at: string; status: string }>(
+          service.from('agent_chat_messages')
+            .select('session_id, created_at, status')
+            .eq('role', 'assistant')
+            .in('session_id', sessionIds)
+            .order('created_at', { ascending: true }).limit(500)
+        )
+      : Promise.resolve([] as { session_id: string; created_at: string; status: string }[]),
     safeRows<{ sent_at: string }>(
       service.from('comms_log')
         .select('sent_at')
@@ -374,7 +394,7 @@ export default async function ClientUsageDetailPage({
       newContacts: newContactCount,
       actionsFromLog: actionCount,
       minutesSavedFromLog: 0,
-      chatSessions: chatSessionCount,
+      chatSessions: sessionIds.length,
       callsHandled: callCount,
     },
     reliability: {
