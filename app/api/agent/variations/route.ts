@@ -17,9 +17,12 @@ function service() {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = req.headers.get('authorization') || ''
-  const m = auth.match(/^Bearer\s+(oak_[a-f0-9]+)$/i)
-  if (!m) return NextResponse.json({ error: 'Missing agent bearer' }, { status: 401 })
+  // Accept both Authorization: Bearer oak_... and x-api-key: oak_... so VPS
+  // agents can use a single header style across every /api/agent/* endpoint.
+  const bearer = (req.headers.get('authorization') || '').match(/^Bearer\s+(oak_[a-f0-9]+)$/i)
+  const xkey = (req.headers.get('x-api-key') || '').match(/^(oak_[a-f0-9]+)$/i)
+  const m = bearer ?? xkey
+  if (!m) return NextResponse.json({ error: 'Missing agent key (Authorization: Bearer or x-api-key)' }, { status: 401 })
 
   const supabase = service()
   const { data: cfg } = await supabase

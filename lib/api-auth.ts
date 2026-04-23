@@ -24,10 +24,17 @@ export async function authenticateAgentRequest(
   request: Request,
   clientIdOverride?: string
 ): Promise<AuthResult> {
-  const apiKey = request.headers.get('x-api-key')
+  // Accept either `x-api-key: <key>` (historical) or `Authorization: Bearer <key>`
+  // (used by the pending-estimates / variations / log-action routes). Both carry
+  // the same per-client oak_* secret — unifying here lets VPS agents send a
+  // single header style across all 74 endpoints instead of guessing which one
+  // each endpoint prefers.
+  const xkey = request.headers.get('x-api-key')
+  const bearer = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim()
+  const apiKey = xkey || bearer || null
 
   if (!apiKey) {
-    return { authenticated: false, error: 'Authentication required (x-api-key header)', status: 401 }
+    return { authenticated: false, error: 'Authentication required (x-api-key or Authorization: Bearer header)', status: 401 }
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)

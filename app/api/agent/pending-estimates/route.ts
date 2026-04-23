@@ -24,12 +24,16 @@ function service() {
 }
 
 async function resolveClient(req: NextRequest): Promise<string | null> {
-  const auth = req.headers.get('authorization') || ''
-  const m = auth.match(/^Bearer\s+(oak_[a-f0-9]+)$/i)
-  if (!m) return null
+  // Accept either Authorization: Bearer oak_... (historical for this route) or
+  // x-api-key: oak_... (convention for every other /api/agent/* endpoint). VPS
+  // agents should not have to remember which header each route prefers.
+  const bearer = (req.headers.get('authorization') || '').match(/^Bearer\s+(oak_[a-f0-9]+)$/i)
+  const xkey = (req.headers.get('x-api-key') || '').match(/^(oak_[a-f0-9]+)$/i)
+  const key = bearer?.[1] ?? xkey?.[1]
+  if (!key) return null
   const supabase = service()
   const { data } = await supabase
-    .from('agent_config').select('client_id').eq('agent_api_key', m[1]).maybeSingle()
+    .from('agent_config').select('client_id').eq('agent_api_key', key).maybeSingle()
   return data?.client_id ?? null
 }
 

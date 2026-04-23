@@ -64,11 +64,14 @@ type Payload = {
 }
 
 export async function POST(req: NextRequest) {
-  // Auth — bearer agent_api_key, lookup client_id from agent_config
-  const auth = req.headers.get('authorization') || ''
-  const match = auth.match(/^Bearer\s+(oak_[a-f0-9]+)$/i)
+  // Auth — agent_api_key, accept both Authorization: Bearer oak_... and
+  // x-api-key: oak_... (see api-auth.ts) so VPS agents can use a single
+  // header convention across every /api/agent/* endpoint.
+  const bearer = (req.headers.get('authorization') || '').match(/^Bearer\s+(oak_[a-f0-9]+)$/i)
+  const xkey = (req.headers.get('x-api-key') || '').match(/^(oak_[a-f0-9]+)$/i)
+  const match = bearer ?? xkey
   if (!match) {
-    return NextResponse.json({ error: 'Missing or malformed agent bearer' }, { status: 401 })
+    return NextResponse.json({ error: 'Missing or malformed agent key (Authorization: Bearer or x-api-key)' }, { status: 401 })
   }
   const apiKey = match[1]
 
