@@ -8,10 +8,11 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Loader2, Server, CheckCircle2, AlertCircle } from 'lucide-react'
+import Link from 'next/link'
+import { Loader2, Server, CheckCircle2, AlertCircle, Smartphone, ArrowRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'motion/react'
 
-type State = 'awaiting_vps' | 'provisioning' | 'live' | 'attention' | 'unknown'
+type State = 'awaiting_vps' | 'provisioning' | 'needs_pairing' | 'live' | 'attention' | 'unknown'
 
 type StatusResponse = {
   state: State
@@ -19,6 +20,8 @@ type StatusResponse = {
   vps_ready: boolean
   vps_ready_at: string | null
   pending_count: number
+  wa_connection_status?: string
+  wa_connection_name?: string | null
 }
 
 export default function ProvisioningBanner() {
@@ -67,6 +70,12 @@ export default function ProvisioningBanner() {
       icon: <Loader2 size={18} className="text-amber-400 animate-spin" />,
       accent: 'text-amber-300',
     },
+    needs_pairing: {
+      bg: 'bg-emerald-500/5',
+      border: 'border-emerald-500/30',
+      icon: <Smartphone size={18} className="text-emerald-400" />,
+      accent: 'text-emerald-300',
+    },
     attention: {
       bg: 'bg-red-500/5',
       border: 'border-red-500/30',
@@ -102,11 +111,20 @@ export default function ProvisioningBanner() {
           <span className={`font-medium ${s.accent}`}>
             {status.state === 'awaiting_vps' && 'Setting up your AI Employee'}
             {status.state === 'provisioning' && 'Applying changes'}
+            {status.state === 'needs_pairing' && 'Link your WhatsApp'}
             {status.state === 'attention' && 'Needs attention'}
             {status.state === 'unknown' && 'Status unknown'}
           </span>
           <span className="text-muted-foreground ml-2">{status.message}</span>
         </div>
+        {status.state === 'needs_pairing' && (
+          <Link
+            href="/onboarding/whatsapp"
+            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500 text-black px-3 py-1.5 text-xs font-semibold hover:bg-emerald-400 transition-colors flex-shrink-0"
+          >
+            Link now <ArrowRight size={12} />
+          </Link>
+        )}
         {status.state === 'attention' && (
           <button
             onClick={() => setDismissed(true)}

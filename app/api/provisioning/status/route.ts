@@ -48,6 +48,13 @@ export async function GET() {
     .eq('id', clientId)
     .maybeSingle()
 
+  // WhatsApp pairing state (mirrored from VPS by wa-state-sync.py every 5s)
+  const { data: waRow } = await supabase
+    .from('agent_config')
+    .select('wa_connection_status, wa_connection_name')
+    .eq('client_id', clientId)
+    .maybeSingle()
+
   // Most recent provisioning row
   const { data: recent } = await supabase
     .from('provisioning_queue')
@@ -68,26 +75,33 @@ export async function GET() {
   let state:
     | 'awaiting_vps'      // signed up, VPS not ready yet
     | 'provisioning'      // VPS ready, worker processing
-    | 'live'              // everything completed
+    | 'needs_pairing'     // VPS ready, WhatsApp not linked yet
+    | 'live'              // everything completed + linked
     | 'attention'         // recent failure
     | 'unknown' = 'unknown'
   let message = ''
+
+  const waStatus = (waRow?.wa_connection_status as string | undefined) ?? 'unknown'
+  const isPaired = waStatus === 'connected'
 
   if (!clientRow) {
     state = 'unknown'
     message = 'Client record not found.'
   } else if (!clientRow.vps_ready) {
     state = 'awaiting_vps'
-    message = 'Your AI Employee is being set up on its own private server. This usually takes a few hours — we\'ll email you the moment it\'s live.'
+    message = 'Your AI Employee is being set up on its own private server. This normally takes 3–5 minutes.'
   } else if (recent?.status === 'failed') {
     state = 'attention'
     message = 'Something needs a quick fix — our team has been notified.'
   } else if (pendingCount && pendingCount > 0) {
     state = 'provisioning'
     message = 'Applying your latest settings to your AI Employee — this usually takes under a minute.'
+  } else if (!isPaired) {
+    state = 'needs_pairing'
+    message = 'Almost there — link your WhatsApp to finish setup.'
   } else {
     state = 'live'
-    message = 'Your AI Employee is live and ready to handle messages.'
+    message = `Your AI Employee is live on ${waRow?.wa_connection_name ?? 'WhatsApp'}.`
   }
 
   return NextResponse.json({
@@ -97,5 +111,7 @@ export async function GET() {
     vps_ready_at: clientRow?.vps_ready_at ?? null,
     last_provisioning: recent ?? null,
     pending_count: pendingCount ?? 0,
+    wa_connection_status: waStatus,
+    wa_connection_name: waRow?.wa_connection_name ?? null,
   })
 }
