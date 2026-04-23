@@ -23,6 +23,26 @@
     {
       "path": "/api/cron/trial-sequence",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/briefings?kind=morning",
+      "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/cron/briefings?kind=weekly",
+      "schedule": "0 17 * * 5"
+    },
+    {
+      "path": "/api/cron/briefings?kind=aged-debtor",
+      "schedule": "0 22 * * *"
+    },
+    {
+      "path": "/api/cron/briefings?kind=service-recall",
+      "schedule": "30 8 * * *"
+    },
+    {
+      "path": "/api/cron/briefings?kind=quote-chase",
+      "schedule": "0 11 * * *"
     }
   ]
 }
