@@ -33,7 +33,7 @@ export interface EmitArgs {
   extractedContext?: Record<string, unknown>
 }
 
-export async function emitAgentSignal(args: EmitArgs): Promise<{ ok: boolean; signalId: string; skipped?: 'duplicate' }> {
+export async function emitAgentSignal(args: EmitArgs): Promise<{ ok: boolean; signalId: string; error?: string; skipped?: 'duplicate' }> {
   const signalId = crypto
     .createHash('sha256')
     .update(`${args.clientId}:${args.signalType}:${args.dedupKey}`)
@@ -67,17 +67,16 @@ export async function emitAgentSignal(args: EmitArgs): Promise<{ ok: boolean; si
           note: args.proposedAction ?? `Handle ${args.signalType}`,
           trust_class: 'owner_nudge',
         },
-        extracted_context: JSON.stringify(args.extractedContext ?? {}),
+        // Cap at ~8KB so overly deep Fergus/Xero payloads don't blow up the row
+        extracted_context: JSON.stringify(args.extractedContext ?? {}).slice(0, 8192),
       },
       { onConflict: 'client_id,signal_id', ignoreDuplicates: true },
     )
   if (error) {
-    // Silent log: this branch is hot in production and we don't want to
-    // bury it. stderr ends up in Vercel function logs.
     if (typeof process !== 'undefined' && process.stderr) {
       process.stderr.write(`[emit-signal] failed: ${error.message} (client=${args.clientId}, type=${args.signalType})\n`)
     }
-    return { ok: false, signalId }
+    return { ok: false, signalId, error: error.message }
   }
   return { ok: true, signalId }
 }

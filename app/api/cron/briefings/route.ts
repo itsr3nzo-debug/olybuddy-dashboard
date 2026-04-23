@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
       dedupKey: brief.dedupKey, summary: brief.summary,
       urgency: brief.urgency, extractedContext: brief.context,
     })
-    if (r.ok) emitted++; else errors.push({ client_id: clientId, error: 'emit failed' })
+    if (r.ok) emitted++; else errors.push({ client_id: clientId, error: r.error ?? 'emit failed' })
   }
 
   // Process with concurrency cap
