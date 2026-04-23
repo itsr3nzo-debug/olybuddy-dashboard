@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { PLAN_PRICES } from '@/lib/stripe'
-import { sendSystemEmail } from '@/lib/email'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -229,51 +227,65 @@ export async function POST(req: NextRequest) {
     console.error('[signup] failed to enqueue provisioning:', e)
   }
 
-  // TRIAL: welcome email (no login link needed — they know their password)
-  if (plan === 'trial') {
+  // Enrol in the trial-sequence email drip (Day 1/3/4/5 nudges + winback).
+  // Idempotent via PK on user_id.
+  if (authData?.user?.id) {
     try {
-      await sendSystemEmail({
-        to: email,
-        subject: 'Welcome to Nexley AI — Your AI Employee is ready',
-        html: `<p>Hi ${contact_name || 'there'},</p>
-          <p>Your 5-day trial is active. Sign in with the password you just chose:</p>
-          <p><a href="${process.env.NEXT_PUBLIC_SITE_URL!}/login" style="background:#2563EB;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Sign in</a></p>
-          <p>Your trial runs until ${new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB')}.</p>
-          <p>— The Nexley AI Team</p>`,
+      await supabase.from('trial_sequence').insert({
+        user_id: authData.user.id,
+        client_id: clientId,
+        signed_up_at: new Date().toISOString(),
       })
-    } catch {
-      // Email failed but account exists — they can still use /login
+    } catch (e) {
+      console.warn('[signup] trial_sequence enrol failed', e)
     }
-
-    // Enroll in the 5-touch conversion sequence. Idempotent via PK on user_id.
-    if (authData?.user?.id) {
-      try {
-        await supabase.from('trial_sequence').insert({
-          user_id: authData.user.id,
-          client_id: clientId,
-          signed_up_at: new Date().toISOString(),
-        })
-      } catch (e) {
-        console.warn('[signup] trial_sequence enrol failed', e)
-      }
-    }
-
-    return NextResponse.json({ success: true, trial: true })
   }
 
-  // PAID: create Stripe Checkout session
-  const priceId = PLAN_PRICES[plan]
-  if (!priceId || priceId.startsWith('price_PLACEHOLDER')) {
-    return NextResponse.json({ error: 'This plan isn\'t available yet. Please start with the 5-day trial — we\'ll have paid plans live shortly.' }, { status: 400 })
+  // UNIFIED CHECKOUT FLOW (same for every plan):
+  //   1. Charge £20 onboarding fee now (mode=payment) — covers the 5-day trial.
+  //   2. Save the card (setup_future_usage='off_session') so we can auto-bill later.
+  //   3. Stripe webhook checkout.session.completed creates a Subscription on the
+  //      same customer with trial_period_days=5 + £599/mo price. The first
+  //      subscription invoice fires on Day 6.
+  //
+  // This matches the owner-stated flow: "£20 onboarding for 5-day trial, then
+  // £599/mo" — they pay once at signup, then Stripe auto-bills £599 on Day 6
+  // unless they cancel in the dashboard during the trial.
+  const trialPriceId = process.env.STRIPE_PRICE_TRIAL
+  const subscriptionPriceId = process.env.STRIPE_PRICE_EMPLOYEE
+  if (!trialPriceId || !subscriptionPriceId || trialPriceId.startsWith('price_PLACEHOLDER') || subscriptionPriceId.startsWith('price_PLACEHOLDER')) {
+    // Env not configured — do not silently drop the customer. Rollback the
+    // Supabase rows so they can retry after we set the prices.
+    console.error('[signup] Stripe price env vars missing or placeholder')
+    await supabase.from('agent_config').delete().eq('client_id', clientId)
+    await supabase.from('clients').delete().eq('id', clientId)
+    if (authData?.user?.id) {
+      await supabase.auth.admin.deleteUser(authData.user.id).catch(() => {})
+    }
+    return NextResponse.json({ error: 'Checkout is temporarily unavailable. Please try again in a few minutes.' }, { status: 503 })
   }
 
   const { getStripe } = await import('@/lib/stripe')
   const session = await getStripe().checkout.sessions.create({
-    mode: 'subscription',
+    mode: 'payment',
     payment_method_types: ['card'],
     customer_email: email,
-    metadata: { client_id: clientId, plan, business_name },
-    line_items: [{ price: priceId, quantity: 1 }],
+    customer_creation: 'always',
+    metadata: {
+      client_id: clientId,
+      plan,
+      business_name,
+      // Used by the webhook to create the subscription on completion.
+      create_subscription_price: subscriptionPriceId,
+      subscription_trial_days: '5',
+      user_id: authData?.user?.id ?? '',
+    },
+    line_items: [{ price: trialPriceId, quantity: 1 }],
+    payment_intent_data: {
+      // Keeps the card on file so we can auto-bill £599 on Day 6 off-session.
+      setup_future_usage: 'off_session',
+      metadata: { client_id: clientId, purpose: 'onboarding_fee' },
+    },
     success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/signup/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/signup?cancelled=true`,
   })

@@ -268,7 +268,7 @@ function SignupWizard() {
 
                 {/* Social proof */}
                 <p className="text-center text-xs text-slate-500 mt-6">
-                  Trusted by UK service businesses. No credit card required for trial.
+                  Trusted by UK service businesses. £20 today unlocks a 5-day trial — then £599/mo from Day 6. Cancel anytime during the trial.
                 </p>
               </div>
             )}

@@ -47,27 +47,31 @@ ${footer()}`,
 }
 
 export function renderDay4(c: TrialContact) {
+  // UK formatted trial-end date: "Tuesday, 29 April"
+  const endDate = c.trial_ends_at.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
   return {
-    subject: `1 day left on your Nexley trial — 20% off first month`,
+    subject: `Heads up — your card will be charged £599 tomorrow`,
     html: `<p>Hey ${c.name.split(' ')[0]},</p>
-<p>Trial ends tomorrow. To keep your agent live without a break:</p>
-<p><a href="${c.upgrade_url}" style="display:inline-block;background:#6366f1;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Upgrade with 20% off first month</a></p>
-<p>Use code <strong>TRIAL20</strong> at checkout.</p>
-<p>Prefer to cancel? No awkward calls — just reply to this email.</p>
+<p>Your 5-day trial ends ${endDate}. Tomorrow morning your card on file will be auto-charged £599 for your first month, and your ${c.business_name} AI Employee stays live without interruption.</p>
+<p><strong>Happy with it so far?</strong> Do nothing — billing just happens.</p>
+<p><strong>Want to stop?</strong> You can cancel in two clicks from your dashboard, no awkward conversation required:</p>
+<p><a href="${c.dashboard_url}/settings/billing" style="display:inline-block;background:#64748b;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">Manage subscription</a></p>
+<p>Or reply to this email if something's not working — we'd rather fix it than lose you.</p>
 ${footer()}`,
-    text: `Trial ends tomorrow. Upgrade with 20% off: ${c.upgrade_url} (code TRIAL20). Prefer to cancel? Just reply to this email.`,
+    text: `Your card will be auto-charged £599 tomorrow for month 1. Happy? Do nothing. Want to stop? Cancel in two clicks: ${c.dashboard_url}/settings/billing`,
   };
 }
 
 export function renderDay5Morning(c: TrialContact) {
   return {
-    subject: `Last call — trial ends today at 5pm`,
+    subject: `Your AI Employee is going paid today — £599 will be charged`,
     html: `<p>Hey ${c.name.split(' ')[0]},</p>
-<p>Trial ends 5pm today. After that your agent pauses — customer messages queue but aren't answered.</p>
-<p><a href="${c.upgrade_url}" style="display:inline-block;background:#6366f1;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Stay live — upgrade now</a></p>
-<p>Code <strong>TRIAL20</strong> still works until 5pm.</p>
+<p>Today's the day your 5-day trial ends. Your card will be auto-charged £599 for your first month. Your ${c.business_name} AI Employee stays live and keeps answering every call and WhatsApp.</p>
+<p>Last chance to cancel without being charged:</p>
+<p><a href="${c.dashboard_url}/settings/billing" style="display:inline-block;background:#64748b;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">Cancel subscription</a></p>
+<p>If this is working for you — thanks. We'll never send a nag email again; you're officially one of us.</p>
 ${footer()}`,
-    text: `Trial ends 5pm today. Upgrade: ${c.upgrade_url} (code TRIAL20 until 5pm).`,
+    text: `Trial ends today. £599 will be auto-charged for month 1. Cancel here if you want to stop: ${c.dashboard_url}/settings/billing`,
   };
 }
 
