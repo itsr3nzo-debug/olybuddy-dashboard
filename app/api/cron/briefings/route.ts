@@ -3,7 +3,9 @@ import { createClient } from '@supabase/supabase-js'
 import { emitAgentSignal, connectedFergusClients, connectedFergusXeroClients, connectedXeroClients } from '@/lib/agent-briefings/emit'
 import {
   composeMorningBrief, composeWeeklyBrief, composeQuoteChase,
-  composeAgedDebtorChase, composeServiceRecalls, type BriefSummary,
+  composeAgedDebtorChase, composeServiceRecalls,
+  composeProfitScan, composeVatSanityCheck,
+  type BriefSummary,
 } from '@/lib/agent-briefings/composers'
 
 /**
@@ -22,8 +24,8 @@ export const maxDuration = 60
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-type Kind = 'morning' | 'weekly' | 'quote-chase' | 'aged-debtor' | 'service-recall'
-const KINDS: Kind[] = ['morning', 'weekly', 'quote-chase', 'aged-debtor', 'service-recall']
+type Kind = 'morning' | 'weekly' | 'quote-chase' | 'aged-debtor' | 'service-recall' | 'profit-scan' | 'vat-sanity'
+const KINDS: Kind[] = ['morning', 'weekly', 'quote-chase', 'aged-debtor', 'service-recall', 'profit-scan', 'vat-sanity']
 
 export async function GET(req: NextRequest) {
   const cronSecret = req.headers.get('authorization')?.replace('Bearer ', '')
@@ -46,10 +48,12 @@ export async function GET(req: NextRequest) {
       clients = await connectedFergusXeroClients(sb)
       break
     case 'aged-debtor':
+    case 'vat-sanity':
       clients = await connectedXeroClients(sb)
       break
     case 'quote-chase':
     case 'service-recall':
+    case 'profit-scan':
       clients = await connectedFergusClients(sb)
       break
   }
@@ -98,6 +102,16 @@ export async function GET(req: NextRequest) {
           case 'service-recall': {
             const list = await composeServiceRecalls(client_id)
             for (const b of list) await emitOne(client_id, b, 'fergus_service_recall')
+            break
+          }
+          case 'profit-scan': {
+            const list = await composeProfitScan(client_id)
+            for (const b of list) await emitOne(client_id, b, 'fergus_profit_scan')
+            break
+          }
+          case 'vat-sanity': {
+            const list = await composeVatSanityCheck(client_id)
+            for (const b of list) await emitOne(client_id, b, 'xero_vat_sanity')
             break
           }
         }

@@ -397,8 +397,15 @@ export async function composeServiceRecalls(clientId: string): Promise<BriefSumm
       let target = 12
       if (/boiler/i.test(combined) && /(install|service|new)/i.test(combined)) { tag = 'boiler service'; target = 12 }
       else if (/cp12|gas\s*safe|gas\s*cert|landlord\s*gas/i.test(combined)) { tag = 'CP12 gas cert'; target = 12 }
-      else if (/eicr|electrical\s*install(ation)?\s*condition/i.test(combined)) { tag = 'EICR'; target = 60 }
+      else if (/eicr|electrical\s*install(ation)?\s*condition|fixed\s*wire/i.test(combined)) { tag = 'EICR'; target = 60 }
       else if (/pat\s*test/i.test(combined)) { tag = 'PAT test'; target = 12 }
+      else if (/smoke\s*alarm|co\s*alarm|carbon\s*monoxide.*alarm/i.test(combined)) { tag = 'smoke/CO alarm check'; target = 12 }
+      else if (/periodic\s*inspection|landlord\s*inspection|rental\s*inspection/i.test(combined)) { tag = 'rental periodic inspection'; target = 12 }
+      else if (/legionella|water\s*risk\s*assess/i.test(combined)) { tag = 'legionella risk assessment'; target = 24 }
+      else if (/fire\s*risk|fire\s*safety\s*assess/i.test(combined)) { tag = 'fire risk assessment'; target = 12 }
+      else if (/oil\s*boiler|oftec/i.test(combined)) { tag = 'oil boiler service (OFTEC)'; target = 12 }
+      else if (/heat\s*pump/i.test(combined) && /(service|commission|maintenance)/i.test(combined)) { tag = 'heat pump service'; target = 12 }
+      else if (/ev\s*charger|ohme|zappi|pod\s*point/i.test(combined)) { tag = 'EV charger inspection'; target = 12 }
 
       if (!tag) continue
       // Nudge window: between (target - 1.5mo) and (target - 0.5mo)
@@ -439,6 +446,122 @@ export async function composeReviewRequest(
     urgency: 'low',
     hasContent: true,
   }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 9. PROFIT SCAN — daily sweep of every open job's financialSummary
+//    Fires profit_guard signals for any job at 70%/90%/100% of budget.
+//    Complements the event-driven guard in /agent/guards — this catches
+//    slow overruns that accumulate across days without a single trigger.
+// ═════════════════════════════════════════════════════════════════════════════
+
+export async function composeProfitScan(clientId: string): Promise<BriefSummary[]> {
+  const out: BriefSummary[] = []
+  try {
+    const fergus = await FergusClient.forClient(clientId)
+    const openJobs = await fergus.listOpenJobs(30).catch(() => [])
+    const today = new Date().toISOString().slice(0, 10)
+    for (const j of openJobs) {
+      const raw = j as unknown as { id?: number; jobNo?: string; title?: string; isDraft?: boolean }
+      if (!raw.id || raw.isDraft) continue
+      const summary = await fergus.getJobFinancialSummary(raw.id).catch(() => null)
+      if (!summary) continue
+      const s = summary as Record<string, unknown>
+      const quoted = Number(s.totalSell ?? 0)
+      const costs = Number(s.totalCost ?? 0)
+      if (!quoted || quoted <= 0) continue
+      const pct = Math.round((costs / quoted) * 100)
+
+      // Only fire at 90% and 100%. 70% is info-only; not worth an owner ping.
+      let tier: 'warn' | 'stop' | null = null
+      if (pct >= 100) tier = 'stop'
+      else if (pct >= 90) tier = 'warn'
+      if (!tier) continue
+
+      const msg = tier === 'stop'
+        ? `🔴 Job ${raw.jobNo ?? raw.id}${raw.title ? ` (${raw.title})` : ''} has HIT its quoted price (${gbp(costs)} of ${gbp(quoted)}). Every £ from here is your margin. Raise a variation quote or absorb?`
+        : `⚠️ Job ${raw.jobNo ?? raw.id}${raw.title ? ` (${raw.title})` : ''} is at ${pct}% of budget (${gbp(costs)} of ${gbp(quoted)}). Only ${gbp(quoted - costs)} headroom.`
+
+      out.push({
+        summary: msg,
+        dedupKey: `profit:${raw.id}:${tier}:${today}`,
+        context: { job_id: raw.id, job_no: raw.jobNo, quoted, costs, pct_used: pct, tier },
+        urgency: tier === 'stop' ? 'urgent' : 'normal',
+        hasContent: true,
+      })
+    }
+  } catch { /* fergus not connected */ }
+  return out
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 10. VAT / CIS SANITY GUARD — daily scan of yesterday's new Xero invoices
+//     Flags anything likely to need DRC treatment, zero-rate check, or
+//     CIS deduction review. HMRC penalties for VAT errors are real.
+// ═════════════════════════════════════════════════════════════════════════════
+
+export async function composeVatSanityCheck(clientId: string): Promise<BriefSummary[]> {
+  const out: BriefSummary[] = []
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
+  const today = new Date().toISOString().slice(0, 10)
+  try {
+    const xero = await XeroClient.forClient(clientId)
+    const recent = await xero.listInvoices({ dateFrom: yesterday }).catch(() => [])
+    if (!Array.isArray(recent) || recent.length === 0) return out
+
+    for (const inv of recent) {
+      const i = inv as {
+        InvoiceID?: string
+        InvoiceNumber?: string
+        Type?: string
+        Contact?: { Name?: string }
+        Total?: number
+        LineItems?: Array<{ Description?: string; TaxType?: string; LineAmount?: number }>
+        Reference?: string
+        Status?: string
+      }
+      if (i.Type !== 'ACCREC') continue  // only customer invoices
+      if (i.Status === 'DELETED' || i.Status === 'VOIDED') continue
+      if (!i.LineItems?.length) continue
+
+      const concerns: string[] = []
+      const contactName = i.Contact?.Name ?? ''
+      const looksConstructionCustomer = /\b(ltd|limited|plc|construction|build|contract|developer|property)\b/i.test(contactName)
+      const hasLabourLines = i.LineItems.some(li => /\b(labour|hours?|install|fit|wire|fix|plumb|heat)\b/i.test(li.Description ?? ''))
+      const hasReverseCharge = i.LineItems.some(li => /reversecharges|REVERSE/i.test(li.TaxType ?? ''))
+      const hasStandardVat = i.LineItems.some(li => /OUTPUT2|STANDARD|20/i.test(li.TaxType ?? ''))
+      const hasZeroRate = i.LineItems.some(li => /ZERORATED/i.test(li.TaxType ?? ''))
+
+      // DRC check — likely should be reverse-charged but isn't
+      if (looksConstructionCustomer && hasLabourLines && hasStandardVat && !hasReverseCharge) {
+        concerns.push(`May need **Domestic Reverse Charge** (customer looks like a construction business + labour charge at 20% VAT). DRC applies when both sides are VAT-registered + CIS-registered + end-user isn't the final consumer.`)
+      }
+      // Zero-rate check — new builds should be 0% on labour, 20% on materials
+      if (/new\s*build|new\s*construction/i.test(i.Reference ?? '') && hasStandardVat) {
+        concerns.push(`Reference mentions "new build" — labour on new dwellings is usually **0% zero-rated**, not 20%. Confirm before sending.`)
+      }
+      // Reduced-rate check — listed buildings / energy-saving materials
+      if (/energy.*saving|insulation|solar|heat\s*pump/i.test(i.Reference ?? '') && hasStandardVat && !hasZeroRate) {
+        concerns.push(`Reference mentions energy-saving work — may qualify for **5% reduced rate** (until 31/03/2027 under the zero-rate scheme, 5% after). Worth a check.`)
+      }
+
+      if (concerns.length === 0) continue
+
+      out.push({
+        summary: [
+          `🧾 VAT sanity check — invoice ${i.InvoiceNumber ?? ''} to ${contactName} (${gbp(i.Total)}):`,
+          ...concerns.map(c => `  • ${c}`),
+          '',
+          'Reply "fix" to convert to draft + I\'ll suggest the corrected line items, or "proceed" to leave as-is.',
+        ].join('\n'),
+        dedupKey: `vat:${i.InvoiceID}:${today}`,
+        context: { invoice_id: i.InvoiceID, invoice_number: i.InvoiceNumber, contact: contactName, total: i.Total, concerns },
+        urgency: 'urgent',  // tax errors compound; surface fast
+        hasContent: true,
+      })
+    }
+  } catch { /* xero not connected */ }
+  return out
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

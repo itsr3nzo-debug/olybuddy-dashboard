@@ -16,8 +16,10 @@ export type SignalType =
   | 'xero_debtor_chase'
   | 'fergus_deposit_guard'
   | 'fergus_profit_guard'
+  | 'fergus_profit_scan'        // daily sweep variant
   | 'fergus_service_recall'
   | 'review_request_after_paid'
+  | 'xero_vat_sanity'           // DRC / zero-rate / CIS warnings
 
 export type Urgency = 'low' | 'normal' | 'urgent' | 'emergency'
 
