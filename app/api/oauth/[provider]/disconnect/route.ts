@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { getSupabase } from "@/lib/supabase";
 import { decryptToken } from "@/lib/encryption";
 import { getOAuthConfig } from "@/lib/integrations-config";
+import { composio } from "@/lib/composio";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ provider: string }> }) {
   const { provider } = await params;
@@ -39,14 +40,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pro
     // expired/error rows the user wants gone too).
     const { data: integration } = await adminSupabase
       .from("integrations")
-      .select("id, access_token_enc")
+      .select("id, access_token_enc, metadata")
       .eq("client_id", clientId)
       .eq("provider", p)
       .maybeSingle();
 
     if (!integration) continue;
 
-    // Try to revoke the token at the provider (best effort)
+    // Revoke at Composio if this was a Composio-managed integration. Without
+    // this call the connection lingers in Composio (and counts toward their
+    // quota) even after the dashboard thinks it's gone — and the next
+    // `initiate` call for the same auth_config would rely on allowMultiple
+    // to create yet another orphan. Deleting here keeps Composio in sync.
+    const composioId = (integration.metadata as { composio_connected_account_id?: string } | null)?.composio_connected_account_id;
+    if (composioId) {
+      try {
+        await composio.connectedAccounts.delete(composioId);
+      } catch (e) {
+        console.warn(`[oauth-disconnect] composio delete failed for ${p}/${composioId}:`, e);
+        // Non-fatal — DB row is the source of truth for the dashboard.
+      }
+    }
+
+    // Try to revoke the token at the provider (best effort) — direct-OAuth path.
     const config = getOAuthConfig(p);
     const revokeUrl = config?.revokeUrl;
 

@@ -52,10 +52,18 @@ export default function Sidebar({ businessName, role = 'owner' }: { businessName
   const { theme, setTheme } = useTheme()
   const supabase = createClient()
   const [collapsed, setCollapsed] = useState(false)
+  // `mounted` guards against SSR/CSR hydration mismatch in the theme toggle.
+  // next-themes reads from localStorage on the client but the server render has
+  // no access to that, so the initial Sun/Moon icon differs between server and
+  // client HTML. Rendering a neutral placeholder until mounted fixes the
+  // "Hydration failed because the server rendered HTML didn't match the client"
+  // error that was firing on every page load.
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     const saved = localStorage.getItem('sidebar-collapsed')
     if (saved === 'true') setCollapsed(true)
+    setMounted(true)
   }, [])
 
   function toggleCollapse() {
@@ -114,11 +122,12 @@ export default function Sidebar({ businessName, role = 'owner' }: { businessName
       <div className="px-2 py-3 space-y-0.5 border-t border-sidebar-border">
         <button
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          aria-label={mounted ? (theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode') : 'Toggle theme'}
           className={`flex items-center gap-3 w-full rounded-lg text-sm transition-all text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 ${collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5'}`}
+          suppressHydrationWarning
         >
-          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-          {!collapsed && (theme === 'dark' ? 'Light mode' : 'Dark mode')}
+          {mounted ? (theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />) : <Moon size={16} className="opacity-0" />}
+          {!collapsed && (mounted ? (theme === 'dark' ? 'Light mode' : 'Dark mode') : 'Theme')}
         </button>
 
         <button

@@ -92,6 +92,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
       }
 
       for (const p of rows) {
+        // Before overwriting the row, grab the PREVIOUS composio connection id
+        // (if any) so we can ask Composio to delete the now-orphaned account.
+        // Since the /api/oauth/[provider] route passes allowMultiple: true to
+        // initiate(), every reconnect mints a brand-new Composio connection,
+        // and the old one is garbage unless we explicitly delete it.
+        const { data: prev } = await admin
+          .from("integrations")
+          .select("metadata")
+          .eq("client_id", clientId)
+          .eq("provider", p)
+          .maybeSingle();
+        const prevComposioId = (prev?.metadata as { composio_connected_account_id?: string } | null)?.composio_connected_account_id;
+        if (prevComposioId && prevComposioId !== connectionId) {
+          try {
+            await composio.connectedAccounts.delete(prevComposioId);
+          } catch (e) {
+            console.warn(`[composio-callback] failed to delete orphaned connection ${prevComposioId} for ${p}:`, e);
+            // Non-fatal — the orphan is in Composio only; dashboard upsert below still wins.
+          }
+        }
+
         const { error } = await admin.from("integrations").upsert(
           {
             client_id: clientId,
