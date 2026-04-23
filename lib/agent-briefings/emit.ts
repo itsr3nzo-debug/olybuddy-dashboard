@@ -57,7 +57,7 @@ export async function emitAgentSignal(args: EmitArgs): Promise<{ ok: boolean; si
         provider,
         signal_type: args.signalType,
         detected_at_iso: new Date().toISOString(),
-        source_ref: args.sourceRef ?? null,
+        source_ref: args.sourceRef ?? args.dedupKey, // NOT NULL in schema
         summary: args.summary,
         urgency: args.urgency ?? 'normal',
         confidence: 1,
