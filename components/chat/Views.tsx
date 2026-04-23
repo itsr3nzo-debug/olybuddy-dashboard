@@ -287,6 +287,14 @@ interface DashboardProps {
   onMentionConsumed?: () => void;
 }
 
+function timeAwareGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 5)  return 'Still up';
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows, pendingMention, onMentionConsumed }: DashboardProps) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(['crm', 'calls']));
   const toggle = (id: string) => setSelected((s) => {
@@ -298,39 +306,24 @@ export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows, pen
   return (
     <BrowserChrome>
       <div className="h-full overflow-y-auto scroll-thin relative">
-        <div className="absolute top-0 right-0 flex items-center gap-5 px-6 py-4 text-[11.5px] fg-muted z-10">
-          <button className="inline-flex items-center gap-1 hover:fg-base transition-colors">
-            <Sparkles size={12} />
-            Tips
-          </button>
-        </div>
-
-        <div className="mx-auto px-8 pt-32 pb-8 flex flex-col" style={{ maxWidth: 620 }}>
-          <div className="text-center mb-14">
+        <div className="mx-auto px-8 pt-16 pb-8 flex flex-col" style={{ maxWidth: 680 }}>
+          {/* Hero — tighter, with time-aware greeting */}
+          <div className="text-center mb-8">
             <div
               style={{
                 fontFamily: 'var(--font-serif)',
-                fontSize: 44,
-                fontWeight: 400,
-                letterSpacing: '-0.015em',
-                lineHeight: 0.95,
+                fontSize: 34,
+                fontWeight: 500,
+                letterSpacing: '-0.02em',
+                lineHeight: 1.0,
               }}
-              className="fg-base mb-3"
-            >Nexley</div>
+              className="fg-base mb-2.5"
+            >
+              {timeAwareGreeting()}
+            </div>
             <div className="flex justify-center">
               <ClientPin />
             </div>
-          </div>
-
-          <div className="flex items-center gap-6 text-[12px] fg-subtle mb-2.5 px-1">
-            <button onClick={onOpenPalette} className="inline-flex items-center gap-1.5 hover:fg-base transition-colors">
-              <Folder size={12} />
-              Choose Vault project
-            </button>
-            <button onClick={onOpenPalette} className="inline-flex items-center gap-1.5 hover:fg-base transition-colors">
-              <Users size={12} />
-              Set client matter
-            </button>
           </div>
 
           <Composer
@@ -344,40 +337,45 @@ export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows, pen
             onMentionConsumed={onMentionConsumed}
           />
 
-          <div className="flex items-center justify-end mt-2 px-1">
+          {/* One unified control row: sources + voice on one line */}
+          <div className="mt-3 flex items-center justify-between gap-3 px-1">
+            <SourceChipRow selected={selected} onToggle={toggle} />
             <VoicePill />
           </div>
 
-          <div className="mt-2">
-            <SourceChipRow selected={selected} onToggle={toggle} />
-          </div>
+          {/* Searching-across summary — only when sources are actually selected */}
+          {selected.size > 0 && (
+            <div className="mt-1.5">
+              <ApplyBar selected={selected} onClear={() => setSelected(new Set())} />
+            </div>
+          )}
 
-          <div className="mt-2">
-            <ApplyBar selected={selected} onClear={() => setSelected(new Set())} />
-          </div>
-
+          {/* HeartbeatCard — the "what your AI did" signal, kept prominent */}
           <HeartbeatCard />
 
-          <div className="mt-6">
-            <TipCarousel />
-          </div>
-        </div>
-
-        <div className="mx-auto px-8 pt-8 pb-12" style={{ maxWidth: 1100 }}>
-          <div className="flex items-center justify-between mb-3 px-1">
-            <h3 className="text-[11.5px] fg-muted">Recommended workflows</h3>
-            <div className="flex items-center gap-4 text-[11.5px] fg-muted">
-              <button className="inline-flex items-center gap-1 hover:fg-base transition-colors">
-                <Search size={11} />
-                Search
-              </button>
-              <button className="hover:fg-base transition-colors">View all</button>
+          {/* Workflows — now inside the main column so widths align */}
+          <div className="mt-10">
+            <div className="flex items-center justify-between mb-3 px-1">
+              <h3 className="text-[11.5px] fg-muted uppercase tracking-wider">Recommended workflows</h3>
+              <div className="flex items-center gap-4 text-[11.5px] fg-muted">
+                <button className="inline-flex items-center gap-1 hover:fg-base transition-colors">
+                  <Search size={11} />
+                  Search
+                </button>
+                <button className="hover:fg-base transition-colors">View all</button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2" style={{ borderTop: '1px solid rgb(var(--hy-border))' }}>
+              {workflows.slice(0, 4).map((w, i) => (
+                <WorkflowCell key={i} w={w} i={i} last={i === 3} />
+              ))}
             </div>
           </div>
-          <div className="grid grid-cols-4" style={{ borderTop: '1px solid rgb(var(--hy-border))' }}>
-            {workflows.slice(0, 4).map((w, i) => (
-              <WorkflowCell key={i} w={w} i={i} last={i === 3} />
-            ))}
+
+          {/* Single static hint at the very bottom — no auto-rotating carousel */}
+          <div className="mt-8 flex items-center justify-center gap-1.5 text-[11px] fg-muted opacity-70">
+            <CommandIcon size={11} />
+            <span>Press ⌘K to jump between sources, prompts, and threads</span>
           </div>
         </div>
       </div>
