@@ -292,7 +292,12 @@ export async function composeAgedDebtorChase(clientId: string): Promise<BriefSum
     return {
       summary: lines.join('\n'),
       dedupKey: `aged:${new Date().toISOString().slice(0, 10)}`,
-      context: { overdue_count: overdue.length, total, buckets, totals },
+      context: {
+        overdue_count: overdue.length, total, buckets, totals,
+        // debug: raw DueDate of first invoice to diagnose NaN
+        _debug_sample: (overdue[0] as { DueDate?: unknown; InvoiceNumber?: unknown })?.DueDate,
+        _debug_type: typeof (overdue[0] as { DueDate?: unknown })?.DueDate,
+      },
       urgency: total > 3000 ? 'urgent' : 'normal',
       hasContent: true,
     }
