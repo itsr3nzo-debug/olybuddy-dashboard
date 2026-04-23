@@ -40,13 +40,18 @@ export async function emitAgentSignal(args: EmitArgs): Promise<{ ok: boolean; si
     .digest('hex')
     .slice(0, 32)
 
+  const provider: 'fergus' | 'xero' | 'nexley' =
+    args.signalType.startsWith('xero_') ? 'xero'
+    : args.signalType.startsWith('fergus_') ? 'fergus'
+    : 'nexley'
+
   const { error } = await args.sb
     .from('integration_signals')
     .upsert(
       {
         client_id: args.clientId,
         signal_id: signalId,
-        provider: 'fergus',
+        provider,
         signal_type: args.signalType,
         detected_at_iso: new Date().toISOString(),
         source_ref: args.sourceRef ?? null,
@@ -54,12 +59,19 @@ export async function emitAgentSignal(args: EmitArgs): Promise<{ ok: boolean; si
         urgency: args.urgency ?? 'normal',
         confidence: 1,
         status: 'new',
-        proposed_action: args.proposedAction ?? 'Send to owner on WhatsApp for approval/review.',
+        proposed_action: args.proposedAction ?? `Handle ${args.signalType}`,
         extracted_context: args.extractedContext ?? {},
       },
       { onConflict: 'client_id,signal_id', ignoreDuplicates: true },
     )
-  if (error) return { ok: false, signalId }
+  if (error) {
+    // Silent log: this branch is hot in production and we don't want to
+    // bury it. stderr ends up in Vercel function logs.
+    if (typeof process !== 'undefined' && process.stderr) {
+      process.stderr.write(`[emit-signal] failed: ${error.message} (client=${args.clientId}, type=${args.signalType})\n`)
+    }
+    return { ok: false, signalId }
+  }
   return { ok: true, signalId }
 }
 
