@@ -257,8 +257,8 @@ export async function composeAgedDebtorChase(clientId: string): Promise<BriefSum
     const totals = { '7': 0, '14': 0, '30': 0, '60+': 0 }
     for (const inv of overdue) {
       const i = inv as { DueDate?: string; AmountDue?: number }
-      if (!i.DueDate) continue
-      const due = new Date(i.DueDate)
+      const due = parseFlexibleDate(i.DueDate)
+      if (!due) continue
       const daysOverdue = Math.floor((today.getTime() - due.getTime()) / 86_400_000)
       const bucket: keyof typeof buckets = daysOverdue >= 60 ? '60+' : daysOverdue >= 30 ? '30' : daysOverdue >= 14 ? '14' : '7'
       buckets[bucket]++
@@ -269,14 +269,15 @@ export async function composeAgedDebtorChase(clientId: string): Promise<BriefSum
     // Per-invoice detail with customer names (was aggregate-only before — useless for action)
     const topLines: string[] = []
     const sorted = [...overdue].sort((a, b) => {
-      const bd = new Date((b as { DueDate?: string }).DueDate ?? '').getTime()
-      const ad = new Date((a as { DueDate?: string }).DueDate ?? '').getTime()
-      return ad - bd  // oldest first
+      const bd = parseFlexibleDate((b as { DueDate?: string }).DueDate)?.getTime() ?? 0
+      const ad = parseFlexibleDate((a as { DueDate?: string }).DueDate)?.getTime() ?? 0
+      return ad - bd  // oldest first (biggest overdue gap first)
     })
     for (const inv of sorted.slice(0, 6)) {
       const i = inv as { DueDate?: string; AmountDue?: number; Contact?: { Name?: string }; InvoiceNumber?: string }
-      if (!i.DueDate) continue
-      const days = Math.max(0, Math.floor((today.getTime() - new Date(i.DueDate).getTime()) / 86_400_000))
+      const due = parseFlexibleDate(i.DueDate)
+      if (!due) continue
+      const days = Math.max(0, Math.floor((today.getTime() - due.getTime()) / 86_400_000))
       const name = i.Contact?.Name ?? 'Unknown'
       topLines.push(`  • ${name} — ${gbp(i.AmountDue)} (${days}d overdue${i.InvoiceNumber ? ', ' + i.InvoiceNumber : ''})`)
     }
@@ -447,4 +448,19 @@ export async function composeReviewRequest(
 function formatDateUK(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', weekday: 'long' })
+}
+
+/**
+ * Parse dates from Xero. Xero returns two formats depending on endpoint:
+ *   - ISO 8601: "2026-04-18T00:00:00"
+ *   - .NET JSON:  "/Date(1712534400000+0000)/"
+ * Plain `new Date(s)` fails on the .NET form → NaN. Handle both.
+ */
+function parseFlexibleDate(s: string | undefined | null): Date | null {
+  if (!s) return null
+  // .NET JSON form — extract the ms
+  const dotNet = s.match(/\/Date\((-?\d+)[+\-]?\d*\)\//)
+  if (dotNet) return new Date(parseInt(dotNet[1], 10))
+  const d = new Date(s)
+  return isNaN(d.getTime()) ? null : d
 }
