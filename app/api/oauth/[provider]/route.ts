@@ -41,10 +41,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
   if (composioCfg) {
     try {
       const callbackUrl = `${origin}/api/oauth/${provider}/callback`;
+      // allowMultiple: true — Composio otherwise throws ComposioMultipleConnectedAccountsError
+      // when the user/auth_config pair already has any connection (including stale/failed ones
+      // from prior attempts). Without this flag the reconnect path is permanently broken once
+      // a user has attempted a connect even once. The callback still upserts onConflict on
+      // (client_id, provider), so only the latest connection is stored in integrations.
       const connection = await composio.connectedAccounts.initiate(
         clientId,
         composioCfg.authConfigId,
-        { callbackUrl }
+        { callbackUrl, allowMultiple: true }
       );
 
       const response = NextResponse.redirect(connection.redirectUrl!);

@@ -327,6 +327,12 @@ export default function IntegrationsPage() {
       .select('id, provider, status, account_email, account_name, last_synced_at, created_at, error_message')
       // Belt + suspenders — disconnect now hard-deletes rows, but any legacy
       // rows still sitting on status='disconnected' shouldn't re-appear here.
+      // Credential presence is enforced server-side by the
+      // integrations_credentials_present CHECK constraint — a row cannot sit
+      // on status='connected' without either access_token_enc or
+      // metadata.composio_connected_account_id. That means the tile-disabled
+      // bug (seed data showing "Connected" while the agent had no tokens) is
+      // prevented at the DB layer; the UI doesn't need to filter.
       .in('status', ['connected', 'expired', 'error'])
       .order('created_at', { ascending: false })
     setIntegrations(data || [])
