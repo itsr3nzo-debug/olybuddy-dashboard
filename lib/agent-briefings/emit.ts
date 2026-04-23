@@ -45,6 +45,9 @@ export async function emitAgentSignal(args: EmitArgs): Promise<{ ok: boolean; si
     : args.signalType.startsWith('fergus_') ? 'fergus'
     : 'nexley'
 
+  // Schema surprise: proposed_action is jsonb (takes an object), extracted_context
+  // is text (takes a JSON-stringified string). Getting these the wrong way round
+  // fails with `invalid input syntax for type json`.
   const { error } = await args.sb
     .from('integration_signals')
     .upsert(
@@ -59,8 +62,12 @@ export async function emitAgentSignal(args: EmitArgs): Promise<{ ok: boolean; si
         urgency: args.urgency ?? 'normal',
         confidence: 1,
         status: 'new',
-        proposed_action: args.proposedAction ?? `Handle ${args.signalType}`,
-        extracted_context: args.extractedContext ?? {},
+        proposed_action: {
+          type: args.signalType,
+          note: args.proposedAction ?? `Handle ${args.signalType}`,
+          trust_class: 'owner_nudge',
+        },
+        extracted_context: JSON.stringify(args.extractedContext ?? {}),
       },
       { onConflict: 'client_id,signal_id', ignoreDuplicates: true },
     )
