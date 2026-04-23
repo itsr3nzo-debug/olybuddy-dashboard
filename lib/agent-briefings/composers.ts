@@ -35,22 +35,33 @@ export async function composeMorningBrief(clientId: string): Promise<BriefSummar
   const context: Record<string, unknown> = { date: today }
   const lines: string[] = [`Morning — your brief for ${formatDateUK(today)}:`]
 
-  // Fergus: today's calendar events (jobs scheduled)
-  let todayJobCount = 0
+  // Fergus: today's ACTUAL diary (calendar events) — not "all open jobs"
+  // (which was the lazy earlier implementation that counted everything active
+  // regardless of schedule date).
+  let todayEventCount = 0
+  let openJobCount = 0
   try {
     const fergus = await FergusClient.forClient(clientId)
-    // listOpenJobs gives a list; filter by hypothetical scheduled date would need calendar events.
-    const openJobs = await fergus.listOpenJobs(10)
-    todayJobCount = openJobs.length
-    context.open_jobs = openJobs.slice(0, 10)
-    if (openJobs.length > 0) {
-      const preview = openJobs.slice(0, 3).map((j) => {
-        const raw = j as unknown as { jobNo?: string; title?: string }
-        return `${raw.jobNo ?? 'JOB'}: ${raw.title ?? 'untitled'}`
+    const events = await fergus.listCalendarEvents({ dateFrom: today, dateTo: today }).catch(() => [])
+    todayEventCount = events.length
+    context.today_events = events.slice(0, 10)
+    if (events.length > 0) {
+      const preview = events.slice(0, 4).map((e) => {
+        const r = e as { eventTitle?: string; startTime?: string }
+        const t = r.startTime ? new Date(r.startTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''
+        return `${t ? t + ' ' : ''}${r.eventTitle ?? 'event'}`
       })
-      lines.push(`• ${openJobs.length} open job${openJobs.length === 1 ? '' : 's'} — ${preview.join('; ')}${openJobs.length > 3 ? ', +more' : ''}`)
+      lines.push(`• Today's diary: ${preview.join(' · ')}${events.length > 4 ? `, +${events.length - 4} more` : ''}`)
+    } else {
+      // No diary entries — fall back to open job count (useful signal even if nothing booked)
+      const openJobs = await fergus.listOpenJobs(10).catch(() => [])
+      openJobCount = openJobs.length
+      context.open_jobs = openJobs.slice(0, 5)
+      if (openJobs.length > 0) {
+        lines.push(`• No diary entries today — but ${openJobs.length} active job${openJobs.length === 1 ? '' : 's'} on the go.`)
+      }
     }
-  } catch { /* fergus not connected or errored — skip this section */ }
+  } catch { /* fergus not connected */ }
 
   // Xero: yesterday's payments in
   let paymentsCount = 0
@@ -81,7 +92,7 @@ export async function composeMorningBrief(clientId: string): Promise<BriefSummar
     dedupKey: `morning:${today}`,
     context,
     urgency: 'normal',
-    hasContent: todayJobCount > 0 || paymentsCount > 0,
+    hasContent: todayEventCount > 0 || openJobCount > 0 || paymentsCount > 0,
   }
 }
 
@@ -187,25 +198,43 @@ export async function composeQuoteChase(clientId: string): Promise<BriefSummary[
   const out: BriefSummary[] = []
   try {
     const fergus = await FergusClient.forClient(clientId)
-    // Fergus has no "list all sent quotes" filter; we walk open jobs + their quotes.
-    // Simpler first pass: surface open jobs with quotes that have been published but
-    // not accepted after N days (computed via quote.publishedAt if present).
+    // Correct logic: for each open job, fetch its quotes. A chaseable quote is
+    // one that's been **published + marked sent** but NOT accepted, and was sent
+    // more than 3 days ago. (Previously was checking job.status which is
+    // OWNER-pending-action status, not customer-waiting — would have chased
+    // customers for the owner's own todos.)
     const jobs = await fergus.listOpenJobs(25).catch(() => [])
-    for (const j of jobs) {
-      const raw = j as unknown as { id?: number; jobNo?: string; title?: string; status?: string }
-      if (!raw.id) continue
-      // naive: look for recent quotes on the job
-      // (could be richer if we track per-quote sentAt in Supabase — v1 stays simple)
-      const job = raw
-      if (job.status !== 'To Price' && job.status !== 'To Schedule') continue
+    const today = new Date().toISOString().slice(0, 10)
 
-      out.push({
-        summary: `Job ${job.jobNo ?? job.id}${job.title ? ` (${job.title})` : ''} is sitting in "${job.status}". Worth a nudge to the customer? Say "chase ${job.jobNo ?? job.id}" and I'll draft it.`,
-        dedupKey: `quote-chase:${job.id}:${new Date().toISOString().slice(0, 10)}`,
-        context: { job_id: job.id, job_no: job.jobNo, status: job.status },
-        urgency: 'low',
-        hasContent: true,
-      })
+    for (const j of jobs) {
+      const raw = j as unknown as { id?: number; jobNo?: string; title?: string }
+      if (!raw.id) continue
+      // Fetch the job's quotes — uses Fergus /jobs/{id}/quotes (exists in Partner API)
+      const jobDetail = await fergus.getJob(raw.id).catch(() => null)
+      const quotes = (jobDetail as unknown as { quotes?: Array<Record<string, unknown>> } | null)?.quotes ?? []
+
+      for (const q of quotes) {
+        const isSent = q.isSent === true || typeof q.sentAt === 'string'
+        const isAccepted = q.isAccepted === true || typeof q.acceptedAt === 'string'
+        const isDeclined = q.isDeclined === true || typeof q.declinedAt === 'string'
+        if (!isSent || isAccepted || isDeclined) continue
+
+        const sentAt = (q.sentAt as string | undefined) ?? (q.publishedAt as string | undefined)
+        if (!sentAt) continue
+        const daysSinceSent = Math.floor((Date.now() - new Date(sentAt).getTime()) / 86_400_000)
+        // Cadence: chase at 3d, 7d, 14d — not every day after that
+        if (![3, 7, 14].includes(daysSinceSent)) continue
+
+        const quoteTitle = (q.title as string | undefined) ?? raw.title
+        const quoteTotal = (q.total as number | undefined) ?? (q.totalSell as number | undefined)
+        out.push({
+          summary: `Quote${quoteTitle ? ` "${quoteTitle}"` : ''} for job ${raw.jobNo ?? raw.id} went ${daysSinceSent} days ago with no reply${quoteTotal ? ` (${gbp(quoteTotal)})` : ''}. Worth a nudge? Say "chase ${raw.jobNo ?? raw.id}" and I'll draft a friendly follow-up.`,
+          dedupKey: `quote-chase:${q.id}:${daysSinceSent}d:${today}`,
+          context: { job_id: raw.id, job_no: raw.jobNo, quote_id: q.id, days_since_sent: daysSinceSent, total: quoteTotal },
+          urgency: daysSinceSent >= 14 ? 'normal' : 'low',
+          hasContent: true,
+        })
+      }
     }
   } catch { /* fergus not connected */ }
   return out
@@ -237,10 +266,26 @@ export async function composeAgedDebtorChase(clientId: string): Promise<BriefSum
     }
     const total = Object.values(totals).reduce((a, b) => a + b, 0)
 
-    const lines = [`💷 You're owed ${gbp(total)} across ${overdue.length} overdue invoice${overdue.length === 1 ? '' : 's'}:`]
-    for (const b of ['7', '14', '30', '60+'] as const) {
-      if (buckets[b] > 0) lines.push(`  • ${b}${b === '60+' ? '' : 'd'} overdue: ${buckets[b]} × ${gbp(totals[b])}`)
+    // Per-invoice detail with customer names (was aggregate-only before — useless for action)
+    const topLines: string[] = []
+    const sorted = [...overdue].sort((a, b) => {
+      const bd = new Date((b as { DueDate?: string }).DueDate ?? '').getTime()
+      const ad = new Date((a as { DueDate?: string }).DueDate ?? '').getTime()
+      return ad - bd  // oldest first
+    })
+    for (const inv of sorted.slice(0, 6)) {
+      const i = inv as { DueDate?: string; AmountDue?: number; Contact?: { Name?: string }; InvoiceNumber?: string }
+      if (!i.DueDate) continue
+      const days = Math.max(0, Math.floor((today.getTime() - new Date(i.DueDate).getTime()) / 86_400_000))
+      const name = i.Contact?.Name ?? 'Unknown'
+      topLines.push(`  • ${name} — ${gbp(i.AmountDue)} (${days}d overdue${i.InvoiceNumber ? ', ' + i.InvoiceNumber : ''})`)
     }
+
+    const lines = [
+      `💷 You're owed ${gbp(total)} across ${overdue.length} overdue invoice${overdue.length === 1 ? '' : 's'}:`,
+      ...topLines,
+    ]
+    if (overdue.length > 6) lines.push(`  • +${overdue.length - 6} more`)
     lines.push('', 'Reply "chase all" to send reminders, or "chase 30+" to only hit the older ones.')
 
     return {
@@ -312,23 +357,45 @@ export async function composeServiceRecalls(clientId: string): Promise<BriefSumm
   const out: BriefSummary[] = []
   try {
     const fergus = await FergusClient.forClient(clientId)
-    // Search for completed jobs matching service categories. searchJobs is broad;
-    // good enough v1 — classify by keyword + age.
+    // Correct logic: use the LATEST invoice date for that job, not createdAt.
+    // Rationale: a boiler is installed → invoiced when finished → that invoice
+    // date is the installation moment. createdAt is when the job was LOGGED
+    // in Fergus, which could be weeks before install, or (for migrated data)
+    // years before. Previously: a newly-migrated historical job would fire
+    // "service due" on day 1.
+    //
+    // Fergus exposes invoices per job via `GET /customerInvoices?jobId=` (v1).
+    // For now we still walk searchJobs but prefer the invoice-date field if
+    // Fergus populated one on the job response (common when a job has been
+    // fully invoiced). Fall back to createdAt ONLY if no invoice date + flag
+    // uncertainty in the context so the agent can hedge in its reply.
     const completed = await fergus.searchJobs('', 50).catch(() => [])
     const now = Date.now()
-    const buckets: Array<{ due: number; tag: string; months: number }> = []
 
     for (const j of completed) {
-      const raw = j as unknown as FergusJobRecord
+      const raw = j as unknown as FergusJobRecord & {
+        invoicedAt?: string        // some Fergus responses include this
+        completedAt?: string
+        status?: string
+      }
       const combined = `${raw.title ?? ''} ${raw.description ?? ''}`.toLowerCase()
-      if (!raw.createdAt || !raw.customerId) continue
-      const ageMs = now - new Date(raw.createdAt).getTime()
+      if (!raw.customerId) continue
+
+      // Use best available "when was this actually done" signal
+      const referenceDate = raw.invoicedAt ?? raw.completedAt ?? raw.createdAt
+      const dateSource = raw.invoicedAt ? 'invoiced' : raw.completedAt ? 'completed' : 'created'
+      if (!referenceDate) continue
+
+      // Only consider jobs that are actually completed / invoiced — skip drafts
+      if (raw.status && !['Completed', 'Invoiced', 'Closed', 'Paid'].includes(raw.status)) continue
+
+      const ageMs = now - new Date(referenceDate).getTime()
       const ageMonths = ageMs / (30 * 86_400_000)
 
       let tag: string | null = null
       let target = 12
-      if (/boiler/i.test(combined) && /(install|service)/i.test(combined)) { tag = 'boiler service'; target = 12 }
-      else if (/cp12|gas\s*safe|gas\s*cert/i.test(combined)) { tag = 'CP12 gas cert'; target = 12 }
+      if (/boiler/i.test(combined) && /(install|service|new)/i.test(combined)) { tag = 'boiler service'; target = 12 }
+      else if (/cp12|gas\s*safe|gas\s*cert|landlord\s*gas/i.test(combined)) { tag = 'CP12 gas cert'; target = 12 }
       else if (/eicr|electrical\s*install(ation)?\s*condition/i.test(combined)) { tag = 'EICR'; target = 60 }
       else if (/pat\s*test/i.test(combined)) { tag = 'PAT test'; target = 12 }
 
@@ -336,10 +403,11 @@ export async function composeServiceRecalls(clientId: string): Promise<BriefSumm
       // Nudge window: between (target - 1.5mo) and (target - 0.5mo)
       if (ageMonths < target - 1.5 || ageMonths > target - 0.5) continue
 
+      const hedge = dateSource === 'created' ? ' (date is approximate — based on job-creation, not invoice)' : ''
       out.push({
-        summary: `🔔 Customer (Fergus customer ${raw.customerId}) is due for ${tag} in ~${Math.round(target - ageMonths)} weeks (original job ${raw.jobNo ?? raw.id}). Want me to draft a booking-reminder message?`,
+        summary: `🔔 Customer (Fergus customer ${raw.customerId}) is due for ${tag} in ~${Math.round(target - ageMonths)} weeks${hedge} (original job ${raw.jobNo ?? raw.id}). Want me to draft a booking-reminder message?`,
         dedupKey: `recall:${raw.id}:${tag}`,
-        context: { job_id: raw.id, customer_id: raw.customerId, service: tag, target_months: target, age_months: Math.round(ageMonths * 10) / 10 },
+        context: { job_id: raw.id, customer_id: raw.customerId, service: tag, target_months: target, age_months: Math.round(ageMonths * 10) / 10, date_source: dateSource },
         urgency: 'low',
         hasContent: true,
       })

@@ -700,6 +700,27 @@ export class FergusClient {
     return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
   }
 
+  /**
+   * List calendar events within a time window.
+   * Maps to `GET /calendarEvents` (public Partner API).
+   * Used by the morning-brief composer to show today's ACTUAL diary, not
+   * "all open jobs" (which is a different, broader set).
+   */
+  async listCalendarEvents(filter: { dateFrom?: string; dateTo?: string; userId?: number } = {}): Promise<Array<Record<string, unknown>>> {
+    const params = new URLSearchParams()
+    params.set('pageSize', '50')
+    params.set('pageCursor', '0')
+    if (filter.dateFrom) params.set('filterDateFrom', filter.dateFrom)
+    if (filter.dateTo) params.set('filterDateTo', filter.dateTo)
+    if (filter.userId !== undefined) params.set('filterUserId', String(filter.userId))
+    try {
+      const res = await this.req<{ data: Array<Record<string, unknown>> }>('GET', `/calendarEvents?${params.toString()}`)
+      return res?.data ?? []
+    } catch {
+      return []
+    }
+  }
+
   // ─── Site archive / restore ─────────────────────────────
   async archiveSite(siteId: number): Promise<Record<string, unknown> | null> {
     const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('POST', `/sites/${siteId}/archive`, {})
