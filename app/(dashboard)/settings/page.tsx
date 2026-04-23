@@ -157,18 +157,36 @@ export default async function SettingsPage() {
           <NotificationSettings initialPrefs={(config?.notification_prefs as { email?: boolean; telegram?: boolean }) ?? {}} />
         </Section>
 
-        <Section title="Subscription" description="Your plan and billing">
+        <Section
+          title="Subscription & billing"
+          description="Your plan, payment method, invoices, and cancellation"
+        >
           <div className="divide-y divide-border -mx-5 sm:-mx-6">
             <SettingRow label="Status" value={<StatusBadge status={client?.subscription_status ?? 'active'} />} />
-            <SettingRow label="Plan" value={PLAN_LABELS[client?.subscription_plan ?? ''] ?? 'AI Employee'} />
+            <SettingRow label="Plan" value={PLAN_LABELS[client?.subscription_plan ?? ''] ?? 'AI Employee · £599/mo'} />
             {client?.subscription_status === 'trial' && client?.trial_ends_at && (
-              <SettingRow label="Trial ends" value={new Date(client.trial_ends_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} />
+              <SettingRow
+                label="Trial ends"
+                value={new Date(client.trial_ends_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+              />
             )}
             <SettingRow label="Member since" value={memberSince} />
             {config?.twilio_phone && (
               <SettingRow label="Your AI WhatsApp number" value={config.twilio_phone} mono />
             )}
           </div>
+          <a
+            href="/settings/billing"
+            className="mt-3 -mx-5 sm:-mx-6 px-5 sm:px-6 py-3 flex items-center justify-between border-t border-border hover:bg-muted/30 transition-colors"
+          >
+            <div>
+              <p className="text-sm font-medium text-foreground">Manage subscription</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Update card, download invoices, view billing history, or cancel. Hosted by Stripe.
+              </p>
+            </div>
+            <span className="text-sm text-brand-accent">Open →</span>
+          </a>
         </Section>
 
         <Section title="Account" description="Login and security">
@@ -177,25 +195,35 @@ export default async function SettingsPage() {
           </div>
         </Section>
 
-        {/* Danger Zone */}
+        {/* Danger Zone — cancel via Stripe portal (keeps agent live until period end) */}
         <Section title="Danger Zone" description="Irreversible actions" className="border-red-500/20">
           <div className="flex items-center justify-between py-3">
-            <div>
+            <div className="flex-1 pr-4">
               <p className="text-sm font-medium text-foreground">Cancel subscription</p>
-              <p className="text-xs text-muted-foreground">Your AI Employee will stop responding immediately</p>
+              <p className="text-xs text-muted-foreground">
+                Cancels at end of current billing period. Your AI Employee keeps working until then.
+              </p>
             </div>
-            <button className="px-3 py-1.5 rounded-lg text-sm border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors">
+            <a
+              href="/api/stripe/portal?flow=cancel"
+              className="px-3 py-1.5 rounded-lg text-sm border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors whitespace-nowrap"
+            >
               Cancel plan
-            </button>
+            </a>
           </div>
           <div className="flex items-center justify-between py-3 border-t border-border">
-            <div>
+            <div className="flex-1 pr-4">
               <p className="text-sm font-medium text-foreground">Delete account</p>
-              <p className="text-xs text-muted-foreground">Permanently remove all data including call logs and contacts</p>
+              <p className="text-xs text-muted-foreground">
+                Permanently removes all data (call logs, contacts, pipeline) under UK GDPR. Requires cancellation first.
+              </p>
             </div>
-            <button className="px-3 py-1.5 rounded-lg text-sm border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors">
-              Delete account
-            </button>
+            <a
+              href="mailto:hello@nexley.ai?subject=Delete%20my%20Nexley%20account"
+              className="px-3 py-1.5 rounded-lg text-sm border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors whitespace-nowrap"
+            >
+              Request deletion
+            </a>
           </div>
         </Section>
 
