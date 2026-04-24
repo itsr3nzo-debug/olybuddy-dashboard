@@ -74,12 +74,15 @@ export async function POST(req: NextRequest) {
       payload_preview: JSON.stringify(event).substring(0, 500),
     });
 
-    // Dedup check — skip if already processed.
-    // Use maybeSingle() so 0 rows returns null (not an error).
-    // A UNIQUE constraint on stripe_event_id is the hard guard against races.
+    // Dedup check — only treat as duplicate if the event has already been
+    // successfully processed. If it exists but processed=false, the previous
+    // attempt crashed partway through (e.g. Supabase update blipped after
+    // Stripe sub was created), and Stripe is retrying to let us complete
+    // the work. Returning "duplicate" here would leave the row orphaned —
+    // sub exists in Stripe with no stripe_subscription_id in Supabase.
     const { data: existing, error: dedupErr } = await supabase
       .from('stripe_events')
-      .select('id')
+      .select('id, processed')
       .eq('stripe_event_id', eventId)
       .maybeSingle();
 
@@ -88,26 +91,43 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Database error' }, { status: 500 });
     }
 
-    if (existing) {
+    if (existing?.processed) {
       return NextResponse.json({ status: 'duplicate', eventId });
     }
 
-    // Store the event — UNIQUE constraint on stripe_event_id handles concurrent
-    // duplicate webhooks at the DB level (second insert fails, returns 409).
-    const { error: insertError } = await supabase.from('stripe_events').insert({
-      stripe_event_id: eventId,
-      event_type: eventType,
-      payload: event,
-    });
+    if (!existing) {
+      // First time seeing this event — store it. UNIQUE(stripe_event_id)
+      // handles the concurrent-insert race (second insert gets 23505).
+      const { error: insertError } = await supabase.from('stripe_events').insert({
+        stripe_event_id: eventId,
+        event_type: eventType,
+        payload: event,
+      });
 
-    if (insertError) {
-      // 23505 = unique_violation — another worker already processed this event
-      if (insertError.code === '23505') {
-        return NextResponse.json({ status: 'duplicate', eventId });
+      if (insertError) {
+        if (insertError.code === '23505') {
+          // Another instance just inserted it — re-check processed status.
+          const { data: raced } = await supabase
+            .from('stripe_events')
+            .select('processed')
+            .eq('stripe_event_id', eventId)
+            .maybeSingle();
+          if (raced?.processed) {
+            return NextResponse.json({ status: 'duplicate', eventId });
+          }
+          // Another instance holds the lock but hasn't finished yet. Let
+          // Stripe retry rather than double-process.
+          return NextResponse.json(
+            { error: 'Event being processed — Stripe will retry' },
+            { status: 409 }
+          );
+        }
+        console.error('Failed to store stripe event:', insertError);
+        return NextResponse.json({ error: 'Failed to store event' }, { status: 500 });
       }
-      console.error('Failed to store stripe event:', insertError);
-      return NextResponse.json({ error: 'Failed to store event' }, { status: 500 });
     }
+    // If we got here with existing.processed=false, we're retrying an
+    // incomplete event — fall through to the handler switch.
 
     // Process based on event type
     switch (eventType) {
@@ -146,6 +166,13 @@ export async function POST(req: NextRequest) {
               defaultPmId = typeof pi.payment_method === 'string' ? pi.payment_method : pi.payment_method?.id;
             }
 
+            // Idempotency key derived from the checkout session ID. If this
+            // webhook handler times out after Stripe created the sub but
+            // before we responded, Stripe will retry the whole webhook. On
+            // retry, the idempotency key makes Stripe return the EXISTING
+            // subscription instead of creating a duplicate — so we can't
+            // accidentally double-subscribe a customer.
+            const idempotencyKey = `sub-create-${session.id}`;
             const sub = await stripe.subscriptions.create({
               customer: stripeCustomerId,
               items: [{ price: metadata.create_subscription_price }],
@@ -155,7 +182,7 @@ export async function POST(req: NextRequest) {
                 end_behavior: { missing_payment_method: 'cancel' },
               },
               metadata: { client_id: clientId, plan: metadata.plan, created_from: 'signup' },
-            });
+            }, { idempotencyKey });
             subscriptionId = sub.id;
             trialEndsAt = sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null;
           } catch (subErr: any) {

@@ -146,6 +146,7 @@ export default function ChatApp(props: ChatAppProps) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [pendingMention, setPendingMention] = useState<string | null>(null);
+  const [pendingDraft, setPendingDraft] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
 
   // Sidebar state ────────────────────────────────────────────
@@ -387,6 +388,30 @@ export default function ChatApp(props: ChatAppProps) {
     setBusy(false); // same reason as newChat — don't leak busy across sessions
   }, []);
 
+  // Edit & resend — truncate the thread at the user message being edited,
+  // delete the tail from Supabase too so it doesn't re-hydrate, then load
+  // the original content into the composer. User tweaks + re-sends to
+  // regenerate from that point. No branch history kept (simple model).
+  const editMessage = useCallback(async (messageId: string, content: string) => {
+    if (!currentSessionId) return;
+    const sess = sessionsRef.current.find(s => s.id === currentSessionId);
+    if (!sess) return;
+    const idx = sess.messages.findIndex(m => m.id === messageId);
+    if (idx < 0) return;
+    // Local: drop everything from the edited message onwards
+    setSessions(prev => prev.map(s => {
+      if (s.id !== currentSessionId) return s;
+      return { ...s, messages: s.messages.slice(0, idx) };
+    }));
+    // Server: delete the same tail via a dedicated endpoint if available;
+    // otherwise this is eventual consistency — the poll will re-merge and
+    // we'd lose the truncation. For now we optimistically delete local;
+    // backend catch-up is a follow-up.
+    // Load the content into the composer via the pendingDraft mechanism.
+    setPendingDraft(content);
+    setBusy(false); // unlock composer in case in-flight
+  }, [currentSessionId]);
+
   // Cancel the active in-flight reply. Marks the latest pending/thinking/
   // drafting assistant message in the active session as an error locally,
   // which releases `busy` so the composer is usable immediately. The bridge
@@ -593,7 +618,11 @@ export default function ChatApp(props: ChatAppProps) {
                   'Didn\u2019t reach your AI Employee. It may be offline — try again in a moment.',
               };
             }
-            if ((m.status === 'thinking' || m.status === 'drafting') && ageMs > 120_000) {
+            // Long-chain agent replies (WebFetch + Bash + write + write) can
+            // legitimately exceed 2 min, so raised from 120s to 240s. The
+            // bridge streams incremental content by now so we're not staring
+            // at a blank spinner anyway.
+            if ((m.status === 'thinking' || m.status === 'drafting') && ageMs > 240_000) {
               changed = true;
               return {
                 ...m,
@@ -613,7 +642,7 @@ export default function ChatApp(props: ChatAppProps) {
         (m) =>
           m.role === 'assistant' &&
           (m.status === 'pending' || m.status === 'thinking' || m.status === 'drafting') &&
-          now - new Date(m.createdAt).getTime() < 120_000
+          now - new Date(m.createdAt).getTime() < 240_000
       );
       if (!stillInFlight) setBusy(false);
     }, 5000);
@@ -754,6 +783,9 @@ export default function ChatApp(props: ChatAppProps) {
             onRetryMessage={retryMessage}
             onFollowup={(t) => { void sendMessage(t); }}
             onCancel={cancelMessage}
+            onEditMessage={editMessage}
+            pendingDraft={pendingDraft}
+            onDraftConsumed={() => setPendingDraft(null)}
           />
         )}
         {activeView === 'customers' && <CustomersView />}

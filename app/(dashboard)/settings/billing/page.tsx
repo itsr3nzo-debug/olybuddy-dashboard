@@ -104,7 +104,7 @@ function deriveState(client: ClientRow, info: SubInfo | null): UIState {
   return { kind: 'active', info }
 }
 
-export default async function BillingPage({ searchParams }: { searchParams: Promise<{ portal_return?: string; upgraded?: string; upgraded_early?: string; upgrade_cancelled?: string; error?: string }> }) {
+export default async function BillingPage({ searchParams }: { searchParams: Promise<{ portal_return?: string; upgraded?: string; upgraded_early?: string; upgrade_cancelled?: string; error?: string; pending_payment?: string }> }) {
   const { requireAccess } = await import('@/lib/rbac-guard')
   const session = await requireAccess('/settings/billing')
 
@@ -171,6 +171,11 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
       {sp.error === 'no_subscription' && (
         <Banner kind="info" title="No subscription on file">
           You haven&apos;t set up billing yet. Click &quot;Set up billing&quot; below to activate your paid plan.
+        </Banner>
+      )}
+      {sp.error === 'rate_limited' && (
+        <Banner kind="warning" title="Too many attempts">
+          Slow down — you&apos;ve hit the billing-action limit. Try again in 10 minutes, or email hello@nexley.ai if something&apos;s stuck.
         </Banner>
       )}
 

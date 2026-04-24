@@ -14,6 +14,11 @@ import IconButton from './IconButton';
 
 export type ChatView = 'assistant' | 'customers' | 'vault' | 'workflows' | 'history' | 'knowledge';
 
+// Module-level prefetch cache — shared across all SessionItem instances so
+// hovering multiple sessions across renders doesn't waste bandwidth.
+const prefetchedIds = new Set<string>();
+let prefetchTimer: number = 0;
+
 interface SidebarProps {
   sessions: Session[];
   currentSessionId: string | null;
@@ -364,10 +369,20 @@ function SessionItem({ session, active, onSelect, onRename, onDelete, onPin }: {
     const t = setTimeout(() => setShowPreview(true), 450);
     setHoverTimer(t);
     // Speculative prefetch — fire a fetch on hover so the body is already
-    // over the wire by the time the user actually clicks. We let the
-    // browser cache this normally; the subsequent loadSession() on click
-    // will de-dupe via the service worker / HTTP layer.
-    fetch(`/api/chat/sessions/${session.id}`).catch(() => { /* silent */ });
+    // over the wire by the time the user actually clicks. De-duped by the
+    // module-level `prefetchedIds` set so hovering the same session twice
+    // doesn't re-hit the endpoint. 200ms debounce protects against rapid
+    // mouse-sweep across the list firing 10 parallel requests.
+    if (prefetchedIds.has(session.id)) return;
+    window.clearTimeout(prefetchTimer);
+    prefetchTimer = window.setTimeout(() => {
+      if (prefetchedIds.has(session.id)) return;
+      prefetchedIds.add(session.id);
+      fetch(`/api/chat/sessions/${session.id}`).catch(() => {
+        // Failed — allow a future hover to retry
+        prefetchedIds.delete(session.id);
+      });
+    }, 200);
   };
   const onLeave = () => {
     if (hoverTimer) clearTimeout(hoverTimer);

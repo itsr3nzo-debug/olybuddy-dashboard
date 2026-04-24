@@ -125,39 +125,81 @@ export async function POST(req: NextRequest) {
   // business WhatsApp number the user just entered so the contact details
   // page is pre-populated instead of showing a blank placeholder.
   const resolvedPhone = (phone && String(phone).trim()) || normalizedBusinessWa || normalizedOwnerPhone || null
-  const { data: client, error: clientErr } = await supabase.from('clients').insert({
-    name: business_name,
-    slug,
-    email,
-    phone: resolvedPhone,
-    industry,
-    contact_name: contact_name || null,
-    location: location || null,
-    services_text: services || null,
-    // Every signup now goes through Stripe Checkout BEFORE becoming a real
-    // 'trial'. Until the checkout.session.completed webhook fires and sets
-    // stripe_customer_id + stripe_subscription_id, the client row stays in
-    // 'pending_payment' — this prevents:
-    //   (a) trial-expiry cron from emailing "your trial has ended" to people
-    //       who never actually paid (filter matches only status='trial')
-    //   (b) provision-poller from spinning up a VPS before payment clears
-    //       (filter requires status IN ('trial','active'))
-    //   (c) the billing page rendering a stale "you're on a 5-day trial"
-    //       CTA for someone who abandoned checkout
-    subscription_status: 'pending_payment',
-    subscription_plan: plan,
-    // Webhook sets trial_ends_at from sub.trial_end — don't guess here; a
-    // signup-time value would drift if webhook delivery is delayed a few
-    // minutes (and this is what's bitten us before).
-    trial_ends_at: null,
-    onboarding_completed: false,
-    onboarding_step: 0,
-    vps_status: 'pending',
-  }).select('id').single()
+
+  // Helper — we may need to retry with a different slug on collision, so keep
+  // the insert payload in a reusable closure.
+  const insertClient = async (slugToUse: string) =>
+    supabase.from('clients').insert({
+      name: business_name,
+      slug: slugToUse,
+      email,
+      phone: resolvedPhone,
+      industry,
+      contact_name: contact_name || null,
+      location: location || null,
+      services_text: services || null,
+      // Every signup now goes through Stripe Checkout BEFORE becoming a real
+      // 'trial'. Until the checkout.session.completed webhook fires and sets
+      // stripe_customer_id + stripe_subscription_id, the client row stays in
+      // 'pending_payment' — this prevents:
+      //   (a) trial-expiry cron from emailing "your trial has ended" to people
+      //       who never actually paid (filter matches only status='trial')
+      //   (b) provision-poller from spinning up a VPS before payment clears
+      //       (filter requires status IN ('trial','active'))
+      //   (c) the billing page rendering a stale "you're on a 5-day trial"
+      //       CTA for someone who abandoned checkout
+      subscription_status: 'pending_payment',
+      subscription_plan: plan,
+      // Webhook sets trial_ends_at from sub.trial_end — don't guess here; a
+      // signup-time value would drift if webhook delivery is delayed a few
+      // minutes (and this is what's bitten us before).
+      trial_ends_at: null,
+      onboarding_completed: false,
+      onboarding_step: 0,
+      vps_status: 'pending',
+    }).select('id').single()
+
+  let { data: client, error: clientErr } = await insertClient(slug)
 
   if (clientErr || !client) {
-    console.error('Failed to create client:', clientErr)
-    return NextResponse.json({ error: clientErr?.message || 'Failed to create client' }, { status: 500 })
+    // Translate UNIQUE-violation races (email collision, slug collision) into
+    // user-friendly errors instead of a raw 500. Postgres code 23505 =
+    // unique_violation. The constraint name tells us WHICH one lost the race:
+    //   clients_email_unique    → duplicate email
+    //   clients_slug_key        → duplicate slug (another business with same name)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const err = clientErr as any
+    const msg = String(err?.message || '')
+    const details = String(err?.details || '')
+    if (err?.code === '23505') {
+      if (msg.includes('email') || details.includes('email')) {
+        return NextResponse.json(
+          { error: 'An account with this email already exists. Try signing in instead.' },
+          { status: 409 }
+        )
+      }
+      if (msg.includes('slug') || details.includes('slug')) {
+        // Slug collision race — the TOCTOU on our in-app slug uniqueness
+        // check lost. Retry once with a random 4-char suffix.
+        const retry = await insertClient(`${slug}-${Math.random().toString(36).slice(2, 6)}`)
+        if (retry.error || !retry.data) {
+          console.error('Failed to create client (slug retry):', retry.error)
+          return NextResponse.json({ error: 'Please try again in a moment.' }, { status: 503 })
+        }
+        client = retry.data
+        clientErr = null
+      } else {
+        return NextResponse.json({ error: 'Please try again in a moment.' }, { status: 503 })
+      }
+    } else {
+      console.error('Failed to create client:', clientErr)
+      return NextResponse.json({ error: clientErr?.message || 'Failed to create client' }, { status: 500 })
+    }
+  }
+
+  // After all the conditional retries, TypeScript can't narrow `client` to non-null.
+  if (!client) {
+    return NextResponse.json({ error: 'Failed to create client' }, { status: 500 })
   }
 
   const clientId = client.id

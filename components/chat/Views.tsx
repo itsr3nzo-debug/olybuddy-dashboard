@@ -461,14 +461,61 @@ interface AssistPanelProps {
   onFollowup?: (text: string) => void;
   /** Fired when the user clicks Stop during an in-flight reply. */
   onCancel?: () => void;
+  /** Fired when the user clicks Edit on their own past message — parent
+   * truncates the thread at that point + preloads composer with the
+   * message content for re-submission. */
+  onEditMessage?: (messageId: string, content: string) => void;
+  /** One-shot draft text — Composer replaces its value with this once
+   * (used for Edit & resend), then calls onDraftConsumed to clear. */
+  pendingDraft?: string | null;
+  onDraftConsumed?: () => void;
 }
 
-export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy, rtStatus, loadingMessages, onOpenMention, onOpenPalette, onRenameSession, onDeleteSession, onPinSession, pendingMention, onMentionConsumed, onRetryMessage, onFollowup, onCancel }: AssistPanelProps) {
+export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy, rtStatus, loadingMessages, onOpenMention, onOpenPalette, onRenameSession, onDeleteSession, onPinSession, pendingMention, onMentionConsumed, onRetryMessage, onFollowup, onCancel, onEditMessage, pendingDraft, onDraftConsumed }: AssistPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [moreOpen, setMoreOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameVal, setRenameVal] = useState('');
+  // ⌘F in-chat search — opens a thin search bar at the top of the scroll
+  // area. Matches across all message content (user + assistant). Up/Down
+  // arrow navigates hits; Esc closes.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchIdx, setSearchIdx] = useState(0);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setSearchOpen(true);
+      } else if (e.key === 'Escape' && searchOpen) {
+        setSearchOpen(false);
+        setSearchQuery('');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [searchOpen]);
+  // Compute which message-ids match the current query. Cheap for <500
+  // messages; we bail out if the query is <2 chars.
+  const searchHits = React.useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (q.length < 2) return [] as string[];
+    return session.messages
+      .filter(m => m.content?.toLowerCase().includes(q))
+      .map(m => m.id);
+  }, [searchQuery, session.messages]);
+  useEffect(() => {
+    // Reset cursor when hits change; scroll to the first hit.
+    if (searchHits.length > 0) setSearchIdx(0);
+  }, [searchHits.length]);
+  useEffect(() => {
+    const target = searchHits[searchIdx];
+    if (!target) return;
+    const el = document.querySelector(`[data-message-id="${target}"]`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [searchIdx, searchHits]);
+
   // Two-step delete confirm for the header "More" menu — same pattern as the
   // sidebar's SessionItem so delete can't happen on a single stray click.
   const [deleteArmed, setDeleteArmed] = useState(false);
@@ -607,6 +654,57 @@ export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy
           )}
         </div>
       </div>
+      {/* ⌘F in-chat search — thin bar above the scroll area. Arrow keys
+          cycle hits, Esc closes. */}
+      {searchOpen && (
+        <div
+          className="flex items-center gap-2 px-4 py-2 border-b-hy flex-shrink-0 anim-fade-in"
+          style={{ background: 'rgb(var(--hy-bg-subtle))' }}
+        >
+          <input
+            autoFocus
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && searchHits.length > 0) {
+                e.preventDefault();
+                setSearchIdx((i) => (e.shiftKey
+                  ? (i - 1 + searchHits.length) % searchHits.length
+                  : (i + 1) % searchHits.length));
+              } else if (e.key === 'Escape') {
+                setSearchOpen(false);
+                setSearchQuery('');
+              }
+            }}
+            placeholder="Search this chat…"
+            className="flex-1 bg-transparent outline-none text-[13px] fg-base placeholder:fg-muted"
+            aria-label="Search within this chat"
+          />
+          {searchQuery.length >= 2 && (
+            <span className="text-[11.5px] fg-muted">
+              {searchHits.length === 0 ? 'No matches' : `${searchIdx + 1} of ${searchHits.length}`}
+            </span>
+          )}
+          <button
+            onClick={() => setSearchIdx((i) => (i - 1 + Math.max(1, searchHits.length)) % Math.max(1, searchHits.length))}
+            disabled={searchHits.length === 0}
+            className="h-6 w-6 flex items-center justify-center rounded hover:bg-hover fg-subtle disabled:opacity-40"
+            aria-label="Previous match"
+          >↑</button>
+          <button
+            onClick={() => setSearchIdx((i) => (i + 1) % Math.max(1, searchHits.length))}
+            disabled={searchHits.length === 0}
+            className="h-6 w-6 flex items-center justify-center rounded hover:bg-hover fg-subtle disabled:opacity-40"
+            aria-label="Next match"
+          >↓</button>
+          <button
+            onClick={() => { setSearchOpen(false); setSearchQuery(''); }}
+            className="h-6 w-6 flex items-center justify-center rounded hover:bg-hover fg-subtle"
+            aria-label="Close search"
+          >×</button>
+        </div>
+      )}
       <div
         ref={scrollRef}
         onScroll={onScroll}
@@ -628,7 +726,7 @@ export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy
           )}
           {session.messages.map((m) =>
             m.role === 'user'
-              ? <UserBubble key={m.id} message={m} />
+              ? <UserBubble key={m.id} message={m} onEdit={onEditMessage} />
               : <AssistantBubble
                   key={m.id}
                   message={m}
@@ -667,7 +765,7 @@ export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy
       )}
       <div className="border-t-hy flex-shrink-0 bg-app">
         <div className="mx-auto w-full max-w-[780px] px-6 py-4">
-          <Composer variant="panel" sessionId={session.id} onSend={onSend} onCancel={onCancel} onOpenPalette={onOpenPalette} onOpenMention={onOpenMention} busy={busy} pendingMention={pendingMention} onMentionConsumed={onMentionConsumed} />
+          <Composer variant="panel" sessionId={session.id} onSend={onSend} onCancel={onCancel} onOpenPalette={onOpenPalette} onOpenMention={onOpenMention} busy={busy} pendingMention={pendingMention} onMentionConsumed={onMentionConsumed} pendingDraft={pendingDraft} onDraftConsumed={onDraftConsumed} />
         </div>
       </div>
     </div>

@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getUserSession } from '@/lib/rbac'
 
+// Max 5 Stripe Checkout / end-trial attempts per 10 min per user. Each call
+// makes 1-3 Stripe API requests; without a cap a logged-in user could trip
+// Stripe rate limits for the whole account or pile up abandoned Checkout
+// sessions.
+const RATE_LIMIT = 5
+const RATE_WINDOW_MINUTES = 10
+
 /**
  * GET /api/stripe/upgrade
  *
@@ -35,6 +42,30 @@ export async function GET(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.redirect(new URL('/login', req.url))
+  }
+
+  // Rate-limit per user via the same Supabase-backed rate_limit_events table
+  // signup uses. Serverless-safe (no in-memory state). Blocks abuse without
+  // affecting legitimate retries spaced minutes apart.
+  try {
+    const { getSupabase } = await import('@/lib/supabase')
+    const admin = getSupabase()
+    const windowStart = new Date(Date.now() - RATE_WINDOW_MINUTES * 60 * 1000).toISOString()
+    const { count } = await admin
+      .from('rate_limit_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('key', `upgrade:${user.id}`)
+      .gte('created_at', windowStart)
+    if ((count ?? 0) >= RATE_LIMIT) {
+      return NextResponse.redirect(
+        new URL('/settings/billing?error=rate_limited', req.url)
+      )
+    }
+    await admin.from('rate_limit_events').insert({ key: `upgrade:${user.id}` })
+  } catch (e) {
+    // If rate-limit bookkeeping fails, log but proceed — don't lock users out
+    // on a transient Supabase blip.
+    console.warn('[stripe upgrade] rate limit check failed:', e)
   }
 
   const session = getUserSession(user)

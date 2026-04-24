@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useSmoothedContent } from '@/lib/chat/useSmoothedContent';
 import {
   Sparkles, Plus, Command as CommandIcon, Settings, ArrowUp, Loader2,
   Clock, Brain, PencilLine, AlertCircle, User, PhoneCall, FileText,
   Briefcase, Receipt, Copy, RefreshCw, ThumbsUp, ThumbsDown, X,
-  ImageIcon, Film, FileAudio, File as FileIconLucide,
+  ImageIcon, Film, FileAudio, File as FileIconLucide, Mic, MicOff,
 } from 'lucide-react';
 import { cx, relativeTime } from '@/lib/chat/utils';
 import { renderMarkdown } from '@/lib/chat/markdown';
@@ -37,9 +38,13 @@ interface ComposerProps {
   pendingMention?: string | null;
   /** Called after pendingMention has been consumed so the parent can clear it. */
   onMentionConsumed?: () => void;
+  /** One-shot text that REPLACES the composer value (used for Edit &
+   * resend, to preload the user's original message). */
+  pendingDraft?: string | null;
+  onDraftConsumed?: () => void;
 }
 
-function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpenPalette, onOpenMention, sessionId, pendingMention, onMentionConsumed }: ComposerProps) {
+function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpenPalette, onOpenMention, sessionId, pendingMention, onMentionConsumed, pendingDraft, onDraftConsumed }: ComposerProps) {
   const { clientId } = useClient();
   // Draft auto-save — on every keystroke, persist the composer contents
   // keyed by session (or 'new' for a fresh chat). Survives page refresh
@@ -85,6 +90,22 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingMention]);
 
+  // One-shot prefill for Edit & resend — REPLACES composer value entirely
+  // (unlike pendingMention which inserts at cursor). Parent is responsible
+  // for calling onDraftConsumed so we don't re-apply on every render.
+  useEffect(() => {
+    if (typeof pendingDraft !== 'string') return;
+    setValue(pendingDraft);
+    onDraftConsumed?.();
+    requestAnimationFrame(() => {
+      const ta = textareaRef.current;
+      if (!ta) return;
+      ta.focus();
+      ta.setSelectionRange(pendingDraft.length, pendingDraft.length);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingDraft]);
+
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -122,18 +143,83 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
     fileInputRef.current?.click();
   };
 
+  // Voice input via browser SpeechRecognition (webkit-prefixed on Safari/
+  // Chromium). Runs on-device in modern Chrome; falls back to Google's
+  // cloud in older browsers. Firefox has no implementation — we hide the
+  // button in that case. Appends interim+final transcripts to the
+  // composer as the user speaks.
+  type SpeechRec = {
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    onstart: () => void;
+    onresult: (e: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string; isFinal: boolean }>> }) => void;
+    onerror: (e: unknown) => void;
+    onend: () => void;
+    start: () => void;
+    stop: () => void;
+  };
+  const speechCtorRef = useRef<(new () => SpeechRec) | null>(null);
+  const recRef = useRef<SpeechRec | null>(null);
+  const [recording, setRecording] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const w = window as unknown as { SpeechRecognition?: new () => SpeechRec; webkitSpeechRecognition?: new () => SpeechRec };
+    speechCtorRef.current = w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+  }, []);
+  const voiceSupported = speechCtorRef.current !== null;
+
+  const toggleRecording = () => {
+    if (!speechCtorRef.current) return;
+    if (recording) {
+      recRef.current?.stop();
+      return;
+    }
+    const rec = new speechCtorRef.current();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = typeof navigator !== 'undefined' ? (navigator.language || 'en-GB') : 'en-GB';
+    let base = value; // anchor new transcripts after existing text
+    let finalAccum = '';
+    rec.onstart = () => setRecording(true);
+    rec.onresult = (e) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i]![0]!;
+        if (e.results[i]![0]!.isFinal) finalAccum += r.transcript;
+        else interim += r.transcript;
+      }
+      const prefix = base.length > 0 && !/\s$/.test(base) ? base + ' ' : base;
+      const next = prefix + finalAccum + interim;
+      setValue(next);
+    };
+    rec.onerror = () => setRecording(false);
+    rec.onend = () => { setRecording(false); base = value; };
+    recRef.current = rec;
+    rec.start();
+  };
+  // Stop recording if the Composer unmounts mid-session
+  useEffect(() => () => { recRef.current?.stop(); }, []);
+
   const uploadFiles = async (files: File[]) => {
     if (files.length === 0) return;
     setUploading(true);
     setUploadError(null);
-    const uploaded: Attachment[] = [];
-    for (const f of files) {
-      const res = await uploadAttachment(f, clientId, sessionId ?? null);
-      if (res.ok) uploaded.push(res.attachment);
-      else setUploadError(res.error);
+    try {
+      const uploaded: Attachment[] = [];
+      for (const f of files) {
+        const res = await uploadAttachment(f, clientId, sessionId ?? null);
+        if (res.ok) uploaded.push(res.attachment);
+        else setUploadError(res.error);
+      }
+      setAttachments((prev) => [...prev, ...uploaded]);
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : 'Upload failed');
+    } finally {
+      // Always release uploading — a thrown error from the library would
+      // otherwise leave the composer pinned in the uploading state forever.
+      setUploading(false);
     }
-    setAttachments((prev) => [...prev, ...uploaded]);
-    setUploading(false);
   };
 
   const onFilesPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -156,9 +242,19 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
   // Whole-window drag-drop — listen at document level so users can drop
   // anywhere on the chat, not just on the composer. Shows a full-page
   // "Drop to upload" overlay while a file is being dragged in.
+  //
+  // Only the `panel` composer (the one attached to an active chat) owns
+  // the window listener. The `hero` composer on the empty-state
+  // Dashboard shouldn't register a duplicate — otherwise BOTH composers
+  // upload the same file when the user drops and only one Composer is
+  // visible at a time anyway.
   const [dragActive, setDragActive] = useState(false);
   const dragDepthRef = useRef(0);
   useEffect(() => {
+    // Hero variant lives inside the empty-state Dashboard. When the user
+    // has no active session both variants may mount briefly; skip hero
+    // so the panel variant (which fills the main chat surface) wins.
+    if (variant === 'hero') return;
     const onDragEnter = (e: DragEvent) => {
       if (!e.dataTransfer || !Array.from(e.dataTransfer.types).includes('Files')) return;
       dragDepthRef.current += 1;
@@ -193,7 +289,7 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
       window.removeEventListener('drop', onDrop);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId, sessionId]);
+  }, [clientId, sessionId, variant]);
 
   const removeAttachment = (idx: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== idx));
@@ -357,6 +453,14 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
 
         <div className="flex items-center gap-0.5 px-2 pb-2 pt-1">
           <ComposerChip icon={Plus} label={variant === 'hero' ? 'Files and sources' : 'Files'} onClick={pickFiles} />
+          {voiceSupported && (
+            <ComposerChip
+              icon={recording ? MicOff : Mic}
+              label={recording ? 'Stop' : 'Voice'}
+              onClick={toggleRecording}
+              active={recording}
+            />
+          )}
           <ComposerChip icon={CommandIcon} label="Prompts" onClick={onOpenPalette} />
           {/* "Customize" button removed — it was wired to the same onOpenPalette
               handler as "Prompts" above, so two visible buttons triggered the
@@ -409,21 +513,33 @@ interface ComposerChipProps {
   label: string;
   onClick?: () => void;
   disabled?: boolean;
+  /** Active = highlighted pill (currently recording, etc.) */
+  active?: boolean;
 }
 
-function ComposerChip({ icon: IconC, label, onClick, disabled }: ComposerChipProps) {
+function ComposerChip({ icon: IconC, label, onClick, disabled, active }: ComposerChipProps) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
       className={cx(
-        'inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] fg-subtle hover:bg-hover hover:fg-base transition-colors focus-ring whitespace-nowrap',
-        disabled && 'opacity-40 cursor-not-allowed hover:bg-transparent'
+        'inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] transition-colors focus-ring whitespace-nowrap',
+        active
+          ? 'fg-base'
+          : 'fg-subtle hover:bg-hover hover:fg-base',
+        disabled && 'opacity-40 cursor-not-allowed hover:bg-transparent',
       )}
+      style={active ? { background: 'rgb(var(--hy-danger) / 0.12)', color: 'rgb(var(--hy-danger))' } : undefined}
     >
       <IconC size={13} />
       {label}
+      {active && (
+        <span
+          aria-hidden="true"
+          className="h-1.5 w-1.5 rounded-full bg-current animate-pulse ml-0.5"
+        />
+      )}
     </button>
   );
 }
@@ -611,10 +727,14 @@ function AttachmentChip({ attachment, onRemove }: { attachment: Attachment; onRe
 }
 
 /* ───────────── Message bubbles ───────────── */
-export function UserBubble({ message }: { message: Message }) {
+export function UserBubble({ message, onEdit }: { message: Message; onEdit?: (messageId: string, content: string) => void }) {
   const atts = message.attachments ?? [];
   return (
-    <div className="flex flex-col items-end gap-1.5 anim-bubble-in" title={relativeTime(message.createdAt)}>
+    <div
+      className="flex flex-col items-end gap-1.5 anim-bubble-in group"
+      data-message-id={message.id}
+      title={relativeTime(message.createdAt)}
+    >
       {atts.length > 0 && (
         <div className="flex flex-wrap justify-end gap-2 max-w-[80%]">
           {atts.map((a, i) => <AttachmentPreview key={i} attachment={a} />)}
@@ -630,6 +750,17 @@ export function UserBubble({ message }: { message: Message }) {
             border: '1px solid rgb(var(--hy-border) / 0.5)',
           }}
         >{message.content}</div>
+      )}
+      {/* Edit & resend — clicking loads the message into the composer and
+          truncates the thread at this point, so the user can tweak and
+          regenerate. ChatGPT-free-tier style (no branch history kept). */}
+      {onEdit && message.content && (
+        <button
+          onClick={() => onEdit(message.id, message.content)}
+          className="text-[11px] fg-muted hover:fg-base transition-colors opacity-0 group-hover:opacity-100 focus-within:opacity-100 focus:opacity-100"
+        >
+          Edit
+        </button>
       )}
     </div>
   );
@@ -733,16 +864,30 @@ function parseVaultCitations(raw: string): {
   return { stripped: stripped.trim(), fileIds: [...ids], followups, plan };
 }
 
-export function AssistantBubble({ message, onOpenSource, streamingText, isActive, onRetry, onFollowup }: AssistantBubbleProps) {
+function AssistantBubbleInner({ message, onOpenSource, streamingText, isActive, onRetry, onFollowup }: AssistantBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [rating, setRating] = useState<null | 'up' | 'down'>(null);
   const [planDecision, setPlanDecision] = useState<'pending' | 'approved' | 'cancelled'>('pending');
   const isStreaming = message.status === 'drafting';
-  const rawContent = isStreaming ? (streamingText || '') : message.content;
-  const { stripped: content, fileIds: vaultFileIds, followups, plan } = parseVaultCitations(rawContent);
+  // Smooth the bridge's bursty incremental writes into a steady 60 char/s
+  // reveal while drafting. Once done, snap to final content.
+  const targetContent = isStreaming
+    ? (streamingText || message.content || '')
+    : message.content;
+  const smoothedContent = useSmoothedContent(targetContent, isStreaming);
+  const rawContent = isStreaming ? smoothedContent : message.content;
+  // Memoise the regex parse — avoids re-running three token regexes on every
+  // animation frame during streaming. Content length changes drive the memo.
+  const { stripped: content, fileIds: vaultFileIds, followups, plan } = useMemo(
+    () => parseVaultCitations(rawContent),
+    [rawContent],
+  );
   // Show status pill for in-flight states so the user isn't left staring at a blank screen.
   return (
-    <div className={cx('flex gap-3 group anim-bubble-in', isActive && 'relative')}>
+    <div
+      className={cx('flex gap-3 group anim-bubble-in', isActive && 'relative')}
+      data-message-id={message.id}
+    >
       <div
         className="flex-shrink-0 h-7 w-7 rounded-full inline-flex items-center justify-center text-[11px] font-semibold"
         style={{
@@ -824,7 +969,13 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
             : null
         )
         : (
-          <div className="text-[14px] fg-base" style={{ lineHeight: 1.65 }}>
+          <div
+            className="text-[14px] fg-base"
+            style={{ lineHeight: 1.65 }}
+            role={isStreaming ? 'status' : undefined}
+            aria-live={isStreaming ? 'polite' : undefined}
+            aria-atomic="false"
+          >
             <div className="assistant-inline">
               {renderMarkdown(content, { streaming: isStreaming })}
               {/* If we're drafting but the server hasn't pushed any content
@@ -874,7 +1025,7 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
         </div>
       )}
       {message.status === 'done' && (
-        <div className="flex items-center gap-1 -ml-1 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1 -ml-1 mt-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
           <InlineAction
             icon={Copy}
             label={copied ? 'Copied!' : 'Copy'}
@@ -903,6 +1054,27 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
     </div>
   );
 }
+
+/**
+ * Memoised wrapper around AssistantBubbleInner. During streaming, only
+ * the bubble for the active message should re-render each frame — the
+ * tail of completed messages is effectively frozen. Keying on id +
+ * content + status means a done message is never re-rendered.
+ */
+export const AssistantBubble = React.memo(
+  AssistantBubbleInner,
+  (prev, next) =>
+    prev.message.id === next.message.id &&
+    prev.message.content === next.message.content &&
+    prev.message.status === next.message.status &&
+    // Breadcrumbs change during tool use — detect by length
+    (prev.message.breadcrumbs?.length ?? 0) === (next.message.breadcrumbs?.length ?? 0) &&
+    prev.streamingText === next.streamingText &&
+    prev.isActive === next.isActive &&
+    prev.onRetry === next.onRetry &&
+    prev.onFollowup === next.onFollowup &&
+    prev.onOpenSource === next.onOpenSource,
+);
 
 /**
  * Live trail of tool calls the agent has made while generating this reply.
