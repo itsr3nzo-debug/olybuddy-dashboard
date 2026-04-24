@@ -40,6 +40,10 @@ export interface Message {
   breadcrumbs?: Breadcrumb[];
   /** Files/images/videos the user attached to this message. */
   attachments?: Attachment[];
+  /** Immediate predecessor in the conversation tree. Siblings with the
+   * same parent_id are alternate branches — created when the user edits
+   * a past message. UI: show most-recent sibling by default + switcher. */
+  parentId?: string | null;
 }
 
 export interface Session {

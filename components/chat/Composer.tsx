@@ -820,6 +820,9 @@ interface AssistantBubbleProps {
   /** Fired when the user clicks a suggested follow-up chip — parent sends
    * it as a new user message. */
   onFollowup?: (text: string) => void;
+  /** Fired when the user clicks an artifact chip — parent opens the
+   * artifact side pane with the full content. */
+  onOpenArtifact?: (artifact: ChatArtifact) => void;
 }
 
 // Vault citation tokens the agent emits inline when it references a file
@@ -836,16 +839,31 @@ const FOLLOWUP_RE = /\[followup:\s*([^\]]{2,120})\]/g;
 //   `[plan: step one | step two | step three]`
 // Pipes delimit steps. First occurrence wins; up to 8 steps.
 const PLAN_RE = /\[plan:\s*([^\]]+?)\]/g;
+// Artifact tokens — for long outputs (quotes, emails, contracts, code) the
+// agent wraps content in an artifact block that opens in a side pane
+// instead of bloating the chat. Shape:
+//   [artifact type="quote" title="Jones rewire quote"]
+//   ...body...
+//   [/artifact]
+// Matches multiline non-greedy. Up to 4 artifacts per reply.
+const ARTIFACT_RE = /\[artifact(?:\s+type="([^"]*)")?(?:\s+title="([^"]*)")?\]([\s\S]*?)\[\/artifact\]/g;
+export interface ChatArtifact {
+  type: string;
+  title: string;
+  body: string;
+}
 function parseVaultCitations(raw: string): {
   stripped: string;
   fileIds: string[];
   followups: string[];
   plan: string[];
+  artifacts: ChatArtifact[];
 } {
-  if (!raw) return { stripped: raw, fileIds: [], followups: [], plan: [] };
+  if (!raw) return { stripped: raw, fileIds: [], followups: [], plan: [], artifacts: [] };
   const ids = new Set<string>();
   const followups: string[] = [];
   let plan: string[] = [];
+  const artifacts: ChatArtifact[] = [];
   let stripped = raw.replace(VAULT_CITATION_RE, (_match, id: string) => {
     ids.add(id);
     return '';
@@ -860,11 +878,22 @@ function parseVaultCitations(raw: string): {
     plan = body.split('|').map(s => s.trim()).filter(s => s.length >= 2).slice(0, 8);
     return '';
   });
+  stripped = stripped.replace(ARTIFACT_RE, (match, type: string | undefined, title: string | undefined, body: string) => {
+    if (artifacts.length >= 4) return match;
+    artifacts.push({
+      type: (type || 'document').trim(),
+      title: (title || `Artifact ${artifacts.length + 1}`).trim(),
+      body: (body || '').trim(),
+    });
+    // Remove the artifact block from the prose entirely. Chips render
+    // below the reply with a count + Open action.
+    return '';
+  });
   stripped = stripped.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n');
-  return { stripped: stripped.trim(), fileIds: [...ids], followups, plan };
+  return { stripped: stripped.trim(), fileIds: [...ids], followups, plan, artifacts };
 }
 
-function AssistantBubbleInner({ message, onOpenSource, streamingText, isActive, onRetry, onFollowup }: AssistantBubbleProps) {
+function AssistantBubbleInner({ message, onOpenSource, streamingText, isActive, onRetry, onFollowup, onOpenArtifact }: AssistantBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [rating, setRating] = useState<null | 'up' | 'down'>(null);
   const [planDecision, setPlanDecision] = useState<'pending' | 'approved' | 'cancelled'>('pending');
@@ -876,9 +905,9 @@ function AssistantBubbleInner({ message, onOpenSource, streamingText, isActive, 
     : message.content;
   const smoothedContent = useSmoothedContent(targetContent, isStreaming);
   const rawContent = isStreaming ? smoothedContent : message.content;
-  // Memoise the regex parse — avoids re-running three token regexes on every
+  // Memoise the regex parse — avoids re-running four token regexes on every
   // animation frame during streaming. Content length changes drive the memo.
-  const { stripped: content, fileIds: vaultFileIds, followups, plan } = useMemo(
+  const { stripped: content, fileIds: vaultFileIds, followups, plan, artifacts } = useMemo(
     () => parseVaultCitations(rawContent),
     [rawContent],
   );
@@ -1003,6 +1032,33 @@ function AssistantBubbleInner({ message, onOpenSource, streamingText, isActive, 
           {message.sources?.map(s => <SourceChip key={s.id} source={s} onOpen={onOpenSource} />)}
         </div>
       )}
+      {/* Artifact chips — agent-emitted `[artifact type="..." title="..."]
+          ...[/artifact]` blocks become clickable chips that open a
+          side pane with the full content. Chat stays clean; long
+          outputs (quotes, drafts, code) live in a dedicated pane. */}
+      {message.status === 'done' && artifacts.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 mt-3">
+          {artifacts.map((a, i) => (
+            <button
+              key={i}
+              onClick={() => onOpenArtifact?.(a)}
+              className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-left transition-colors focus-ring group/artifact hover:border-strong"
+              style={{
+                background: 'rgb(var(--hy-bg-subtle))',
+                border: '1px solid rgb(var(--hy-border))',
+                maxWidth: 360,
+              }}
+            >
+              <FileText size={14} className="fg-subtle flex-shrink-0" />
+              <span className="flex-1 min-w-0">
+                <span className="block text-[12.5px] fg-base font-medium truncate">{a.title}</span>
+                <span className="block text-[10.5px] fg-muted uppercase tracking-wider">{a.type}</span>
+              </span>
+              <span className="text-[11px] fg-muted group-hover/artifact:fg-base transition-colors">Open →</span>
+            </button>
+          ))}
+        </div>
+      )}
       {/* Suggested follow-ups — agent-emitted `[followup: ...]` tokens
           become clickable chips that send the suggestion as the next
           message. Max 3 per reply, shown only on done status. */}
@@ -1065,6 +1121,8 @@ export const AssistantBubble = React.memo(
   AssistantBubbleInner,
   (prev, next) =>
     prev.message.id === next.message.id &&
+    // Content identity drives the re-parse of artifacts / vault / followups /
+    // plan inside the inner. Comparing content is the master signal.
     prev.message.content === next.message.content &&
     prev.message.status === next.message.status &&
     // Breadcrumbs change during tool use — detect by length
@@ -1073,7 +1131,8 @@ export const AssistantBubble = React.memo(
     prev.isActive === next.isActive &&
     prev.onRetry === next.onRetry &&
     prev.onFollowup === next.onFollowup &&
-    prev.onOpenSource === next.onOpenSource,
+    prev.onOpenSource === next.onOpenSource &&
+    prev.onOpenArtifact === next.onOpenArtifact,
 );
 
 /**

@@ -75,7 +75,8 @@ export async function postMessage(
   content: string,
   session_id: string | null,
   clientId?: string,
-  attachments?: Message['attachments']
+  attachments?: Message['attachments'],
+  parentId?: string | null,
 ): Promise<PostMessageResult> {
   const res = await fetch('/api/chat/messages', {
     method: 'POST',
@@ -88,6 +89,10 @@ export async function postMessage(
       // and uses it for super_admins to scope their chat into the right tenant.
       client_id: clientId,
       attachments: attachments && attachments.length > 0 ? attachments : undefined,
+      // When the user edits a past message and re-sends, pass parent_id =
+      // the edited message's parent so the new row becomes a SIBLING of
+      // the original rather than tacked onto the end.
+      parent_id: parentId ?? undefined,
     }),
   });
   if (!res.ok) throw new Error('postMessage failed');
@@ -108,6 +113,7 @@ export function rowToMessage(row: {
   created_at: string;
   completed_at?: string | null;
   metadata?: { breadcrumbs?: Message['breadcrumbs']; attachments?: Message['attachments'] } | null;
+  parent_id?: string | null;
 }): Message {
   return {
     id: row.id,
@@ -119,6 +125,7 @@ export function rowToMessage(row: {
     createdAt: row.created_at,
     breadcrumbs: row.metadata?.breadcrumbs ?? undefined,
     attachments: row.metadata?.attachments ?? undefined,
+    parentId: row.parent_id ?? null,
   };
 }
 

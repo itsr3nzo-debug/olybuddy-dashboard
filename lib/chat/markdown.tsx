@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Highlight, themes, type Language, type PrismTheme } from 'prism-react-renderer';
+import { useTheme } from 'next-themes';
 
 /**
  * Tiny markdown renderer — handles the subset the mock data uses:
@@ -6,10 +8,26 @@ import React, { useState } from 'react';
  * blockquote, code fences ``` and paragraphs.
  */
 
+// Languages we pattern-match and hand to Prism. Anything else falls back to
+// Prism's `clike` grammar, which still tokenises reasonably. Prism supports
+// ~20 out of the box; we don't ship dynamic language loading.
+const PRISM_LANG_MAP: Record<string, Language> = {
+  js: 'jsx', javascript: 'jsx', jsx: 'jsx',
+  ts: 'tsx', typescript: 'tsx', tsx: 'tsx',
+  json: 'json', yaml: 'yaml', yml: 'yaml',
+  python: 'python', py: 'python',
+  ruby: 'ruby', rb: 'ruby',
+  go: 'go', rust: 'rust',
+  sql: 'sql',
+  bash: 'bash', sh: 'bash', shell: 'bash', zsh: 'bash',
+  css: 'css', scss: 'scss', html: 'markup', xml: 'markup',
+  diff: 'diff', md: 'markdown', markdown: 'markdown',
+};
+
 /**
- * Code-fence block with a header strip showing the language (if any) and
- * a copy button that hover-reveals. Matches Claude.ai / ChatGPT pattern.
- * No syntax highlighting yet — kept dependency-free; add Shiki later.
+ * Code-fence block with a header strip showing the language + copy button,
+ * and Prism token-level syntax highlighting. prism-react-renderer is ~15kb
+ * tree-shaken, handles ~20 languages, and themes via a simple token map.
  */
 function CodeBlock({ lang, body }: { lang?: string; body: string }): React.ReactElement {
   const [copied, setCopied] = useState(false);
@@ -20,16 +38,28 @@ function CodeBlock({ lang, body }: { lang?: string; body: string }): React.React
       setTimeout(() => setCopied(false), 1400);
     } catch { /* no-op */ }
   };
+  const lowered = (lang || '').toLowerCase().trim();
+  const prismLang: Language = (PRISM_LANG_MAP[lowered] || 'clike') as Language;
+  // Theme detection via next-themes — avoids the SSR hydration mismatch
+  // we'd get from peeking at `document.querySelector('.nexley-chat-root')`
+  // during render. `mounted` guard means we render light-theme tokens on
+  // the server + first client frame, then swap to dark on the second
+  // frame if that's what the user picked. Single-frame flash acceptable;
+  // DOM mismatch never.
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  const theme: PrismTheme = (mounted && resolvedTheme === 'dark') ? themes.vsDark : themes.github;
   return (
     <div
       className="my-3 rounded-md overflow-hidden group"
-      style={{ border: '1px solid rgb(var(--hy-border))', background: 'rgb(var(--hy-bg-subtle))' }}
+      style={{ border: '1px solid rgb(var(--hy-border))' }}
     >
       <div
         className="flex items-center justify-between px-3 h-7 text-[10.5px] fg-muted uppercase tracking-wider"
         style={{ borderBottom: '1px solid rgb(var(--hy-border))', background: 'rgb(var(--hy-bg-hover) / 0.4)' }}
       >
-        <span>{lang || 'code'}</span>
+        <span>{lowered || 'code'}</span>
         <button
           onClick={onCopy}
           className="text-[10.5px] fg-muted hover:fg-base transition-colors px-1 py-0.5 rounded focus-ring"
@@ -38,9 +68,30 @@ function CodeBlock({ lang, body }: { lang?: string; body: string }): React.React
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <pre className="overflow-x-auto px-3 py-2 text-[12.5px]" style={{ fontFamily: 'var(--font-mono)' }}>
-        <code>{body}</code>
-      </pre>
+      <Highlight code={body} language={prismLang} theme={theme}>
+        {({ className, style, tokens, getLineProps, getTokenProps }) => (
+          <pre
+            className={`${className} overflow-x-auto px-3 py-2 text-[12.5px]`}
+            style={{ ...style, fontFamily: 'var(--font-mono)', margin: 0, background: 'transparent' }}
+          >
+            {tokens.map((line, i) => {
+              // Destructure off any `key` from the props object — React
+              // warns about receiving `key` via spread in strict mode.
+              const { key: _lk, ...lineRest } = getLineProps({ line }) as Record<string, unknown> & { key?: React.Key };
+              void _lk;
+              return (
+                <div key={i} {...lineRest}>
+                  {line.map((token, k) => {
+                    const { key: _tk, ...tokenRest } = getTokenProps({ token }) as Record<string, unknown> & { key?: React.Key };
+                    void _tk;
+                    return <span key={k} {...tokenRest} />;
+                  })}
+                </div>
+              );
+            })}
+          </pre>
+        )}
+      </Highlight>
     </div>
   );
 }

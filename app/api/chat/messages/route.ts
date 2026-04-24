@@ -28,6 +28,11 @@ export async function POST(req: Request) {
     title?: string;
     client_id?: string;
     attachments?: Array<{ url: string; name: string; mime: string; size: number; kind: string }>;
+    /** Optional — when the user edits a past message and re-sends, the client
+     * passes the predecessor's parent_id here so the new user row becomes a
+     * SIBLING of the edited one (both children of the same predecessor) rather
+     * than a fresh child at the end of the thread. */
+    parent_id?: string | null;
   };
   try {
     body = await req.json();
@@ -94,6 +99,37 @@ export async function POST(req: Request) {
     /* non-fatal */
   }
 
+  // Resolve the parent_id for the user message we're about to write:
+  //   - If the client sent `parent_id`, use it (used for edit-as-sibling).
+  //     We verify the claimed parent actually exists in THIS session before
+  //     accepting — prevents cross-session threading.
+  //   - Otherwise default to the most-recent message in the session so the
+  //     new row chains onto the end of the tree.
+  const service = createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+  let userParentId: string | null = null;
+  if (typeof body.parent_id === 'string' && body.parent_id) {
+    const { data: p } = await service
+      .from('agent_chat_messages')
+      .select('id, session_id')
+      .eq('id', body.parent_id)
+      .maybeSingle();
+    if (p && p.session_id === session_id) userParentId = p.id;
+  }
+  if (!userParentId) {
+    const { data: last } = await service
+      .from('agent_chat_messages')
+      .select('id')
+      .eq('session_id', session_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    userParentId = last?.id ?? null;
+  }
+
   // 1. User message
   const userPayload: Record<string, unknown> = {
     session_id,
@@ -102,24 +138,21 @@ export async function POST(req: Request) {
     content,
     status: 'done',
     completed_at: new Date().toISOString(),
+    parent_id: userParentId,
   };
   if (attachments.length > 0) userPayload.metadata = { attachments };
   const { data: userMsg, error: uErr } = await writer
     .from('agent_chat_messages')
     .insert(userPayload)
-    .select('id, role, content, status, created_at, completed_at, metadata')
+    .select('id, role, content, status, created_at, completed_at, metadata, parent_id')
     .single();
 
   if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 });
 
   // 2. Assistant placeholder — always written with service role because RLS
   //    restricts INSERT role='user' only for clients, and assistant rows
-  //    come from the VPS anyway.
-  const service = createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
+  //    come from the VPS anyway. Assistant row parents itself to the user
+  //    message so the thread forms a tree (user_parent → user → assistant).
   const { data: asst, error: aErr } = await service
     .from('agent_chat_messages')
     .insert({
@@ -128,8 +161,9 @@ export async function POST(req: Request) {
       role: 'assistant',
       content: '',
       status: 'pending',
+      parent_id: userMsg.id,
     })
-    .select('id, role, status, created_at')
+    .select('id, role, status, created_at, parent_id')
     .single();
 
   if (aErr || !asst) {

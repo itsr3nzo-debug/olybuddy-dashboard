@@ -32,6 +32,7 @@ import Dashboard from './Features';
 import { AssistPanel } from './Views';
 import { CustomersView, VaultView, WorkflowsView, HistoryView, KnowledgeView } from './TabViews';
 import { SourceSlideOver, CommandPalette, MentionMenu } from './Overlays';
+import type { ChatArtifact } from './Composer';
 
 interface ChatAppProps {
   /** Current signed-in user's client_id — surfaced so the UI can scope queries. */
@@ -148,6 +149,7 @@ export default function ChatApp(props: ChatAppProps) {
   const [pendingMention, setPendingMention] = useState<string | null>(null);
   const [pendingDraft, setPendingDraft] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [activeArtifact, setActiveArtifact] = useState<ChatArtifact | null>(null);
 
   // Sidebar state ────────────────────────────────────────────
   const [sbCollapsed, setSbCollapsed] = useState(false);
@@ -293,6 +295,9 @@ export default function ChatApp(props: ChatAppProps) {
   // sendMessage returns a boolean so the Composer can decide whether to
   // clear its local text — on failure we want to preserve what the user
   // typed so they don't have to re-enter it.
+  // editMessage sets this to the parent_id of the edited message; the NEXT
+  // sendMessage consumes it + clears it so the re-send becomes a sibling.
+  const pendingParentIdRef = useRef<string | null>(null);
   const sendMessage = useCallback(
     async (text: string, attachments?: import('@/lib/chat/types').Attachment[]): Promise<boolean> => {
       const content = text.trim();
@@ -310,7 +315,12 @@ export default function ChatApp(props: ChatAppProps) {
       }
       setBusy(true);
       try {
-        const res = await postMessage(content, currentSessionId, props.clientId, attachments);
+        // Consume-and-clear — if editMessage just stashed a parent_id, this
+        // send uses it (creating a sibling branch) and the next send returns
+        // to the default tail-append behaviour.
+        const parentId = pendingParentIdRef.current;
+        pendingParentIdRef.current = null;
+        const res = await postMessage(content, currentSessionId, props.clientId, attachments, parentId);
         // API returns raw DB rows (snake_case). Normalise to Message shape.
         const u = res.user_message as unknown as { id: string; content: string; created_at?: string; createdAt?: string; metadata?: { attachments?: import('@/lib/chat/types').Attachment[] } };
         const a = res.assistant_message as unknown as { id: string; created_at?: string; createdAt?: string };
@@ -388,28 +398,22 @@ export default function ChatApp(props: ChatAppProps) {
     setBusy(false); // same reason as newChat — don't leak busy across sessions
   }, []);
 
-  // Edit & resend — truncate the thread at the user message being edited,
-  // delete the tail from Supabase too so it doesn't re-hydrate, then load
-  // the original content into the composer. User tweaks + re-sends to
-  // regenerate from that point. No branch history kept (simple model).
+  // Edit & resend (branch-preserving) — load the original message content
+  // into the composer AND stash the edited message's parent_id so the
+  // next sendMessage writes the new user row as a SIBLING of the old
+  // one (both children of the same predecessor in the thread tree). The
+  // old branch stays visible in the thread for audit; new assistant
+  // reply chains from the new user row.
   const editMessage = useCallback(async (messageId: string, content: string) => {
     if (!currentSessionId) return;
     const sess = sessionsRef.current.find(s => s.id === currentSessionId);
-    if (!sess) return;
-    const idx = sess.messages.findIndex(m => m.id === messageId);
-    if (idx < 0) return;
-    // Local: drop everything from the edited message onwards
-    setSessions(prev => prev.map(s => {
-      if (s.id !== currentSessionId) return s;
-      return { ...s, messages: s.messages.slice(0, idx) };
-    }));
-    // Server: delete the same tail via a dedicated endpoint if available;
-    // otherwise this is eventual consistency — the poll will re-merge and
-    // we'd lose the truncation. For now we optimistically delete local;
-    // backend catch-up is a follow-up.
-    // Load the content into the composer via the pendingDraft mechanism.
+    const edited = sess?.messages.find(m => m.id === messageId);
+    // parent_id of the edited message = the message we want the new sibling
+    // to chain under. Falls back to the edited message itself if we don't
+    // have the parent (old rows written before the schema migration).
+    pendingParentIdRef.current = edited?.parentId ?? null;
     setPendingDraft(content);
-    setBusy(false); // unlock composer in case in-flight
+    setBusy(false); // unlock composer in case a reply is in-flight
   }, [currentSessionId]);
 
   // Cancel the active in-flight reply. Marks the latest pending/thinking/
@@ -786,6 +790,7 @@ export default function ChatApp(props: ChatAppProps) {
             onEditMessage={editMessage}
             pendingDraft={pendingDraft}
             onDraftConsumed={() => setPendingDraft(null)}
+            onOpenArtifact={setActiveArtifact}
           />
         )}
         {activeView === 'customers' && <CustomersView />}
@@ -831,8 +836,120 @@ export default function ChatApp(props: ChatAppProps) {
         }}
       />
       {helpOpen && <ShortcutsModal onClose={() => setHelpOpen(false)} />}
+      {activeArtifact && <ArtifactPane artifact={activeArtifact} onClose={() => setActiveArtifact(null)} />}
     </div>
     </ClientContextProvider>
+  );
+}
+
+/**
+ * Slide-in side pane for long assistant outputs (quotes, drafts, contracts,
+ * code). Agent wraps content in `[artifact type="..." title="..."]…[/artifact]`
+ * tokens; dashboard renders chips inline and opens this pane on click.
+ * Takes ~45% of the viewport on desktop, full-screen on mobile.
+ */
+function ArtifactPane({ artifact, onClose }: { artifact: ChatArtifact; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  // Track any outstanding blob URL so we revoke it on unmount rather than
+  // immediately after the download click — some browsers race and fail
+  // the download if the URL is revoked synchronously.
+  const blobUrlRef = useRef<string | null>(null);
+  useEffect(() => () => {
+    if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+  }, []);
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(artifact.body);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch { /* no-op */ }
+  };
+  const onDownload = () => {
+    if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+    const blob = new Blob([artifact.body], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    blobUrlRef.current = url;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${artifact.title.replace(/[^a-z0-9]/gi, '-').toLowerCase() || 'artifact'}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // Defer revoke to allow the browser to finish the download; cleanup
+    // above catches anything still outstanding on unmount.
+    setTimeout(() => {
+      if (blobUrlRef.current === url) {
+        URL.revokeObjectURL(url);
+        blobUrlRef.current = null;
+      }
+    }, 5000);
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      // Stop propagation so other open overlays (command palette, help)
+      // don't ALSO close on the same Esc press — topmost wins.
+      e.stopPropagation();
+      onClose();
+    };
+    // Use capture phase to beat other listeners
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-40 anim-fade-in"
+        style={{ background: 'rgb(0 0 0 / 0.25)' }}
+        onClick={onClose}
+      />
+      <aside
+        className="fixed right-0 top-0 bottom-0 z-50 flex flex-col bg-surface anim-slide-in-right"
+        style={{
+          width: 'min(640px, 95vw)',
+          borderLeft: '1px solid rgb(var(--hy-border))',
+          boxShadow: '-24px 0 40px rgb(0 0 0 / 0.12)',
+        }}
+        role="dialog"
+        aria-label={artifact.title}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="flex items-center gap-3 px-5 h-12 flex-shrink-0"
+          style={{ borderBottom: '1px solid rgb(var(--hy-border))' }}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] fg-base font-medium truncate">{artifact.title}</div>
+            <div className="text-[10.5px] fg-muted uppercase tracking-wider">{artifact.type}</div>
+          </div>
+          <button
+            onClick={onCopy}
+            className="text-[12px] fg-subtle hover:fg-base px-2 py-1 rounded hover:bg-hover transition-colors focus-ring"
+          >
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+          <button
+            onClick={onDownload}
+            className="text-[12px] fg-subtle hover:fg-base px-2 py-1 rounded hover:bg-hover transition-colors focus-ring"
+          >
+            Download
+          </button>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="h-8 w-8 flex items-center justify-center rounded hover:bg-hover fg-subtle hover:fg-base transition-colors"
+          >×</button>
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto scroll-thin">
+          <pre
+            className="whitespace-pre-wrap break-words px-5 py-4 text-[13px] fg-base"
+            style={{ fontFamily: 'var(--font-sans)', lineHeight: 1.6, margin: 0 }}
+          >
+            {artifact.body}
+          </pre>
+        </div>
+      </aside>
+    </>
   );
 }
 

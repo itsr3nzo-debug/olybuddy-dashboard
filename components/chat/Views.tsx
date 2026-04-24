@@ -469,9 +469,12 @@ interface AssistPanelProps {
    * (used for Edit & resend), then calls onDraftConsumed to clear. */
   pendingDraft?: string | null;
   onDraftConsumed?: () => void;
+  /** Fired when the user clicks an artifact chip — parent opens a side
+   * pane showing the full artifact body with copy/export actions. */
+  onOpenArtifact?: (artifact: import('./Composer').ChatArtifact) => void;
 }
 
-export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy, rtStatus, loadingMessages, onOpenMention, onOpenPalette, onRenameSession, onDeleteSession, onPinSession, pendingMention, onMentionConsumed, onRetryMessage, onFollowup, onCancel, onEditMessage, pendingDraft, onDraftConsumed }: AssistPanelProps) {
+export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy, rtStatus, loadingMessages, onOpenMention, onOpenPalette, onRenameSession, onDeleteSession, onPinSession, pendingMention, onMentionConsumed, onRetryMessage, onFollowup, onCancel, onEditMessage, pendingDraft, onDraftConsumed, onOpenArtifact }: AssistPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -735,6 +738,7 @@ export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy
                   isActive={m.status === 'drafting'}
                   onRetry={onRetryMessage}
                   onFollowup={onFollowup}
+                  onOpenArtifact={onOpenArtifact}
                 />
           )}
         </div>
