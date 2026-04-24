@@ -310,7 +310,16 @@ function ComposerChip({ icon: IconC, label, onClick, disabled }: ComposerChipPro
 }
 
 /* ───────────── Status pill ───────────── */
-export function StatusPill({ status, errorMessage }: { status: MessageStatus; errorMessage?: string }) {
+export function StatusPill({
+  status,
+  errorMessage,
+  onRetry,
+}: {
+  status: MessageStatus;
+  errorMessage?: string;
+  /** Optional retry handler — only rendered when status is error. */
+  onRetry?: () => void;
+}) {
   const map: Record<string, { label: string; icon: React.ComponentType<{ size?: number }>; danger?: boolean }> = {
     pending: { label: 'Queued', icon: Clock },
     thinking: { label: 'Thinking', icon: Brain },
@@ -329,6 +338,15 @@ export function StatusPill({ status, errorMessage }: { status: MessageStatus; er
     >
       <IconC size={14} />
       <span className="flex-1">{m.label}</span>
+      {m.danger && onRetry && (
+        <button
+          onClick={onRetry}
+          className="inline-flex items-center gap-1 text-[12px] fg-base font-medium underline underline-offset-2 hover:opacity-80 transition-opacity"
+        >
+          <RefreshCw size={11} />
+          Try again
+        </button>
+      )}
       {!m.danger && (
         <span className="flex gap-1 ml-1 mt-1.5">
           <span className="status-dot" style={{ animationDelay: '0ms' }} />
@@ -546,6 +564,9 @@ interface AssistantBubbleProps {
   onOpenSource: (s: Source) => void;
   streamingText: string;
   isActive?: boolean;
+  /** Fired when the user clicks "Try again" on an errored reply. Parent is
+   * responsible for resending the corresponding user message. */
+  onRetry?: (messageId: string) => void;
 }
 
 // Vault citation tokens the agent emits inline when it references a file
@@ -563,7 +584,7 @@ function parseVaultCitations(raw: string): { stripped: string; fileIds: string[]
   return { stripped: stripped.trim(), fileIds: [...ids] };
 }
 
-export function AssistantBubble({ message, onOpenSource, streamingText, isActive }: AssistantBubbleProps) {
+export function AssistantBubble({ message, onOpenSource, streamingText, isActive, onRetry }: AssistantBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [rating, setRating] = useState<null | 'up' | 'down'>(null);
   const isStreaming = message.status === 'drafting';
@@ -585,7 +606,11 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
       {(message.status !== 'done' && message.status !== 'drafting')
         ? (
           (message.status === 'error' || message.status === 'pending' || message.status === 'thinking')
-            ? <StatusPill status={message.status} errorMessage={message.errorMessage} />
+            ? <StatusPill
+                status={message.status}
+                errorMessage={message.errorMessage}
+                onRetry={message.status === 'error' && onRetry ? () => onRetry(message.id) : undefined}
+              />
             : null
         )
         : (

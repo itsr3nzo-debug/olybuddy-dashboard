@@ -63,24 +63,35 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  if (linkErr) {
+  if (linkErr || !linkData.properties?.action_link) {
     return NextResponse.json({ error: "User created but failed to generate invite link" }, { status: 500 });
   }
 
-  // Send invite email via system SMTP
+  // Fetch the client's business name so the invite email can say
+  // "join Joseph Solutions" instead of a generic "the dashboard".
+  const { data: clientRow } = await adminSupabase
+    .from("clients")
+    .select("name")
+    .eq("id", session.clientId)
+    .maybeSingle();
+  const clientName = (clientRow as { name?: string } | null)?.name ?? "your team";
+  const inviterName = user.email ?? "A teammate";
+
+  // Send the branded invite. On SMTP failure we still return success +
+  // include the action_link so the owner can copy it directly to the
+  // invitee via another channel (WhatsApp, text, etc.).
+  let emailSent = true;
   try {
     const { sendSystemEmail } = await import("@/lib/email");
-    await sendSystemEmail({
-      to: email,
-      subject: `You've been invited to the dashboard`,
-      html: `
-        <p>You've been invited as a team member.</p>
-        <p><a href="${linkData.properties?.action_link}">Click here to access the dashboard</a></p>
-        <p>This link expires in 24 hours.</p>
-      `,
+    const { buildTeamInviteEmail } = await import("@/lib/email-templates/team-invite");
+    const { subject, html, text } = buildTeamInviteEmail({
+      clientName,
+      inviterName,
+      actionLink: linkData.properties.action_link,
     });
+    await sendSystemEmail({ to: email, subject, html, text });
   } catch {
-    // Email send failed — user can still use magic link from login page
+    emailSent = false;
   }
 
   return NextResponse.json({
@@ -88,5 +99,8 @@ export async function POST(req: NextRequest) {
     userId: authData.user?.id,
     email,
     role: "member",
+    emailSent,
+    // Fallback for the UI to offer copy-to-clipboard when SMTP silently fails
+    inviteUrl: linkData.properties.action_link,
   });
 }

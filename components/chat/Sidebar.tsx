@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   MessageSquare, Folder, PencilLine, Plus, Search, Settings, Sun, Moon,
   MoreHorizontal, ChevronDown, Pin, Trash2, Pencil, Download, History,
@@ -333,6 +333,33 @@ function SessionItem({ session, active, onSelect, onRename, onDelete, onPin }: {
     if (!menuOpen) setDeleteArmed(false);
   }, [menuOpen]);
 
+  // Close the action menu on any outside click — onMouseLeave alone is
+  // unreliable if the user switches tabs or scrolls without the mouse
+  // physically leaving the session item. Without this the menu "floats"
+  // over the next view.
+  const menuRootRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (!menuRootRef.current) return;
+      if (menuRootRef.current.contains(e.target as Node)) return;
+      setMenuOpen(false);
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    // setTimeout so this handler doesn't catch the same click that opened the menu
+    const id = setTimeout(() => {
+      window.addEventListener('click', onClickOutside);
+      window.addEventListener('keydown', onEsc);
+    });
+    return () => {
+      clearTimeout(id);
+      window.removeEventListener('click', onClickOutside);
+      window.removeEventListener('keydown', onEsc);
+    };
+  }, [menuOpen]);
+
   const onEnter = () => {
     const t = setTimeout(() => setShowPreview(true), 450);
     setHoverTimer(t);
@@ -341,7 +368,9 @@ function SessionItem({ session, active, onSelect, onRename, onDelete, onPin }: {
     if (hoverTimer) clearTimeout(hoverTimer);
     setHoverTimer(null);
     setShowPreview(false);
-    setMenuOpen(false);
+    // NB: do NOT close menu on mouse-leave — the menu item itself might be
+    // outside the session-item's hover area. Click-outside handler above
+    // does the real closing.
   };
 
   const firstAssistant = session.messages?.find(m => m.role === 'assistant');
@@ -387,7 +416,7 @@ function SessionItem({ session, active, onSelect, onRename, onDelete, onPin }: {
   ];
 
   return (
-    <div className="group relative" onMouseEnter={onEnter} onMouseLeave={onLeave}>
+    <div ref={menuRootRef} className="group relative" onMouseEnter={onEnter} onMouseLeave={onLeave}>
       {renameEditing ? (
         <input
           autoFocus
