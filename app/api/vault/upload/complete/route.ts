@@ -97,7 +97,18 @@ export async function POST(req: Request) {
   let text = ''
   let pages: number | undefined
   try {
-    const ext = await extractText(buf, row.mime_type ?? '')
+    // Hard timeout — a pathological PDF (zip-bomb structure, runaway glyph
+    // parser) would hang pdf-parse indefinitely and trip Vercel's 30s
+    // function cap, leaving status='processing' forever. 15s is plenty
+    // for any sane document we accept (100 MB cap, pdf-parse handles
+    // ~50-page docs in <5s).
+    const EXTRACT_TIMEOUT_MS = 15_000
+    const ext = await Promise.race([
+      extractText(buf, row.mime_type ?? ''),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('extraction timed out after 15s')), EXTRACT_TIMEOUT_MS),
+      ),
+    ])
     text = ext.text
     pages = ext.pages
   } catch (e) {

@@ -37,11 +37,28 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: 'nothing to update' }, { status: 400 })
   }
 
-  const writer = writerFor(isSuperAdmin(user), supabase)
-  const { data, error } = await writer
-    .from('vault_projects')
-    .update(patch)
-    .eq('id', id)
+  const admin = isSuperAdmin(user)
+  const writer = writerFor(admin, supabase)
+
+  // Resolve the caller's intended client_id so we can tighten the WHERE clause.
+  // Non-admins: pinned to their own client via RLS. Admins: service-role
+  // bypasses RLS, so include an explicit client_id match sourced from the
+  // project's own row to prevent a stray id from mutating a different tenant.
+  let clientIdFilter: string | null = null
+  if (admin) {
+    const svc = writerFor(true, supabase)
+    const { data: proj } = await svc
+      .from('vault_projects')
+      .select('client_id')
+      .eq('id', id)
+      .maybeSingle()
+    if (!proj) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+    clientIdFilter = proj.client_id
+  }
+
+  let q = writer.from('vault_projects').update(patch).eq('id', id)
+  if (clientIdFilter) q = q.eq('client_id', clientIdFilter)
+  const { data, error } = await q
     .select('id, name, description, created_at, archived_at')
     .single()
 

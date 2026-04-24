@@ -349,12 +349,25 @@ export default function ChatApp(props: ChatAppProps) {
   // the same session, resends its content. We don't delete the errored
   // row — it stays in place as a record that the first attempt failed, but
   // the new user+assistant pair appears below with a fresh attempt.
+  // Falls through to a visible error if no preceding user message is
+  // available (shouldn\u2019t normally happen, but state corruption or a
+  // partially-replayed session could cause it — silent no-op would look
+  // like a broken button).
   const retryMessage = useCallback((erroredAssistantId: string) => {
-    if (!currentSessionId) return;
+    if (!currentSessionId) {
+      showError('Can\u2019t retry without an active chat.');
+      return;
+    }
     const sess = sessions.find(s => s.id === currentSessionId);
-    if (!sess) return;
+    if (!sess) {
+      showError('Chat is no longer available. Refresh and try again.');
+      return;
+    }
     const idx = sess.messages.findIndex(m => m.id === erroredAssistantId);
-    if (idx <= 0) return;
+    if (idx <= 0) {
+      showError('Can\u2019t find the original question to retry.');
+      return;
+    }
     // Walk backwards to find the most recent user message before the error.
     for (let i = idx - 1; i >= 0; i--) {
       const m = sess.messages[i];
@@ -363,7 +376,8 @@ export default function ChatApp(props: ChatAppProps) {
         return;
       }
     }
-  }, [currentSessionId, sessions]);  // eslint-disable-line react-hooks/exhaustive-deps
+    showError('Can\u2019t find the original question to retry.');
+  }, [currentSessionId, sessions, showError]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const navChange = useCallback((view: ChatView) => {
     setActiveView(view);
