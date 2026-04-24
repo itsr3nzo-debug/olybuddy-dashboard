@@ -14,7 +14,13 @@ import { useClient } from '@/lib/chat/client-context';
 import type { Message, Source, MessageStatus, SourceType, Attachment } from '@/lib/chat/types';
 
 interface ComposerProps {
-  onSend: (text: string, attachments?: Attachment[]) => void;
+  /**
+   * Send handler. May return a promise resolving to a boolean — `false`
+   * signals the send failed (e.g. API error) and the Composer will restore
+   * the user's text + attachments so they can retry. Legacy void callers
+   * keep their old behaviour (clear on submit, no restore).
+   */
+  onSend: (text: string, attachments?: Attachment[]) => Promise<boolean> | void;
   busy?: boolean;
   autoFocus?: boolean;
   variant?: 'panel' | 'hero';
@@ -68,15 +74,29 @@ function Composer({ onSend, busy, autoFocus, variant = 'panel', onOpenPalette, o
     ta.style.height = Math.min(ta.scrollHeight, max) + 'px';
   }, [value]);
 
-  const send = () => {
+  const send = async () => {
     const hasText = value.trim().length > 0;
     const hasFiles = attachments.length > 0;
     if ((!hasText && !hasFiles) || busy || uploading) return;
-    onSend(value.trim(), attachments.length > 0 ? attachments : undefined);
+    // Snapshot text + attachments BEFORE clearing so we can restore them if
+    // the parent reports a send failure (returns false). Old void-returning
+    // callers get the previous clear-on-send behaviour.
+    const prevText = value.trim();
+    const prevAtt = attachments;
     setValue('');
     setAttachments([]);
     setUploadError(null);
     setRefinedText(null);
+    const result = onSend(prevText, prevAtt.length > 0 ? prevAtt : undefined);
+    if (result && typeof (result as Promise<boolean>).then === 'function') {
+      const ok = await (result as Promise<boolean>);
+      if (ok === false) {
+        // Send failed — put the text + attachments back so the user can retry
+        // without re-typing.
+        setValue(prevText);
+        setAttachments(prevAtt);
+      }
+    }
   };
 
   const pickFiles = () => {

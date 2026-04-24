@@ -217,11 +217,14 @@ export default function ChatApp(props: ChatAppProps) {
   }, [currentSessionId, props.clientId]);
 
   // Actions ───────────────────────────────────────────────────────────
+  // sendMessage returns a boolean so the Composer can decide whether to
+  // clear its local text — on failure we want to preserve what the user
+  // typed so they don't have to re-enter it.
   const sendMessage = useCallback(
-    async (text: string, attachments?: import('@/lib/chat/types').Attachment[]) => {
+    async (text: string, attachments?: import('@/lib/chat/types').Attachment[]): Promise<boolean> => {
       const content = text.trim();
       const hasAtt = !!(attachments && attachments.length);
-      if ((!content && !hasAtt) || busy) return;
+      if ((!content && !hasAtt) || busy) return false;
       setBusy(true);
       try {
         const res = await postMessage(content, currentSessionId, props.clientId, attachments);
@@ -268,6 +271,7 @@ export default function ChatApp(props: ChatAppProps) {
           return [newSess, ...prev];
         });
         if (!currentSessionId) setCurrentSessionId(res.session_id);
+        return true;
       } catch (err) {
         // Surface the failure so the user knows their message didn't land —
         // previously this was silent, leaving them staring at an idle
@@ -279,6 +283,7 @@ export default function ChatApp(props: ChatAppProps) {
             ? 'Couldn\u2019t send that message. Check your connection and try again.'
             : detail
         );
+        return false;
       }
     },
     [busy, currentSessionId, showError, props.clientId]
