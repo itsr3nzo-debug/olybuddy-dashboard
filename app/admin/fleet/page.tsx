@@ -14,6 +14,7 @@ interface FleetRow {
   client_name: string;
   slug: string;
   vps_ip: string | null;
+  vps_ready: boolean;
   subscription_status: string;
   trial_ends_at: string | null;
   agent_pulse: {
@@ -60,7 +61,7 @@ export default async function AdminFleetPage() {
   );
 
   const [clientsRes, pulsesRes, subsRes, provAlertsRes, provHbRes, fleetStateRes] = await Promise.all([
-    service.from('clients').select('id, name, slug, vps_ip, subscription_status, trial_ends_at, bridge_sha, bridge_synced_at').order('created_at', { ascending: false }),
+    service.from('clients').select('id, name, slug, vps_ip, vps_ready, subscription_status, trial_ends_at, bridge_sha, bridge_synced_at').order('created_at', { ascending: false }),
     service.from('agent_pulse').select('client_id, last_beat_at, stale, tmux_ok, pulse_age_sec'),
     service.from('subscription_expiry_alerts').select('client_id, severity, expires_in_sec'),
     service.from('provisioning_alerts').select('client_id').is('resolved_at', null),
@@ -80,6 +81,7 @@ export default async function AdminFleetPage() {
     client_name: c.name ?? c.slug ?? 'untitled',
     slug: c.slug,
     vps_ip: (c as { vps_ip?: string | null }).vps_ip ?? null,
+    vps_ready: Boolean((c as { vps_ready?: boolean }).vps_ready),
     subscription_status: c.subscription_status ?? 'unknown',
     trial_ends_at: (c as { trial_ends_at?: string | null }).trial_ends_at ?? null,
     agent_pulse: pulseByClient.get(c.id) ?? null,
@@ -94,8 +96,11 @@ export default async function AdminFleetPage() {
   const fleetStateAgeS = fleetStateRes.data?.updated_at ? ageSec(fleetStateRes.data.updated_at) : null;
 
   // Bridge sync summary — rows that are on the current sha vs stale/missing.
-  // VPS-less clients (free-demo Vercel sites) are excluded from the count.
-  const vpsRows = rows.filter((r) => r.vps_ip);
+  // VPS-less clients (free-demo Vercel sites) are excluded. Mid-provision
+  // rows (vps_ip set but vps_ready=false) are also excluded — they'd
+  // falsely inflate the "stale" count during their ~60s provisioning
+  // window before apply-sender-roles flips vps_ready.
+  const vpsRows = rows.filter((r) => r.vps_ip && r.vps_ready);
   const onCurrent = currentBridgeSha
     ? vpsRows.filter((r) => r.bridge_sha === currentBridgeSha).length
     : 0;
