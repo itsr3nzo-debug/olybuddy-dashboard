@@ -8,23 +8,33 @@ const supabase = createClient(
 );
 
 function verifyStripeSignature(payload: string, signature: string, secret: string): boolean {
-  const elements = signature.split(',');
-  const timestamp = elements.find(e => e.startsWith('t='))?.split('=')[1];
-  const v1Sig = elements.find(e => e.startsWith('v1='))?.split('=')[1];
+  try {
+    const elements = signature.split(',');
+    const timestamp = elements.find(e => e.startsWith('t='))?.split('=')[1];
+    const v1Sig = elements.find(e => e.startsWith('v1='))?.split('=')[1];
 
-  if (!timestamp || !v1Sig) return false;
+    if (!timestamp || !v1Sig) return false;
 
-  // Reject if timestamp is older than 5 minutes (replay protection)
-  const age = Math.floor(Date.now() / 1000) - parseInt(timestamp);
-  if (age > 300) return false;
+    // Reject if timestamp is older than 5 minutes (replay protection)
+    const age = Math.floor(Date.now() / 1000) - parseInt(timestamp);
+    if (Number.isNaN(age) || age > 300) return false;
 
-  const signedPayload = `${timestamp}.${payload}`;
-  const expectedSig = crypto
-    .createHmac('sha256', secret)
-    .update(signedPayload)
-    .digest('hex');
+    const signedPayload = `${timestamp}.${payload}`;
+    const expectedSig = crypto
+      .createHmac('sha256', secret)
+      .update(signedPayload)
+      .digest('hex');
 
-  return crypto.timingSafeEqual(Buffer.from(v1Sig), Buffer.from(expectedSig));
+    // crypto.timingSafeEqual throws if buffers have different lengths — short-
+    // circuit on length mismatch so a malformed/truncated v1 value yields a
+    // clean 401 instead of a 500 error log spam.
+    const actual = Buffer.from(v1Sig, 'utf8');
+    const expected = Buffer.from(expectedSig, 'utf8');
+    if (actual.length !== expected.length) return false;
+    return crypto.timingSafeEqual(actual, expected);
+  } catch {
+    return false;
+  }
 }
 
 export async function POST(req: NextRequest) {
