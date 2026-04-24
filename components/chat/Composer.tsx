@@ -567,6 +567,9 @@ interface AssistantBubbleProps {
   /** Fired when the user clicks "Try again" on an errored reply. Parent is
    * responsible for resending the corresponding user message. */
   onRetry?: (messageId: string) => void;
+  /** Fired when the user clicks a suggested follow-up chip — parent sends
+   * it as a new user message. */
+  onFollowup?: (text: string) => void;
 }
 
 // Vault citation tokens the agent emits inline when it references a file
@@ -574,22 +577,50 @@ interface AssistantBubbleProps {
 // clickable chips beneath the reply. UUID shape is the one Supabase
 // generates (8-4-4-4-12 hex).
 const VAULT_CITATION_RE = /\[vault:([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\]/g;
-function parseVaultCitations(raw: string): { stripped: string; fileIds: string[] } {
-  if (!raw) return { stripped: raw, fileIds: [] };
+// Follow-up suggestion tokens the agent emits at the end of a reply to
+// propose next actions. Shape: `[followup: Send a follow-up SMS]`. Up to
+// 3 are rendered as clickable chips that pre-fill the composer.
+const FOLLOWUP_RE = /\[followup:\s*([^\]]{2,120})\]/g;
+// Plan tokens — for multi-step tasks, the agent proposes a plan the owner
+// can Approve / Edit / Cancel. Shape:
+//   `[plan: step one | step two | step three]`
+// Pipes delimit steps. First occurrence wins; up to 8 steps.
+const PLAN_RE = /\[plan:\s*([^\]]+?)\]/g;
+function parseVaultCitations(raw: string): {
+  stripped: string;
+  fileIds: string[];
+  followups: string[];
+  plan: string[];
+} {
+  if (!raw) return { stripped: raw, fileIds: [], followups: [], plan: [] };
   const ids = new Set<string>();
-  const stripped = raw.replace(VAULT_CITATION_RE, (_match, id: string) => {
+  const followups: string[] = [];
+  let plan: string[] = [];
+  let stripped = raw.replace(VAULT_CITATION_RE, (_match, id: string) => {
     ids.add(id);
     return '';
-  }).replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n');
-  return { stripped: stripped.trim(), fileIds: [...ids] };
+  });
+  stripped = stripped.replace(FOLLOWUP_RE, (_match, text: string) => {
+    const clean = text.trim();
+    if (clean && followups.length < 3 && !followups.includes(clean)) followups.push(clean);
+    return '';
+  });
+  stripped = stripped.replace(PLAN_RE, (_match, body: string) => {
+    if (plan.length > 0) return ''; // first plan wins
+    plan = body.split('|').map(s => s.trim()).filter(s => s.length >= 2).slice(0, 8);
+    return '';
+  });
+  stripped = stripped.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+  return { stripped: stripped.trim(), fileIds: [...ids], followups, plan };
 }
 
-export function AssistantBubble({ message, onOpenSource, streamingText, isActive, onRetry }: AssistantBubbleProps) {
+export function AssistantBubble({ message, onOpenSource, streamingText, isActive, onRetry, onFollowup }: AssistantBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [rating, setRating] = useState<null | 'up' | 'down'>(null);
+  const [planDecision, setPlanDecision] = useState<'pending' | 'approved' | 'cancelled'>('pending');
   const isStreaming = message.status === 'drafting';
   const rawContent = isStreaming ? (streamingText || '') : message.content;
-  const { stripped: content, fileIds: vaultFileIds } = parseVaultCitations(rawContent);
+  const { stripped: content, fileIds: vaultFileIds, followups, plan } = parseVaultCitations(rawContent);
   // Show status pill for in-flight states so the user isn't left staring at a blank screen.
   return (
     <div className={cx('flex gap-3 group', isActive && 'relative')}>
@@ -609,6 +640,59 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
           so we render whatever's there at current render time. */}
       {(message.status === 'pending' || message.status === 'thinking' || message.status === 'drafting') && (
         <BreadcrumbStrip crumbs={message.breadcrumbs} active />
+      )}
+      {/* Plan card — agent emits `[plan: a | b | c]` for multi-step tasks.
+          Renders as a numbered checklist with Approve / Cancel buttons.
+          Approve fires onFollowup("APPROVED — proceed with the plan") which
+          the agent treats as go-ahead. */}
+      {message.status === 'done' && plan.length > 0 && (
+        <div
+          className="rounded-lg p-4 my-2"
+          style={{
+            background: 'rgb(var(--hy-bg-subtle))',
+            border: '1px solid rgb(var(--hy-border))',
+          }}
+        >
+          <div className="text-[11px] fg-muted uppercase tracking-wider mb-2">Proposed plan</div>
+          <ol className="space-y-1.5 mb-3">
+            {plan.map((step, i) => (
+              <li key={i} className="flex items-start gap-2.5 text-[13px] fg-base leading-snug">
+                <span
+                  className="flex-shrink-0 h-5 w-5 rounded-full flex items-center justify-center text-[10.5px] font-semibold mt-px"
+                  style={{ background: 'rgb(var(--hy-fg-base))', color: 'rgb(var(--hy-fg-inverse))' }}
+                >
+                  {i + 1}
+                </span>
+                <span className="flex-1">{step}</span>
+              </li>
+            ))}
+          </ol>
+          {planDecision === 'pending' ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setPlanDecision('approved');
+                  onFollowup?.('APPROVED — proceed with the plan');
+                }}
+                className="inline-flex items-center gap-1.5 rounded-md px-3 h-7 text-[12px] font-medium focus-ring"
+                style={{ background: 'rgb(var(--hy-fg-base))', color: 'rgb(var(--hy-fg-inverse))' }}
+              >
+                Approve &amp; run
+              </button>
+              <button
+                onClick={() => setPlanDecision('cancelled')}
+                className="inline-flex items-center gap-1.5 rounded-md px-3 h-7 text-[12px] fg-subtle hover:fg-base hover:bg-hover transition-colors"
+              >
+                Cancel
+              </button>
+              <span className="text-[11px] fg-muted ml-auto">Tap Approve to let the AI Employee run these steps</span>
+            </div>
+          ) : (
+            <div className="text-[11.5px] fg-muted">
+              {planDecision === 'approved' ? '✓ Approved — running…' : '✗ Cancelled'}
+            </div>
+          )}
+        </div>
       )}
       {(message.status !== 'done' && message.status !== 'drafting')
         ? (
@@ -641,6 +725,27 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
           {message.sources?.map(s => <SourceChip key={s.id} source={s} onOpen={onOpenSource} />)}
         </div>
       )}
+      {/* Suggested follow-ups — agent-emitted `[followup: ...]` tokens
+          become clickable chips that send the suggestion as the next
+          message. Max 3 per reply, shown only on done status. */}
+      {message.status === 'done' && followups.length > 0 && onFollowup && (
+        <div className="flex flex-wrap items-center gap-1.5 mt-3">
+          {followups.map((f, i) => (
+            <button
+              key={i}
+              onClick={() => onFollowup(f)}
+              className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11.5px] fg-subtle hover:fg-base transition-colors focus-ring"
+              style={{
+                background: 'rgb(var(--hy-bg-subtle))',
+                border: '1px solid rgb(var(--hy-border))',
+              }}
+            >
+              <span aria-hidden="true" className="opacity-60">→</span>
+              {f}
+            </button>
+          ))}
+        </div>
+      )}
       {message.status === 'done' && (
         <div className="flex items-center gap-1 -ml-1 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <InlineAction
@@ -656,6 +761,13 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
               }
             }}
           />
+          {onRetry && (
+            <InlineAction
+              icon={RefreshCw}
+              label="Regenerate"
+              onClick={() => onRetry(message.id)}
+            />
+          )}
           <InlineAction icon={ThumbsUp} label={rating === 'up' ? 'Thanks!' : 'Good'} onClick={() => setRating('up')} active={rating === 'up'} />
           <InlineAction icon={ThumbsDown} label={rating === 'down' ? 'Noted' : 'Bad'} onClick={() => setRating('down')} active={rating === 'down'} />
         </div>

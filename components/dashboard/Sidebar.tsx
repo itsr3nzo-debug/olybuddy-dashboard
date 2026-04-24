@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Sparkles, LayoutDashboard, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Plug, Shield, Users, Bot, Target, CreditCard } from 'lucide-react'
+import { Sparkles, LayoutDashboard, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Plug, Shield, Users, Bot, Target } from 'lucide-react'
 import type { UserRole } from '@/lib/rbac'
 import { MEMBER_BLOCKED_PAGES } from '@/lib/rbac'
 
@@ -19,7 +19,6 @@ const allNavItems = [
   { href: '/integrations',          label: 'Integrations', Icon: Plug },
   { href: '/settings/sender-roles', label: 'Sender Roles', Icon: Users },
   { href: '/settings/agent-trust',  label: 'Agent trust',  Icon: Shield },
-  { href: '/settings/billing',      label: 'Billing',      Icon: CreditCard },
   { href: '/settings',              label: 'Settings',     Icon: Settings },
 ]
 

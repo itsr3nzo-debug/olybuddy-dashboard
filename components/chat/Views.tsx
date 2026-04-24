@@ -457,9 +457,11 @@ interface AssistPanelProps {
   onMentionConsumed?: () => void;
   /** Fired when the user clicks "Try again" on an errored assistant reply. */
   onRetryMessage?: (assistantMessageId: string) => void;
+  /** Fired when the user clicks a suggested follow-up chip. */
+  onFollowup?: (text: string) => void;
 }
 
-export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy, rtStatus, loadingMessages, onOpenMention, onOpenPalette, onRenameSession, onDeleteSession, onPinSession, pendingMention, onMentionConsumed, onRetryMessage }: AssistPanelProps) {
+export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy, rtStatus, loadingMessages, onOpenMention, onOpenPalette, onRenameSession, onDeleteSession, onPinSession, pendingMention, onMentionConsumed, onRetryMessage, onFollowup }: AssistPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -641,6 +643,7 @@ export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy
                   streamingText={streamingText}
                   isActive={m.status === 'drafting'}
                   onRetry={onRetryMessage}
+                  onFollowup={onFollowup}
                 />
           )}
         </div>

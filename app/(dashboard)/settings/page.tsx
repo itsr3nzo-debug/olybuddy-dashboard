@@ -134,6 +134,11 @@ export default async function SettingsPage() {
               sub="The rate card every quote is drafted against — labour, markups, loadings."
             />
             <ToolLink
+              href="/settings/billing"
+              title="Billing"
+              sub="Invoices, payment method, cancel / reactivate. Hosted by Stripe."
+            />
+            <ToolLink
               href="/settings/inbound-webhook"
               title="Inbound webhook"
               sub="Point external integrations at your AI Employee. Copy the URL + token."

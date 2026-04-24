@@ -238,12 +238,39 @@ export default function ChatApp(props: ChatAppProps) {
       setSessions((prev) =>
         prev.map((s) => {
           if (s.id !== currentSessionId) return s;
-          // Merge — preserve local error state so the sweeper isn't overwritten by stale DB pending
+          // Merge — preserve local state so poll doesn't regress live
+          // progress. Realtime is usually ahead of poll; if poll fetches
+          // an older DB snapshot while realtime has already pushed the
+          // next status, we don't want to clobber forward with stale.
           const byId = new Map(res.messages.map((m) => [m.id, m]));
+          // Ordered status ranks — higher = more complete. Never allow a
+          // merge to move a message BACKWARDS along this chain.
+          const rank: Record<string, number> = {
+            pending: 1,
+            thinking: 2,
+            drafting: 3,
+            done: 4,
+            error: 4,
+          };
           const merged = s.messages.map((m) => {
             const dbMsg = byId.get(m.id);
             if (!dbMsg) return m;
+            // Preserve local error state — sweeper-set error shouldn't be
+            // overwritten by a stale DB pending/thinking row.
             if (m.status === 'error' && (dbMsg.status === 'pending' || dbMsg.status === 'thinking')) return m;
+            // Never regress: if local is ahead of DB in the status chain,
+            // keep local (except we DO accept db content edits via merge).
+            const localRank = rank[m.status] ?? 0;
+            const dbRank = rank[dbMsg.status] ?? 0;
+            if (dbRank < localRank) {
+              // DB is stale — keep local status but accept any richer
+              // fields that the DB has and local doesn't (e.g. breadcrumbs).
+              return {
+                ...m,
+                breadcrumbs: dbMsg.breadcrumbs ?? m.breadcrumbs,
+                sources: dbMsg.sources ?? m.sources,
+              };
+            }
             return dbMsg;
           });
           const seen = new Set(s.messages.map((m) => m.id));
@@ -257,6 +284,10 @@ export default function ChatApp(props: ChatAppProps) {
   }, [currentSessionId, props.clientId]);
 
   // Actions ───────────────────────────────────────────────────────────
+  // In admin (super_admin) view we confirm ONCE per tab that the user
+  // intends to send to THIS client's agent. Prevents the "two tabs open,
+  // typed into the wrong one" footgun.
+  const adminConfirmedRef = useRef(false);
   // sendMessage returns a boolean so the Composer can decide whether to
   // clear its local text — on failure we want to preserve what the user
   // typed so they don't have to re-enter it.
@@ -265,6 +296,16 @@ export default function ChatApp(props: ChatAppProps) {
       const content = text.trim();
       const hasAtt = !!(attachments && attachments.length);
       if ((!content && !hasAtt) || busy) return false;
+      // Admin cross-tenant safety — first send in an admin view triggers a
+      // confirm dialog that names the client. After the user confirms
+      // once, subsequent sends in the same tab go through unhindered.
+      if (props.isAdminView && !adminConfirmedRef.current) {
+        const ok = typeof window !== 'undefined' && window.confirm(
+          `You're about to send a message to ${props.clientName}'s live AI Employee. The client can see this in their own chat. Continue?`,
+        );
+        if (!ok) return false;
+        adminConfirmedRef.current = true;
+      }
       setBusy(true);
       try {
         const res = await postMessage(content, currentSessionId, props.clientId, attachments);
@@ -326,7 +367,7 @@ export default function ChatApp(props: ChatAppProps) {
         return false;
       }
     },
-    [busy, currentSessionId, showError, props.clientId]
+    [busy, currentSessionId, showError, props.clientId, props.isAdminView, props.clientName]
   );
 
   const newChat = useCallback(() => {
@@ -372,7 +413,19 @@ export default function ChatApp(props: ChatAppProps) {
     for (let i = idx - 1; i >= 0; i--) {
       const m = sess.messages[i];
       if (m.role === 'user' && m.content) {
-        void sendMessage(m.content, m.attachments);
+        // Attachment URLs are signed with ~24h expiry. If this message is
+        // older than that, the URLs will 404 on retry. Warn the user so
+        // they know the retry won't include the original files; send the
+        // text-only version instead.
+        const ageMs = Date.now() - new Date(m.createdAt).getTime();
+        const hasAttachments = (m.attachments?.length ?? 0) > 0;
+        const URL_EXPIRY_MS = 23 * 60 * 60 * 1000; // 23h — one hour of safety margin
+        if (hasAttachments && ageMs > URL_EXPIRY_MS) {
+          showError('Original attachment links have expired. Re-upload the files and try again.');
+          void sendMessage(m.content); // send without the stale attachments
+        } else {
+          void sendMessage(m.content, m.attachments);
+        }
         return;
       }
     }
@@ -556,14 +609,29 @@ export default function ChatApp(props: ChatAppProps) {
       className={cx('nexley-chat-root flex flex-col h-full w-full overflow-hidden bg-app', theme)}
     >
       {props.isAdminView && (
-        <div className="flex items-center gap-3 px-4 py-2 text-[12px] border-b-hy bg-subtle fg-subtle flex-shrink-0">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-hover px-2 py-0.5 text-[11px] fg-base">
+        // Make the admin banner visually loud (amber strip) so a super_admin
+        // with two tabs open can't mistake tenant A for tenant B. The old
+        // subtle styling faded into the page chrome.
+        <div
+          className="flex items-center gap-3 px-4 py-2 text-[12px] border-b-hy flex-shrink-0"
+          style={{
+            background: 'rgb(251 191 36 / 0.15)',
+            color: 'rgb(146 64 14)',
+            borderBottom: '1px solid rgb(251 191 36 / 0.5)',
+          }}
+          role="status"
+          aria-label="Admin cross-tenant view"
+        >
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+            style={{ background: 'rgb(251 191 36 / 0.4)', color: 'rgb(120 53 15)' }}
+          >
             Admin view
           </span>
           <span className="truncate">
-            Chatting as <strong className="fg-base">{props.clientName}</strong>&apos;s AI Employee. All messages hit the live client agent.
+            Chatting as <strong>{props.clientName}</strong>&apos;s AI Employee. Every message you send hits the live client agent.
           </span>
-          <a href="/chat" className="ml-auto fg-base underline underline-offset-2 hover:opacity-80">Switch client</a>
+          <a href="/chat" className="ml-auto underline underline-offset-2 hover:opacity-80 font-medium" style={{ color: 'rgb(120 53 15)' }}>Switch client</a>
         </div>
       )}
       {errorBanner && (
@@ -657,6 +725,7 @@ export default function ChatApp(props: ChatAppProps) {
             pendingMention={pendingMention}
             onMentionConsumed={() => setPendingMention(null)}
             onRetryMessage={retryMessage}
+            onFollowup={(t) => { void sendMessage(t); }}
           />
         )}
         {activeView === 'customers' && <CustomersView />}
