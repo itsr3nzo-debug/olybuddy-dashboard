@@ -37,11 +37,16 @@ async function fetchStripeSubscription(subscriptionId: string): Promise<SubInfo 
     if (!res.ok) return null
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sub: any = await res.json()
-    const currentPeriodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null
-    const price = sub.items?.data?.[0]?.price
+    // Stripe moved current_period_start/end from the subscription level to the
+    // subscription-item level in 2025. Read from the item first, fall back to
+    // the legacy sub-level field so this works across historical data too.
+    const firstItem = sub.items?.data?.[0]
+    const cpeRaw = firstItem?.current_period_end ?? sub.current_period_end ?? null
+    const currentPeriodEnd = cpeRaw ? new Date(cpeRaw * 1000).toISOString() : null
+    const price = firstItem?.price
     const amountPence = price?.unit_amount ?? null
     // If trialing, "next billing" is the trial end (Stripe bills then).
-    // If active, "next billing" is current_period_end.
+    // If active, "next billing" is current_period_end (end of the billing period).
     const nextBilling = sub.status === 'trialing'
       ? (sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null)
       : currentPeriodEnd
