@@ -140,10 +140,13 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
     // MobileNav (fixed bottom-0, ~72px). Using `fixed` sidesteps the
     // fragile calc-math that previously let the composer render UNDER the
     // bottom nav.
-    //   Desktop (lg+): revert to static flow with the original calc height
-    // and negate the parent layout's content padding so the chat bleeds
-    // edge-to-edge.
-    <div className="fixed inset-x-0 top-[146px] bottom-[72px] lg:static lg:inset-auto lg:h-[calc(100vh-64px)] lg:-m-4 lg:sm:-m-6 lg:lg:-m-8">
+    //   Desktop (lg+): static flow with the original calc height. We used
+    // to negate the parent's padding (`-m-4 sm:-m-6 lg:-m-8`) to bleed
+    // edge-to-edge, but that pulled the chat UP into the breadcrumb row
+    // — the old className also had invalid Tailwind prefixes (`lg:sm:`,
+    // `lg:lg:`) that silently failed. Cleanest fix: keep the chat inside
+    // its padded lane so the breadcrumb + admin banner never collide.
+    <div className="fixed inset-x-0 top-[146px] bottom-[72px] lg:static lg:inset-auto lg:h-[calc(100vh-140px)]">
       <ChatApp
         clientId={activeClientId}
         clientName={clientName}

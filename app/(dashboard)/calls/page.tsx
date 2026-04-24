@@ -68,8 +68,8 @@ export default function CallsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Conversations</h1>
-          <p className="text-sm mt-1 text-muted-foreground">Every conversation your AI Employee handled</p>
+          <h1 className="text-2xl font-bold text-foreground">Call log</h1>
+          <p className="text-sm mt-1 text-muted-foreground">Transcripts + outcomes for every voice call handled by your AI Employee</p>
         </div>
       </div>
 
