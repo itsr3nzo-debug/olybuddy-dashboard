@@ -51,14 +51,33 @@ export async function GET(req: NextRequest) {
     const customers = await client.listAllCustomers({ pageSize, maxPages })
 
     const shaped = customers.map(c => {
+      // Fergus stores phones/emails in contactItems[] with contactType +
+      // contactValue, NOT as top-level mobile/phone fields. Older code paths
+      // (like searchCustomers) still check mobile/phone in case the shape
+      // ever changes, but for list we walk contactItems.
       const mc = c.mainContact as
-        | { firstName?: string; lastName?: string; mobile?: string; phone?: string; email?: string }
+        | {
+            firstName?: string
+            lastName?: string
+            mobile?: string
+            phone?: string
+            email?: string
+            contactItems?: Array<{ contactType?: string; contactValue?: string }>
+          }
         | undefined
       const phones = new Set<string>()
-      const mobile = normalizePhone(mc?.mobile)
-      const phone = normalizePhone(mc?.phone)
-      if (mobile) phones.add(mobile)
-      if (phone) phones.add(phone)
+      const pushIfPhone = (raw: string | undefined | null) => {
+        const n = normalizePhone(raw)
+        if (n) phones.add(n)
+      }
+      pushIfPhone(mc?.mobile)
+      pushIfPhone(mc?.phone)
+      for (const item of mc?.contactItems ?? []) {
+        const t = (item.contactType ?? '').toLowerCase()
+        if (t === 'mobile' || t === 'phone' || t === 'landline' || t === 'tel') {
+          pushIfPhone(item.contactValue)
+        }
+      }
       return {
         id: c.id,
         customerFullName: c.customerFullName,
