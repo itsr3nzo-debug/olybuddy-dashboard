@@ -15,6 +15,7 @@ import VpsHeartbeatBadge from '@/components/dashboard/VpsHeartbeatBadge'
 import type { CallLog, AgentStatus } from '@/lib/types'
 import { MessageSquare, Calendar, UserPlus, TrendingUp } from 'lucide-react'
 import GettingStarted from '@/components/dashboard/GettingStarted'
+import PlanUpgradePanel from '@/components/dashboard/PlanUpgradePanel'
 import { TimePeriodSelector } from '@/components/ui/time-period-selector'
 /* Pruned imports (WeeklyROIWidget, WeeklyChallengeCard, OpportunityDonut,
  * PoundSterling/Zap/Link2/Activity icons, AI_PHONE_DISPLAY) — their
@@ -306,6 +307,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <TimePeriodSelector value={periodKey} />
         </Suspense>
       </div>
+
+      {/* Plan upgrade panel — shows for every non-active-paid state:
+            - trial with active sub → "Upgrade to £599/mo now" (ends trial early)
+            - legacy / no Stripe → "Set up billing — £20"
+            - cancelled → "Reactivate — £20"
+            - past-due → "Update payment method"
+          Renders null for active paying customers so the dashboard stays clean. */}
+      {clientId && (
+        <Suspense fallback={null}>
+          <PlanUpgradePanel clientId={clientId} />
+        </Suspense>
+      )}
 
       {/* Nag bar: integrations missing. Conditional, high-impact. */}
       {clientId && integrationsCount === 0 && (

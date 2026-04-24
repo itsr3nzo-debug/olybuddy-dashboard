@@ -97,7 +97,7 @@ function deriveState(client: ClientRow, info: SubInfo | null): UIState {
   return { kind: 'active', info }
 }
 
-export default async function BillingPage({ searchParams }: { searchParams: Promise<{ portal_return?: string; upgraded?: string; upgrade_cancelled?: string; error?: string }> }) {
+export default async function BillingPage({ searchParams }: { searchParams: Promise<{ portal_return?: string; upgraded?: string; upgraded_early?: string; upgrade_cancelled?: string; error?: string }> }) {
   const { requireAccess } = await import('@/lib/rbac-guard')
   const session = await requireAccess('/settings/billing')
 
@@ -134,6 +134,11 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
       {sp.upgraded === '1' && (
         <Banner kind="success" title="Payment received">
           Your AI Employee is live. Your 5-day trial has started — you&apos;ll be auto-charged £599 on Day 6 unless you cancel.
+        </Banner>
+      )}
+      {sp.upgraded_early === '1' && (
+        <Banner kind="success" title="Upgraded to paid">
+          Trial ended early — your first £599 month just started. Thanks for betting on us.
         </Banner>
       )}
       {sp.portal_return === '1' && !sp.error && (
@@ -214,6 +219,28 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
                   <Row label="Billed to" value={client.email ?? '—'} />
                 </div>
               </Section>
+
+              {/* Upgrade-now — low-pressure secondary option. Most trial users
+                  just wait for auto-bill; this is for the ones who want to
+                  commit early. Ends the Stripe trial immediately + charges £599. */}
+              <Section
+                title="Skip the wait?"
+                description="Upgrade to paid now and start your first £599 month today"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex-1 text-sm text-muted-foreground">
+                    No need to do anything — your card will be charged automatically when the trial ends. But if you already know you&apos;re staying, you can upgrade now and start month 1 straight away.
+                  </div>
+                  <a
+                    href="/api/stripe/upgrade"
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-indigo-500/25 whitespace-nowrap"
+                  >
+                    <Sparkles size={14} />
+                    Upgrade now — £599/mo
+                  </a>
+                </div>
+              </Section>
+
               <ManageCards showCancel />
               <DangerCancel />
             </>

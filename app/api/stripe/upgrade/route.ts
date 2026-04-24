@@ -54,15 +54,40 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard?error=no_client', req.url))
   }
 
-  // Already has an ACTIVE or PAUSED subscription → send them to the portal to
-  // manage it. Creating a second subscription for an already-subscribed
-  // customer would double-bill them. 'paused' covers the past_due/unpaid case
-  // where the card failed — they need to update the card, not sign up again.
+  // TRIALING with an active sub → end the trial immediately via Stripe.
+  // Stripe will charge £599 NOW, the subscription.updated webhook flips
+  // status='active', and the customer "upgrades" straight from £20 trial to
+  // paid. No second checkout needed — card is already on file.
+  if (client.stripe_subscription_id && client.subscription_status === 'trial') {
+    try {
+      const { getStripe } = await import('@/lib/stripe')
+      await getStripe().subscriptions.update(client.stripe_subscription_id, {
+        trial_end: 'now',
+        proration_behavior: 'none',
+      })
+      return NextResponse.redirect(
+        new URL('/settings/billing?upgraded_early=1', req.url)
+      )
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      console.error('[stripe upgrade] end-trial failed:', err?.message)
+      return NextResponse.redirect(
+        new URL('/settings/billing?error=checkout_failed', req.url)
+      )
+    }
+  }
+
+  // Already paying or past-due → send them to the portal. Creating a second
+  // subscription for an already-subscribed customer would double-bill them.
+  // 'paused' is the past_due/unpaid case — they need to update the card.
   if (
     client.stripe_subscription_id &&
-    ['active', 'trial', 'paused'].includes(client.subscription_status ?? '')
+    ['active', 'paused'].includes(client.subscription_status ?? '')
   ) {
-    return NextResponse.redirect(new URL('/api/stripe/portal', req.url))
+    const portalUrl = client.subscription_status === 'paused'
+      ? '/api/stripe/portal?flow=payment'
+      : '/api/stripe/portal'
+    return NextResponse.redirect(new URL(portalUrl, req.url))
   }
 
   const trialPriceId = process.env.STRIPE_PRICE_TRIAL

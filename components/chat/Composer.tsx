@@ -603,6 +603,13 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
         title="Nexley AI"
       >N</div>
       <div className="flex-1 min-w-0 pt-0.5">
+      {/* Live tool trace — shown above the content (or pill) while reply is
+          in-flight, and below the content (collapsed) once done. The bridge
+          writes breadcrumbs into metadata.breadcrumbs as the agent streams,
+          so we render whatever's there at current render time. */}
+      {(message.status === 'pending' || message.status === 'thinking' || message.status === 'drafting') && (
+        <BreadcrumbStrip crumbs={message.breadcrumbs} active />
+      )}
       {(message.status !== 'done' && message.status !== 'drafting')
         ? (
           (message.status === 'error' || message.status === 'pending' || message.status === 'thinking')
@@ -621,6 +628,9 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
           </div>
         )
       }
+      {message.status === 'done' && message.breadcrumbs && message.breadcrumbs.length > 0 && (
+        <BreadcrumbStrip crumbs={message.breadcrumbs} active={false} />
+      )}
       {(vaultFileIds.length > 0 || (message.sources && message.sources.length > 0)) && message.status === 'done' && (
         <div
           className="flex flex-wrap items-center gap-1.5 mt-2 pt-2.5"
@@ -655,21 +665,86 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
   );
 }
 
-function BreadcrumbStrip({ crumbs }: { crumbs?: Array<{ kind: string; label: string }> }) {
+/**
+ * Live trail of tool calls the agent has made while generating this reply.
+ * - While the reply is in-flight (`active === true`): shows every crumb
+ *   as a stacked one-liner with a pulsing dot on the latest. Users see
+ *   what the agent is doing in real time (Reading customers.md → Running
+ *   vault-search → Pulled jones-quote.txt).
+ * - Once done: collapses to a single `▸ 3 steps` toggle the user can expand
+ *   for the audit trail.
+ *
+ * The bridge emits crumbs via `extractBreadcrumbs` as the agent's tmux
+ * pane streams. Each crumb is `{ kind: "Read" | "Bash" | "Search" | ...,
+ * label: "<file or command summary>" }`.
+ */
+function BreadcrumbStrip({
+  crumbs,
+  active,
+}: {
+  crumbs?: Array<{ kind: string; label: string }>;
+  /** True while the reply is still in-flight (pending/thinking/drafting).
+   * Shows the latest crumb live; false = collapse into audit trail. */
+  active?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
   if (!crumbs || crumbs.length === 0) return null;
+
+  // Live view: render the full trail with a pulsing dot on the last crumb.
+  if (active) {
+    return (
+      <div className="flex flex-col gap-0.5 my-1.5">
+        {crumbs.map((c, i) => {
+          const isLast = i === crumbs.length - 1;
+          const label = c.label.length > 80 ? c.label.slice(0, 80) + '…' : c.label;
+          return (
+            <div
+              key={i}
+              className="inline-flex items-center gap-2 text-[11.5px] fg-muted leading-tight"
+              title={`${c.kind}: ${c.label}`}
+            >
+              <span
+                className={cx(
+                  'h-1.5 w-1.5 rounded-full flex-shrink-0',
+                  isLast ? 'bg-current animate-pulse' : 'bg-current opacity-40',
+                )}
+              />
+              <span className="font-medium fg-subtle">{c.kind}</span>
+              <span className="truncate" style={{ fontFamily: 'var(--font-mono)' }}>{label}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Done view: one-line toggle that expands the audit trail on click.
   return (
-    <div className="flex flex-wrap gap-1 my-1">
-      {crumbs.map((c, i) => (
-        <span
-          key={i}
-          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10.5px] fg-muted"
-          style={{ background: 'rgb(var(--hy-bg-subtle))', fontFamily: 'var(--font-mono)' }}
-          title={c.label}
-        >
-          <span className="status-dot" />
-          Using {c.label.length > 48 ? c.label.slice(0, 48) + '…' : c.label}
-        </span>
-      ))}
+    <div className="my-1.5">
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="inline-flex items-center gap-1 text-[11px] fg-muted hover:fg-base transition-colors"
+        aria-expanded={expanded}
+      >
+        <span aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+        {crumbs.length} {crumbs.length === 1 ? 'step' : 'steps'}
+      </button>
+      {expanded && (
+        <div className="mt-1 pl-2 border-l-2 flex flex-col gap-0.5" style={{ borderColor: 'rgb(var(--hy-border))' }}>
+          {crumbs.map((c, i) => (
+            <div
+              key={i}
+              className="inline-flex items-center gap-2 text-[11px] fg-muted leading-tight"
+              title={`${c.kind}: ${c.label}`}
+            >
+              <span className="font-medium fg-subtle">{c.kind}</span>
+              <span className="truncate" style={{ fontFamily: 'var(--font-mono)' }}>
+                {c.label.length > 80 ? c.label.slice(0, 80) + '…' : c.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
