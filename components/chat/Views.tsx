@@ -459,9 +459,11 @@ interface AssistPanelProps {
   onRetryMessage?: (assistantMessageId: string) => void;
   /** Fired when the user clicks a suggested follow-up chip. */
   onFollowup?: (text: string) => void;
+  /** Fired when the user clicks Stop during an in-flight reply. */
+  onCancel?: () => void;
 }
 
-export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy, rtStatus, loadingMessages, onOpenMention, onOpenPalette, onRenameSession, onDeleteSession, onPinSession, pendingMention, onMentionConsumed, onRetryMessage, onFollowup }: AssistPanelProps) {
+export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy, rtStatus, loadingMessages, onOpenMention, onOpenPalette, onRenameSession, onDeleteSession, onPinSession, pendingMention, onMentionConsumed, onRetryMessage, onFollowup, onCancel }: AssistPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -521,7 +523,7 @@ export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy
   if (!session) return null;
 
   return (
-    <div className="h-full flex flex-col min-h-0">
+    <div className="h-full flex flex-col min-h-0 relative">
       <div className="px-6 py-3 flex items-center gap-2 border-b-hy flex-shrink-0">
         <div className="min-w-0 flex-1">
           {renaming ? (
@@ -608,28 +610,19 @@ export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="flex-1 min-h-0 overflow-y-auto scroll-thin"
+        className="flex-1 min-h-0 overflow-y-auto scroll-thin relative"
       >
         <div className="mx-auto w-full max-w-[780px] px-6 py-8 space-y-6">
-          {/* Skeleton while the initial message list is loading. Only shown
-              when the session has no cached messages yet — otherwise we
-              already have something to render. */}
+          {/* Skeleton while the initial message list is loading. Shimmer
+              gradient instead of plain opacity pulse — matches Linear AI. */}
           {loadingMessages && session.messages.length === 0 && (
             <div className="space-y-4" aria-label="Loading chat history" aria-live="polite">
               {[72, 120, 88].map((w, i) => (
-                <div
-                  key={i}
-                  className="h-3 rounded bg-hover animate-pulse"
-                  style={{ width: `${w}%` }}
-                />
+                <div key={i} className="h-3 rounded anim-skeleton" style={{ width: `${w}%` }} />
               ))}
               <div className="h-6" />
               {[60, 96, 40].map((w, i) => (
-                <div
-                  key={`b-${i}`}
-                  className="h-3 rounded bg-hover animate-pulse"
-                  style={{ width: `${w}%`, marginLeft: 'auto' }}
-                />
+                <div key={`b-${i}`} className="h-3 rounded anim-skeleton" style={{ width: `${w}%`, marginLeft: 'auto' }} />
               ))}
             </div>
           )}
@@ -648,9 +641,33 @@ export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy
           )}
         </div>
       </div>
+      {/* Jump-to-latest pill — appears when the user has scrolled up
+          (autoScroll toggled off) AND there's either content to catch up to
+          or an in-flight reply being composed. Clicking re-engages
+          auto-scroll and drops the user at the bottom. */}
+      {!autoScroll && session.messages.length > 0 && (
+        <button
+          onClick={() => {
+            setAutoScroll(true);
+            requestAnimationFrame(() => {
+              if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            });
+          }}
+          className="absolute left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 rounded-full px-3 h-8 text-[12px] fg-base shadow-md anim-fade-in focus-ring"
+          style={{
+            bottom: 'calc(var(--composer-height, 108px) + 16px)',
+            background: 'rgb(var(--hy-bg-surface))',
+            border: '1px solid rgb(var(--hy-border-strong))',
+          }}
+          aria-label="Jump to latest messages"
+        >
+          <span aria-hidden="true">↓</span>
+          Jump to latest
+        </button>
+      )}
       <div className="border-t-hy flex-shrink-0 bg-app">
         <div className="mx-auto w-full max-w-[780px] px-6 py-4">
-          <Composer variant="panel" sessionId={session.id} onSend={onSend} onOpenPalette={onOpenPalette} onOpenMention={onOpenMention} busy={busy} pendingMention={pendingMention} onMentionConsumed={onMentionConsumed} />
+          <Composer variant="panel" sessionId={session.id} onSend={onSend} onCancel={onCancel} onOpenPalette={onOpenPalette} onOpenMention={onOpenMention} busy={busy} pendingMention={pendingMention} onMentionConsumed={onMentionConsumed} />
         </div>
       </div>
     </div>

@@ -1,10 +1,49 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 /**
  * Tiny markdown renderer — handles the subset the mock data uses:
  * headings (# ## ###), bold **, inline code `, links, lists (ul+ol), tables,
  * blockquote, code fences ``` and paragraphs.
  */
+
+/**
+ * Code-fence block with a header strip showing the language (if any) and
+ * a copy button that hover-reveals. Matches Claude.ai / ChatGPT pattern.
+ * No syntax highlighting yet — kept dependency-free; add Shiki later.
+ */
+function CodeBlock({ lang, body }: { lang?: string; body: string }): React.ReactElement {
+  const [copied, setCopied] = useState(false);
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(body);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch { /* no-op */ }
+  };
+  return (
+    <div
+      className="my-3 rounded-md overflow-hidden group"
+      style={{ border: '1px solid rgb(var(--hy-border))', background: 'rgb(var(--hy-bg-subtle))' }}
+    >
+      <div
+        className="flex items-center justify-between px-3 h-7 text-[10.5px] fg-muted uppercase tracking-wider"
+        style={{ borderBottom: '1px solid rgb(var(--hy-border))', background: 'rgb(var(--hy-bg-hover) / 0.4)' }}
+      >
+        <span>{lang || 'code'}</span>
+        <button
+          onClick={onCopy}
+          className="text-[10.5px] fg-muted hover:fg-base transition-colors px-1 py-0.5 rounded focus-ring"
+          aria-label="Copy code"
+        >
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      <pre className="overflow-x-auto px-3 py-2 text-[12.5px]" style={{ fontFamily: 'var(--font-mono)' }}>
+        <code>{body}</code>
+      </pre>
+    </div>
+  );
+}
 
 function inlineMd(s: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
@@ -18,7 +57,13 @@ function inlineMd(s: string): React.ReactNode[] {
     else if (m[3]) nodes.push(<code key={key++}>{m[4]}</code>);
     else if (m[5])
       nodes.push(
-        <a key={key++} href={m[7]} onClick={(e) => e.preventDefault()}>
+        <a
+          key={key++}
+          href={m[7]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="fg-base underline underline-offset-2 hover:opacity-80"
+        >
           {m[6]}
         </a>
       );
@@ -47,11 +92,7 @@ export function renderMarkdown(text: string, options: { streaming?: boolean } = 
   const out: React.ReactNode[] = [];
   blocks.forEach((blk, bi) => {
     if (blk.kind === 'code') {
-      out.push(
-        <pre key={'c' + bi}>
-          <code>{blk.body.replace(/\n$/, '')}</code>
-        </pre>
-      );
+      out.push(<CodeBlock key={'c' + bi} lang={blk.lang} body={blk.body.replace(/\n$/, '')} />);
       return;
     }
     const lines = blk.text.split('\n');

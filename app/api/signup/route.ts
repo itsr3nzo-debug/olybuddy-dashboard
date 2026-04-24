@@ -134,9 +134,22 @@ export async function POST(req: NextRequest) {
     contact_name: contact_name || null,
     location: location || null,
     services_text: services || null,
-    subscription_status: plan === 'trial' ? 'trial' : 'pending_payment',
+    // Every signup now goes through Stripe Checkout BEFORE becoming a real
+    // 'trial'. Until the checkout.session.completed webhook fires and sets
+    // stripe_customer_id + stripe_subscription_id, the client row stays in
+    // 'pending_payment' — this prevents:
+    //   (a) trial-expiry cron from emailing "your trial has ended" to people
+    //       who never actually paid (filter matches only status='trial')
+    //   (b) provision-poller from spinning up a VPS before payment clears
+    //       (filter requires status IN ('trial','active'))
+    //   (c) the billing page rendering a stale "you're on a 5-day trial"
+    //       CTA for someone who abandoned checkout
+    subscription_status: 'pending_payment',
     subscription_plan: plan,
-    trial_ends_at: plan === 'trial' ? new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString() : null,
+    // Webhook sets trial_ends_at from sub.trial_end — don't guess here; a
+    // signup-time value would drift if webhook delivery is delayed a few
+    // minutes (and this is what's bitten us before).
+    trial_ends_at: null,
     onboarding_completed: false,
     onboarding_step: 0,
     vps_status: 'pending',

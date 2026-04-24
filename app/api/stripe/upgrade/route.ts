@@ -54,19 +54,40 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard?error=no_client', req.url))
   }
 
+  // PAYMENT IN FLIGHT — they just completed Checkout but webhook hasn't
+  // fired yet. Creating a second Checkout here risks charging them twice.
+  // Redirect back to billing where the "Finalising your payment" UI waits
+  // (the page derives that state from Supabase; no query param needed).
+  if (client.subscription_status === 'pending_payment') {
+    return NextResponse.redirect(new URL('/settings/billing', req.url))
+  }
+
   // TRIALING with an active sub → end the trial immediately via Stripe.
-  // Stripe will charge £599 NOW, the subscription.updated webhook flips
-  // status='active', and the customer "upgrades" straight from £20 trial to
-  // paid. No second checkout needed — card is already on file.
+  // Stripe creates the first invoice and attempts to charge the saved card.
+  // If the charge succeeds, sub.status becomes 'active' and we show a success
+  // banner. If the charge fails, sub.status becomes 'past_due' and we route
+  // them to the payment-method-update portal flow (NOT the success banner —
+  // that would be a lie).
   if (client.stripe_subscription_id && client.subscription_status === 'trial') {
     try {
       const { getStripe } = await import('@/lib/stripe')
-      await getStripe().subscriptions.update(client.stripe_subscription_id, {
+      const updated = await getStripe().subscriptions.update(client.stripe_subscription_id, {
         trial_end: 'now',
         proration_behavior: 'none',
       })
+
+      // Stripe's response tells us whether the transition charge cleared.
+      // 'active' = charged, 'past_due'/'unpaid'/'incomplete' = charge failed
+      // (card declined, insufficient funds, SCA required, etc).
+      if (updated.status === 'active' || updated.status === 'trialing') {
+        return NextResponse.redirect(
+          new URL('/settings/billing?upgraded_early=1', req.url)
+        )
+      }
+      // Charge failed. Send them to update the card directly.
+      console.warn('[stripe upgrade] end-trial returned non-active status:', updated.status)
       return NextResponse.redirect(
-        new URL('/settings/billing?upgraded_early=1', req.url)
+        new URL('/api/stripe/portal?flow=payment', req.url)
       )
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {

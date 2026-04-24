@@ -45,6 +45,27 @@ export default async function PlanUpgradePanel({ clientId }: { clientId: string 
     return null
   }
 
+  // PAYMENT IN FLIGHT — customer just completed Stripe Checkout but our
+  // webhook hasn't fired yet (usually a 2-15 second window). Showing
+  // "Set up billing — £20" here would be wrong: they've already paid,
+  // we just haven't received Stripe's confirmation. Also we MUST NOT point
+  // them at /api/stripe/upgrade here — that would create a SECOND Checkout
+  // and they could double-pay. Just show a reassuring "processing" panel.
+  if (
+    client.subscription_status === 'pending_payment' &&
+    !client.stripe_subscription_id
+  ) {
+    return (
+      <Panel
+        variant="indigo"
+        title="Finalising your payment…"
+        subtitle="Stripe is confirming the charge. This page will update automatically once it lands (usually within 15 seconds). Refresh if you don&apos;t see anything after a minute."
+        ctaLabel="Refresh"
+        ctaHref="/dashboard"
+      />
+    )
+  }
+
   // Past-due — red urgent panel
   if (client.subscription_status === 'paused') {
     return (

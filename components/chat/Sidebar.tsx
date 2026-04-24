@@ -363,6 +363,11 @@ function SessionItem({ session, active, onSelect, onRename, onDelete, onPin }: {
   const onEnter = () => {
     const t = setTimeout(() => setShowPreview(true), 450);
     setHoverTimer(t);
+    // Speculative prefetch — fire a fetch on hover so the body is already
+    // over the wire by the time the user actually clicks. We let the
+    // browser cache this normally; the subsequent loadSession() on click
+    // will de-dupe via the service worker / HTTP layer.
+    fetch(`/api/chat/sessions/${session.id}`).catch(() => { /* silent */ });
   };
   const onLeave = () => {
     if (hoverTimer) clearTimeout(hoverTimer);

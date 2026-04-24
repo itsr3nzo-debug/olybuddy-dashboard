@@ -73,6 +73,7 @@ async function fetchStripeSubscription(subscriptionId: string): Promise<SubInfo 
  */
 type UIState =
   | { kind: 'needs_setup' }                                       // No Stripe customer yet — legacy client or fresh signup before payment
+  | { kind: 'pending_payment' }                                   // Checkout in flight — webhook will flip state within seconds
   | { kind: 'trialing'; info: SubInfo }                           // Paid £20, card saved, 5-day trial active
   | { kind: 'active'; info: SubInfo }                             // Paying £599/mo
   | { kind: 'scheduled_cancel'; info: SubInfo }                   // Cancelled but still has access until period end
@@ -83,6 +84,12 @@ function deriveState(client: ClientRow, info: SubInfo | null): UIState {
   if (!client.stripe_customer_id || !client.stripe_subscription_id) {
     if (client.subscription_status === 'cancelled') {
       return { kind: 'cancelled', info: null, legacy: true }
+    }
+    // They went through Checkout but webhook hasn't attached the sub yet.
+    // Short-lived state — show a reassuring page rather than the "set up
+    // billing" CTA (which would launch ANOTHER checkout and risk double-pay).
+    if (client.subscription_status === 'pending_payment') {
+      return { kind: 'pending_payment' }
     }
     return { kind: 'needs_setup' }
   }
@@ -175,6 +182,21 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
 
       {client && state && (
         <div className="space-y-6">
+          {/* STATE: pending_payment — Checkout in flight. Don't offer a second. */}
+          {state.kind === 'pending_payment' && (
+            <Section title="Finalising your payment" description="Stripe is confirming the charge">
+              <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+                This page will update automatically once Stripe confirms your payment (usually within 15 seconds of checkout completion). If nothing has happened after a minute, refresh the page — if it&apos;s still stuck, email hello@nexley.ai and we&apos;ll sort it.
+              </p>
+              <a
+                href="/settings/billing"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-muted/30 border border-border text-sm font-medium text-foreground hover:bg-muted/50 transition-colors"
+              >
+                Refresh
+              </a>
+            </Section>
+          )}
+
           {/* STATE: needs_setup — legacy client or unpaid signup. Show the offer. */}
           {state.kind === 'needs_setup' && (
             <>

@@ -21,6 +21,11 @@ interface ComposerProps {
    * keep their old behaviour (clear on submit, no restore).
    */
   onSend: (text: string, attachments?: Attachment[]) => Promise<boolean> | void;
+  /** Called when the user clicks Stop during an in-flight reply. Parent
+   * should mark the active assistant row as cancelled (local state + DB),
+   * so the UI releases `busy` and the composer is usable again. The
+   * bridge will still complete the upstream generation — last-write-wins. */
+  onCancel?: () => void;
   busy?: boolean;
   autoFocus?: boolean;
   variant?: 'panel' | 'hero';
@@ -34,9 +39,23 @@ interface ComposerProps {
   onMentionConsumed?: () => void;
 }
 
-function Composer({ onSend, busy, autoFocus, variant = 'panel', onOpenPalette, onOpenMention, sessionId, pendingMention, onMentionConsumed }: ComposerProps) {
+function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpenPalette, onOpenMention, sessionId, pendingMention, onMentionConsumed }: ComposerProps) {
   const { clientId } = useClient();
-  const [value, setValue] = useState('');
+  // Draft auto-save — on every keystroke, persist the composer contents
+  // keyed by session (or 'new' for a fresh chat). Survives page refresh
+  // and accidental tab close. Clears on successful send.
+  const draftKey = `nexley-draft:${sessionId ?? 'new'}`;
+  const [value, setValue] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    try { return window.localStorage.getItem(draftKey) || ''; } catch { return ''; }
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (value) window.localStorage.setItem(draftKey, value);
+      else window.localStorage.removeItem(draftKey);
+    } catch { /* quota / blocked — ignore */ }
+  }, [value, draftKey]);
   const [refining, setRefining] = useState(false);
   const [refinedText, setRefinedText] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -264,21 +283,41 @@ function Composer({ onSend, busy, autoFocus, variant = 'panel', onOpenPalette, o
               exact same overlay. Kept the single Prompts entry. */}
           <ComposerChip icon={Sparkles} label="Improve" onClick={doRefine} disabled={isEmpty} />
           <div className="flex-1" />
-          <button
-            type="button"
-            onClick={send}
-            disabled={isEmpty || busy}
-            className={cx(
-              'inline-flex items-center gap-1.5 rounded-md px-2.5 h-7 text-[12px] font-medium transition-opacity focus-ring',
-              (isEmpty || busy) ? 'bg-subtle fg-muted cursor-not-allowed' : 'hover:opacity-90'
-            )}
-            style={(isEmpty || busy) ? undefined : { background: 'rgb(var(--hy-fg-base))', color: 'rgb(var(--hy-fg-inverse))' }}
-          >
-            {busy
-              ? <Loader2 size={12} className="animate-spin" />
-              : variant === 'hero' ? 'Ask Nexley' : 'Send'}
-            {!busy && variant !== 'hero' && <ArrowUp size={12} />}
-          </button>
+          {busy && onCancel ? (
+            // During an in-flight reply, replace Send with Stop — clicking
+            // marks the reply as cancelled locally (bridge still completes
+            // upstream, but the user is unblocked immediately).
+            <button
+              type="button"
+              onClick={onCancel}
+              aria-label="Stop generating"
+              className="inline-flex items-center gap-1.5 rounded-md px-2.5 h-7 text-[12px] font-medium transition-opacity focus-ring hover:opacity-90"
+              style={{ background: 'rgb(var(--hy-fg-base))', color: 'rgb(var(--hy-fg-inverse))' }}
+            >
+              <span
+                aria-hidden="true"
+                className="h-2.5 w-2.5"
+                style={{ background: 'currentColor', borderRadius: 1 }}
+              />
+              Stop
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={send}
+              disabled={isEmpty || busy}
+              className={cx(
+                'inline-flex items-center gap-1.5 rounded-md px-2.5 h-7 text-[12px] font-medium transition-opacity focus-ring',
+                (isEmpty || busy) ? 'bg-subtle fg-muted cursor-not-allowed' : 'hover:opacity-90'
+              )}
+              style={(isEmpty || busy) ? undefined : { background: 'rgb(var(--hy-fg-base))', color: 'rgb(var(--hy-fg-inverse))' }}
+            >
+              {busy
+                ? <Loader2 size={12} className="animate-spin" />
+                : variant === 'hero' ? 'Ask Nexley' : 'Send'}
+              {!busy && variant !== 'hero' && <ArrowUp size={12} />}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -495,7 +534,7 @@ function AttachmentChip({ attachment, onRemove }: { attachment: Attachment; onRe
 export function UserBubble({ message }: { message: Message }) {
   const atts = message.attachments ?? [];
   return (
-    <div className="flex flex-col items-end gap-1.5" title={relativeTime(message.createdAt)}>
+    <div className="flex flex-col items-end gap-1.5 anim-bubble-in" title={relativeTime(message.createdAt)}>
       {atts.length > 0 && (
         <div className="flex flex-wrap justify-end gap-2 max-w-[80%]">
           {atts.map((a, i) => <AttachmentPreview key={i} attachment={a} />)}
@@ -623,7 +662,7 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
   const { stripped: content, fileIds: vaultFileIds, followups, plan } = parseVaultCitations(rawContent);
   // Show status pill for in-flight states so the user isn't left staring at a blank screen.
   return (
-    <div className={cx('flex gap-3 group', isActive && 'relative')}>
+    <div className={cx('flex gap-3 group anim-bubble-in', isActive && 'relative')}>
       <div
         className="flex-shrink-0 h-7 w-7 rounded-full inline-flex items-center justify-center text-[11px] font-semibold"
         style={{
@@ -708,6 +747,14 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
           <div className="text-[14px] fg-base" style={{ lineHeight: 1.65 }}>
             <div className="assistant-inline">
               {renderMarkdown(content, { streaming: isStreaming })}
+              {/* If we're drafting but the server hasn't pushed any content
+                  yet (bridge finalises at end-of-turn), show a solo blinking
+                  cursor so the user sees the agent is working. As soon as
+                  content arrives this still renders inline thanks to the
+                  cursor in renderMarkdown. */}
+              {isStreaming && !content && (
+                <span className="streaming-cursor" aria-hidden="true" />
+              )}
             </div>
           </div>
         )

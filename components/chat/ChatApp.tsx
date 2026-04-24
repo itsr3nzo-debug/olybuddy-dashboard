@@ -146,6 +146,7 @@ export default function ChatApp(props: ChatAppProps) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [pendingMention, setPendingMention] = useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // Sidebar state ────────────────────────────────────────────
   const [sbCollapsed, setSbCollapsed] = useState(false);
@@ -386,6 +387,27 @@ export default function ChatApp(props: ChatAppProps) {
     setBusy(false); // same reason as newChat — don't leak busy across sessions
   }, []);
 
+  // Cancel the active in-flight reply. Marks the latest pending/thinking/
+  // drafting assistant message in the active session as an error locally,
+  // which releases `busy` so the composer is usable immediately. The bridge
+  // will still complete its upstream generation; last-write-wins in
+  // Supabase — our error write beats the bridge's eventual `done`.
+  const cancelMessage = useCallback(() => {
+    if (!currentSessionId) return;
+    setSessions(prev => prev.map(s => {
+      if (s.id !== currentSessionId) return s;
+      const messages = s.messages.map(m => {
+        if (m.role === 'assistant' &&
+            (m.status === 'pending' || m.status === 'thinking' || m.status === 'drafting')) {
+          return { ...m, status: 'error' as const, errorMessage: 'Stopped by you.' };
+        }
+        return m;
+      });
+      return { ...s, messages };
+    }));
+    setBusy(false);
+  }, [currentSessionId]);
+
   // Retry an errored assistant reply. Finds the preceding user message in
   // the same session, resends its content. We don't delete the errored
   // row — it stays in place as a record that the first attempt failed, but
@@ -534,6 +556,11 @@ export default function ChatApp(props: ChatAppProps) {
       } else if (mod && e.key === '.') {
         e.preventDefault();
         toggleTheme();
+      } else if (mod && e.key === '/') {
+        e.preventDefault();
+        setHelpOpen(true);
+      } else if (e.key === 'Escape') {
+        setHelpOpen(false);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -726,6 +753,7 @@ export default function ChatApp(props: ChatAppProps) {
             onMentionConsumed={() => setPendingMention(null)}
             onRetryMessage={retryMessage}
             onFollowup={(t) => { void sendMessage(t); }}
+            onCancel={cancelMessage}
           />
         )}
         {activeView === 'customers' && <CustomersView />}
@@ -770,7 +798,61 @@ export default function ChatApp(props: ChatAppProps) {
           setPendingMention('@' + customer.name + ' ');
         }}
       />
+      {helpOpen && <ShortcutsModal onClose={() => setHelpOpen(false)} />}
     </div>
     </ClientContextProvider>
+  );
+}
+
+/**
+ * Keyboard-shortcuts reference modal. Opens on ⌘/ and Esc closes.
+ * Lives in ChatApp so it can access the full command inventory and
+ * close itself via the same `helpOpen` state as the keybind.
+ */
+function ShortcutsModal({ onClose }: { onClose: () => void }) {
+  const modKey = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform) ? '\u2318' : 'Ctrl';
+  const shortcuts: Array<[string, string]> = [
+    [`${modKey} K`, 'Open command palette'],
+    [`${modKey} N`, 'New chat'],
+    [`${modKey} \\`, 'Toggle sidebar'],
+    [`${modKey} .`, 'Toggle light / dark'],
+    [`${modKey} /`, 'Show this help'],
+    ['Enter', 'Send message'],
+    ['Shift Enter', 'New line in message'],
+    ['Esc', 'Close open menu / palette / help'],
+    ['@', 'Mention a customer'],
+    ['/', 'Open prompt palette (empty composer)'],
+  ];
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      style={{ background: 'rgb(0 0 0 / 0.4)' }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-lg bg-surface border-hy p-5 anim-fade-in"
+        style={{ boxShadow: '0 20px 40px rgb(0 0 0 / 0.2)' }}
+      >
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <h3 className="text-[15px] fg-base font-medium">Keyboard shortcuts</h3>
+          <button onClick={onClose} className="h-7 w-7 flex items-center justify-center rounded hover:bg-hover fg-subtle hover:fg-base" aria-label="Close">×</button>
+        </div>
+        <ul className="space-y-1.5">
+          {shortcuts.map(([combo, label]) => (
+            <li key={combo} className="flex items-center gap-3 text-[13px]">
+              <kbd
+                className="inline-flex items-center justify-center min-w-[64px] px-2 py-0.5 rounded text-[11.5px] fg-base font-medium"
+                style={{ background: 'rgb(var(--hy-bg-subtle))', border: '1px solid rgb(var(--hy-border))', fontFamily: 'var(--font-mono)' }}
+              >
+                {combo}
+              </kbd>
+              <span className="fg-subtle">{label}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-4 text-[11.5px] fg-muted">Press Esc to close.</p>
+      </div>
+    </div>
   );
 }
