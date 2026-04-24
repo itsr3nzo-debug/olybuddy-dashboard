@@ -332,12 +332,38 @@ export default function ChatApp(props: ChatAppProps) {
   const newChat = useCallback(() => {
     setCurrentSessionId(null);
     setActiveView('assistant');
+    // Releasing `busy` here is the safe default — the previous session's
+    // in-flight reply, if any, will finish writing into Supabase regardless
+    // (the bridge doesn't care about the dashboard's local `busy` state).
+    // Leaving busy=true on switch traps the Composer in "disabled" limbo.
+    setBusy(false);
   }, []);
 
   const selectSession = useCallback((id: string) => {
     setCurrentSessionId(id);
     setActiveView('assistant');
+    setBusy(false); // same reason as newChat — don't leak busy across sessions
   }, []);
+
+  // Retry an errored assistant reply. Finds the preceding user message in
+  // the same session, resends its content. We don't delete the errored
+  // row — it stays in place as a record that the first attempt failed, but
+  // the new user+assistant pair appears below with a fresh attempt.
+  const retryMessage = useCallback((erroredAssistantId: string) => {
+    if (!currentSessionId) return;
+    const sess = sessions.find(s => s.id === currentSessionId);
+    if (!sess) return;
+    const idx = sess.messages.findIndex(m => m.id === erroredAssistantId);
+    if (idx <= 0) return;
+    // Walk backwards to find the most recent user message before the error.
+    for (let i = idx - 1; i >= 0; i--) {
+      const m = sess.messages[i];
+      if (m.role === 'user' && m.content) {
+        void sendMessage(m.content, m.attachments);
+        return;
+      }
+    }
+  }, [currentSessionId, sessions]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const navChange = useCallback((view: ChatView) => {
     setActiveView(view);
@@ -616,6 +642,7 @@ export default function ChatApp(props: ChatAppProps) {
             onOpenPalette={() => setPaletteOpen(true)}
             pendingMention={pendingMention}
             onMentionConsumed={() => setPendingMention(null)}
+            onRetryMessage={retryMessage}
           />
         )}
         {activeView === 'customers' && <CustomersView />}
