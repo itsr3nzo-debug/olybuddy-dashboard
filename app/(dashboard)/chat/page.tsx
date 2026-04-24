@@ -135,7 +135,15 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
   }
 
   return (
-    <div className="h-[calc(100vh-80px)] lg:h-[calc(100vh-64px)] -m-4 sm:-m-6 lg:-m-8">
+    // Mobile (below lg): position: fixed pinned between the layout's top
+    // chrome (breadcrumb + optional banners, reserving 146px) and the
+    // MobileNav (fixed bottom-0, ~72px). Using `fixed` sidesteps the
+    // fragile calc-math that previously let the composer render UNDER the
+    // bottom nav.
+    //   Desktop (lg+): revert to static flow with the original calc height
+    // and negate the parent layout's content padding so the chat bleeds
+    // edge-to-edge.
+    <div className="fixed inset-x-0 top-[146px] bottom-[72px] lg:static lg:inset-auto lg:h-[calc(100vh-64px)] lg:-m-4 lg:sm:-m-6 lg:lg:-m-8">
       <ChatApp
         clientId={activeClientId}
         clientName={clientName}

@@ -121,7 +121,12 @@ export default function ChatApp(props: ChatAppProps) {
   const currentSession = sessions.find((s) => s.id === currentSessionId) || null;
 
   // Realtime ──────────────────────────────────────────────────────────
+  // Track the last time a realtime event actually fired. The polling fallback
+  // skips its DB hit when realtime is healthy (event in the last 5s) so we're
+  // not running 24 GETs/minute per active chat for no reason.
+  const lastRealtimeAtRef = useRef<number>(0);
   const applyRealtime = useCallback((msg: Message, kind: 'insert' | 'update') => {
+    lastRealtimeAtRef.current = Date.now();
     setSessions((prev) => {
       let changed = false;
       const next = prev.map((s) => {
@@ -157,8 +162,10 @@ export default function ChatApp(props: ChatAppProps) {
 
   // Polling fallback — realtime websocket respects RLS and admin JWTs can
   // occasionally miss events. Every 2.5s, while the active session has at
-  // least one in-flight assistant message, re-fetch messages via the API
-  // (which uses service-role for admin reads) and reconcile into state.
+  // least one in-flight assistant message AND realtime has been quiet for
+  // more than 5s, re-fetch messages via the API (which uses service-role
+  // for admin reads) and reconcile into state. Healthy realtime bypasses
+  // the poll entirely.
   useEffect(() => {
     if (!currentSessionId) return;
     const poll = async () => {
@@ -168,6 +175,9 @@ export default function ChatApp(props: ChatAppProps) {
           m.role === 'assistant' && (m.status === 'pending' || m.status === 'thinking' || m.status === 'drafting')
         );
       if (!inFlight) return;
+      // Realtime quiet-period gate — if we got an event recently, trust it.
+      const since = Date.now() - lastRealtimeAtRef.current;
+      if (since < 5000) return;
       const res = await loadSession(currentSessionId, props.clientId).catch(() => null);
       if (!res) return;
       setSessions((prev) =>
@@ -263,6 +273,23 @@ export default function ChatApp(props: ChatAppProps) {
   const navChange = useCallback((view: ChatView) => {
     setActiveView(view);
     if (view !== 'assistant') setCurrentSessionId(null);
+  }, []);
+
+  // Mobile WhatsApp-style drill-down: below the lg breakpoint we show EITHER
+  // the session list (Sidebar) OR the active conversation/tab (main), never
+  // both. On desktop (>= lg) both panes render side-by-side as before.
+  //
+  // Rules:
+  //   - showMain: a session is active, OR the user picked a non-assistant
+  //     tab (vault/workflows/history/knowledge). Hides sidebar on mobile.
+  //   - showSidebar: the inverse — assistant view with no active session.
+  //
+  // A mobile-only "back" chevron at the top of main pops back to the list
+  // by clearing currentSessionId + resetting to assistant view.
+  const showMain = !!currentSessionId || activeView !== 'assistant';
+  const handleMobileBack = useCallback(() => {
+    setCurrentSessionId(null);
+    setActiveView('assistant');
   }, []);
 
   const renameSession = useCallback((id: string, title: string) => {
@@ -384,25 +411,50 @@ export default function ChatApp(props: ChatAppProps) {
         </div>
       )}
       <div className="flex flex-1 min-h-0">
-      <Sidebar
-        sessions={sessions}
-        currentSessionId={currentSessionId}
-        onSelectSession={selectSession}
-        onNewChat={newChat}
-        onOpenPalette={() => setPaletteOpen(true)}
-        onToggleTheme={toggleTheme}
-        theme={theme}
-        collapsed={sbCollapsed}
-        onToggleCollapse={() => setSbCollapsed((c) => !c)}
-        onGoHome={newChat}
-        onRenameSession={renameSession}
-        onDeleteSession={deleteSession}
-        onPinSession={pinSession}
-        activeView={activeView}
-        onNavChange={navChange}
-      />
+      {/* Sidebar wrapper — full-width on mobile (when showing the list),
+          auto-width on desktop. Hidden on mobile whenever main is showing. */}
+      <div className={cx(
+        showMain ? 'hidden' : 'flex',
+        'lg:flex flex-shrink-0 w-full lg:w-auto'
+      )}>
+        <Sidebar
+          sessions={sessions}
+          currentSessionId={currentSessionId}
+          onSelectSession={selectSession}
+          onNewChat={newChat}
+          onOpenPalette={() => setPaletteOpen(true)}
+          onToggleTheme={toggleTheme}
+          theme={theme}
+          collapsed={sbCollapsed}
+          onToggleCollapse={() => setSbCollapsed((c) => !c)}
+          onGoHome={newChat}
+          onRenameSession={renameSession}
+          onDeleteSession={deleteSession}
+          onPinSession={pinSession}
+          activeView={activeView}
+          onNavChange={navChange}
+        />
+      </div>
 
-      <main className="flex-1 min-w-0 bg-app">
+      {/* Main wrapper — full-width on mobile (when showing an active chat
+          or sub-tab), flex-1 on desktop. Hidden on mobile when on the list. */}
+      <main className={cx(
+        showMain ? 'flex' : 'hidden',
+        'lg:flex flex-col flex-1 min-w-0 bg-app'
+      )}>
+        {/* Mobile-only back chevron → pops back to the session list */}
+        <div className="lg:hidden flex items-center gap-1 px-2 py-2 border-b-hy bg-app sticky top-0 z-10">
+          <button
+            onClick={handleMobileBack}
+            aria-label="Back to chat list"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[13px] fg-base hover:bg-hover transition-colors"
+          >
+            <span aria-hidden="true">‹</span>
+            <span className="truncate max-w-[220px]">{currentSession?.title || 'Back'}</span>
+          </button>
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-hidden">
         {activeView === 'assistant' && !currentSession && (
           <Dashboard
             suggestions={SUGGESTIONS}
@@ -448,6 +500,7 @@ export default function ChatApp(props: ChatAppProps) {
           />
         )}
         {activeView === 'knowledge' && <KnowledgeView />}
+        </div>
       </main>
       </div>{/* /.flex flex-1 min-h-0 */}
 

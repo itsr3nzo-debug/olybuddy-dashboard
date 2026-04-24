@@ -41,7 +41,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'content or attachments required' }, { status: 400 });
   }
 
-  const { clientId, isAdminOverride } = resolveClientId(user, body.client_id);
+  const { clientId, isAdminOverride, spoofRejected } = resolveClientId(user, body.client_id);
+  if (spoofRejected) {
+    return NextResponse.json(
+      { error: 'client_id override is admin-only' },
+      { status: 403 }
+    );
+  }
   if (!clientId) return NextResponse.json({ error: 'no client' }, { status: 400 });
 
   // Admin override → use service-role client (bypasses RLS which is bound to

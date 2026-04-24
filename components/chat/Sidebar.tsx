@@ -43,8 +43,18 @@ function Sidebar({ sessions, currentSessionId, onSelectSession, onNewChat, onOpe
 
   return (
     <aside
-      className={cx('sidebar-col flex flex-col border-r-hy bg-app', collapsed && 'sidebar-collapsed')}
-      style={{ width: collapsed ? 52 : 200, minWidth: collapsed ? 52 : 200, flexShrink: 0, transition: 'width 0.18s ease' }}
+      // Width rules:
+      //  - Desktop (lg+): fixed 200px expanded / 52px collapsed (legacy behaviour).
+      //  - Mobile (< lg): expanded = full-width so the WhatsApp-style list view
+      //    fills the screen (ChatApp already hides main on mobile when on the
+      //    list); collapsed = 52px so the compact rail is still reachable.
+      className={cx(
+        'sidebar-col flex flex-col border-r-hy bg-app flex-shrink-0',
+        collapsed
+          ? 'w-[52px] min-w-[52px] sidebar-collapsed'
+          : 'w-full lg:w-[200px] lg:min-w-[200px]'
+      )}
+      style={{ transition: 'width 0.18s ease' }}
     >
       {collapsed
         ? <SidebarRail onNewChat={onNewChat} onOpenPalette={onOpenPalette} onToggleTheme={onToggleTheme} theme={theme} onToggleCollapse={onToggleCollapse} onGoHome={onGoHome} activeView={activeView} onNavChange={onNavChange} />

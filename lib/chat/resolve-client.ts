@@ -10,16 +10,21 @@ import type { SupabaseClient, User } from '@supabase/supabase-js';
 export function resolveClientId(
   user: User,
   explicitClientId?: string | null
-): { clientId: string | null; isAdminOverride: boolean } {
+): { clientId: string | null; isAdminOverride: boolean; spoofRejected: boolean } {
   const role = (user.app_metadata?.role as string | undefined) ?? 'member';
   const ownClientId = (user.app_metadata?.client_id as string | undefined) ?? null;
 
   if (role === 'super_admin') {
-    if (explicitClientId) return { clientId: explicitClientId, isAdminOverride: true };
-    return { clientId: ownClientId, isAdminOverride: false };
+    if (explicitClientId) return { clientId: explicitClientId, isAdminOverride: true, spoofRejected: false };
+    return { clientId: ownClientId, isAdminOverride: false, spoofRejected: false };
   }
-  // owner/member — always pinned
-  return { clientId: ownClientId, isAdminOverride: false };
+  // owner/member — always pinned. Also detect whether the caller TRIED to
+  // override client_id (silent ignore is functionally secure but gives an
+  // attacker no feedback, so /api/chat/messages returns 403 when this flag
+  // is set rather than quietly writing under their own client).
+  const spoofRejected =
+    !!explicitClientId && explicitClientId !== ownClientId;
+  return { clientId: ownClientId, isAdminOverride: false, spoofRejected };
 }
 
 /**

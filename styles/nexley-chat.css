@@ -108,8 +108,16 @@ input, textarea { font-family: inherit; }
 .border-hy { border: 1px solid rgb(var(--hy-border)); }
 .border-hy-strong { border: 1px solid rgb(var(--hy-border-strong)); }
 
-/* Sidebar width — React-controlled but enforced via class */
-.sidebar-col { width: 200px !important; flex-shrink: 0 !important; transition: width 0.18s ease; }
+/* Sidebar width — React-controlled but enforced via class.
+   Mobile (< lg breakpoint, i.e. < 1024px): take full width so the
+   WhatsApp-style list view fills the screen. ChatApp hides main on mobile
+   whenever the list is showing, so the sidebar owning the full viewport
+   is correct. Desktop falls back to the historical fixed 200px.
+   The `sidebar-collapsed` modifier is always 52px on both breakpoints. */
+.sidebar-col { width: 100% !important; flex-shrink: 0 !important; transition: width 0.18s ease; }
+@media (min-width: 1024px) {
+  .sidebar-col { width: 200px !important; }
+}
 .sidebar-col.sidebar-collapsed { width: 52px !important; }
 
 .scroll-thin { scrollbar-width: thin; scrollbar-color: rgb(var(--hy-border-strong)) transparent; }
