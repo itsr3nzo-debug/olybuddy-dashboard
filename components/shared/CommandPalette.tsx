@@ -9,9 +9,10 @@ import { createClient } from '@/lib/supabase/client'
 
 const PAGES = [
   { href: '/dashboard',      label: 'Dashboard',        icon: LayoutDashboard },
+  { href: '/chat',           label: 'Chat',             icon: MessageSquare },
   { href: '/pipeline',       label: 'Pipeline',         icon: Kanban },
   { href: '/conversations',  label: 'Inbox',            icon: MessageSquare },
-  { href: '/calls',          label: 'Conversations',     icon: MessageSquare },
+  { href: '/calls',          label: 'Call log',         icon: Phone },
   { href: '/calendar',       label: 'Calendar',         icon: Calendar },
   { href: '/integrations',   label: 'Integrations',     icon: Plug },
   { href: '/settings',       label: 'Settings',         icon: Settings },
