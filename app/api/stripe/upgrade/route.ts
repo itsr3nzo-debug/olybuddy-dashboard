@@ -54,13 +54,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard?error=no_client', req.url))
   }
 
-  // Already has an ACTIVE subscription → send them to the portal to manage it.
-  // (Status 'active' or 'trialing' in Stripe both map to our 'active'/'trial'
-  // subscription_status. Only allow re-subscribe if they've actually cancelled
-  // or never had a sub.)
+  // Already has an ACTIVE or PAUSED subscription → send them to the portal to
+  // manage it. Creating a second subscription for an already-subscribed
+  // customer would double-bill them. 'paused' covers the past_due/unpaid case
+  // where the card failed — they need to update the card, not sign up again.
   if (
     client.stripe_subscription_id &&
-    (client.subscription_status === 'active' || client.subscription_status === 'trial')
+    ['active', 'trial', 'paused'].includes(client.subscription_status ?? '')
   ) {
     return NextResponse.redirect(new URL('/api/stripe/portal', req.url))
   }

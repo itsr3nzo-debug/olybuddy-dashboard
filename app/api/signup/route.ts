@@ -265,30 +265,49 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Checkout is temporarily unavailable. Please try again in a few minutes.' }, { status: 503 })
   }
 
-  const { getStripe } = await import('@/lib/stripe')
-  const session = await getStripe().checkout.sessions.create({
-    mode: 'payment',
-    payment_method_types: ['card'],
-    customer_email: email,
-    customer_creation: 'always',
-    metadata: {
-      client_id: clientId,
-      plan,
-      business_name,
-      // Used by the webhook to create the subscription on completion.
-      create_subscription_price: subscriptionPriceId,
-      subscription_trial_days: '5',
-      user_id: authData?.user?.id ?? '',
-    },
-    line_items: [{ price: trialPriceId, quantity: 1 }],
-    payment_intent_data: {
-      // Keeps the card on file so we can auto-bill £599 on Day 6 off-session.
-      setup_future_usage: 'off_session',
-      metadata: { client_id: clientId, purpose: 'onboarding_fee' },
-    },
-    success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/signup/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/signup?cancelled=true`,
-  })
+  // Wrap the Checkout Session creation in try/catch. If Stripe has an outage
+  // or the network fails, we'd otherwise leave an orphan Supabase row with no
+  // way for the customer to complete payment — they'd have to use a different
+  // email to retry. Rolling back keeps things clean.
+  try {
+    const { getStripe } = await import('@/lib/stripe')
+    const session = await getStripe().checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card'],
+      customer_email: email,
+      customer_creation: 'always',
+      metadata: {
+        client_id: clientId,
+        plan,
+        business_name,
+        // Used by the webhook to create the subscription on completion.
+        create_subscription_price: subscriptionPriceId,
+        subscription_trial_days: '5',
+        user_id: authData?.user?.id ?? '',
+      },
+      line_items: [{ price: trialPriceId, quantity: 1 }],
+      payment_intent_data: {
+        // Keeps the card on file so we can auto-bill £599 on Day 6 off-session.
+        setup_future_usage: 'off_session',
+        metadata: { client_id: clientId, purpose: 'onboarding_fee' },
+      },
+      success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/signup/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/signup?cancelled=true`,
+    })
 
-  return NextResponse.json({ success: true, checkoutUrl: session.url })
+    return NextResponse.json({ success: true, checkoutUrl: session.url })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (stripeErr: any) {
+    console.error('[signup] Stripe Checkout create failed:', stripeErr?.message)
+    // Roll back so they can retry with the same email
+    await supabase.from('agent_config').delete().eq('client_id', clientId)
+    await supabase.from('clients').delete().eq('id', clientId)
+    if (authData?.user?.id) {
+      await supabase.auth.admin.deleteUser(authData.user.id).catch(() => {})
+    }
+    return NextResponse.json(
+      { error: 'Payment provider unavailable — please try again in a moment.' },
+      { status: 503 }
+    )
+  }
 }

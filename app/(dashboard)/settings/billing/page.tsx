@@ -35,10 +35,13 @@ async function fetchStripeSubscription(subscriptionId: string): Promise<SubInfo 
   const key = process.env.STRIPE_SECRET_KEY
   if (!key || !subscriptionId) return null
   try {
+    // Hard timeout so a slow/down Stripe API can't hang a server-render.
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 4000)
     const res = await fetch(
       `https://api.stripe.com/v1/subscriptions/${subscriptionId}?expand[]=items.data.price`,
-      { headers: { Authorization: `Bearer ${key}` }, cache: 'no-store' }
-    )
+      { headers: { Authorization: `Bearer ${key}` }, cache: 'no-store', signal: controller.signal }
+    ).finally(() => clearTimeout(timer))
     if (!res.ok) return null
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sub: any = await res.json()

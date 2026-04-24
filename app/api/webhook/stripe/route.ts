@@ -160,6 +160,11 @@ export async function POST(req: NextRequest) {
             trialEndsAt = sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null;
           } catch (subErr: any) {
             console.error('[stripe webhook] subscription creation failed:', subErr?.message);
+            // Failsafe: still give the customer a 5-day access window so the
+            // trial-expiry cron can eventually clean them up if ops don't fix
+            // the Stripe sub manually. Without this, trial_ends_at stays null
+            // and they'd be stuck in trial limbo forever.
+            trialEndsAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
             // Telegram alert — a paying customer just lost their auto-renewal.
             try {
               const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -177,17 +182,39 @@ export async function POST(req: NextRequest) {
             } catch { /* nothing more to do */ }
           }
 
-          // Update client row. subscription_status='trial' until Day 6 billing
-          // clears and the customer.subscription.updated webhook flips it to 'active'.
+          // CRITICAL: check if this client already has a VPS provisioned. The
+          // provision-poller picks up any row with vps_status='pending' and
+          // spins up a fresh Hetzner server — we must NOT do that for legacy
+          // clients (joseph, chicken-curry, etc) who are just setting up
+          // billing for an existing agent. Re-provisioning would orphan their
+          // WhatsApp session, conversations, and VPS they're already paying for.
+          const { data: existingClient } = await supabase
+            .from('clients')
+            .select('vps_status, vps_ip')
+            .eq('id', clientId)
+            .single();
+          const alreadyHasVps =
+            existingClient?.vps_status &&
+            ['active', 'provisioned', 'running'].includes(existingClient.vps_status) &&
+            existingClient?.vps_ip;
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const clientUpdate: any = {
+            subscription_status: 'trial',
+            stripe_customer_id: stripeCustomerId,
+            stripe_subscription_id: subscriptionId,
+            trial_ends_at: trialEndsAt,
+          };
+          if (!alreadyHasVps) {
+            // Fresh signup — trigger VPS provisioning via the launchd poller.
+            clientUpdate.vps_status = 'pending';
+          }
+          // If they already have a VPS, leave vps_status alone so we don't
+          // accidentally trigger a second provision.
+
           await supabase
             .from('clients')
-            .update({
-              subscription_status: 'trial',
-              stripe_customer_id: stripeCustomerId,
-              stripe_subscription_id: subscriptionId,
-              trial_ends_at: trialEndsAt,
-              vps_status: 'pending',
-            })
+            .update(clientUpdate)
             .eq('id', clientId);
 
           // Telegram notification to ops — a paying customer is waiting for VPS
@@ -299,28 +326,68 @@ export async function POST(req: NextRequest) {
           .single();
 
         if (client) {
-          const status = subscription.status === 'active' ? 'active' :
-                         subscription.status === 'canceled' ? 'cancelled' :
-                         subscription.status === 'past_due' ? 'paused' : 'active';
-
-          await supabase
-            .from('clients')
-            .update({ subscription_status: status })
-            .eq('id', client.id);
-
-          // Deactivate agent when subscription is cancelled or paused
-          if (status === 'cancelled' || status === 'paused') {
-            await supabase
-              .from('agent_config')
-              .update({ is_active: false, agent_status: 'offline' })
-              .eq('client_id', client.id);
+          // Exhaustive Stripe status mapping. Previously the default fell
+          // through to 'active' which mis-labelled trialing subs AND any
+          // incomplete/unpaid states. Now every known Stripe state maps
+          // explicitly — unknown states stay put (no change) to avoid
+          // clobbering a more accurate value set by checkout.session.completed.
+          let status: string | null = null;
+          switch (subscription.status) {
+            case 'trialing':
+              status = 'trial';
+              break;
+            case 'active':
+              status = 'active';
+              break;
+            case 'canceled':
+              status = 'cancelled';
+              break;
+            case 'past_due':
+            case 'unpaid':
+              status = 'paused';
+              break;
+            case 'incomplete':
+            case 'incomplete_expired':
+              // Card never succeeded — treat as cancelled
+              status = 'cancelled';
+              break;
+            case 'paused':
+              status = 'paused';
+              break;
+            default:
+              // Unknown future Stripe status — don't overwrite Supabase
+              status = null;
           }
-          // Reactivate on active
-          if (status === 'active') {
+
+          const trialEndIso = subscription.trial_end
+            ? new Date(subscription.trial_end * 1000).toISOString()
+            : null;
+
+          if (status) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const update: any = { subscription_status: status };
+            // Keep trial_ends_at fresh so our dashboard shows the right date
+            // through Stripe-side changes (pause, resume, trial extension).
+            if (trialEndIso) update.trial_ends_at = trialEndIso;
+
             await supabase
-              .from('agent_config')
-              .update({ is_active: true, agent_status: 'online' })
-              .eq('client_id', client.id);
+              .from('clients')
+              .update(update)
+              .eq('id', client.id);
+
+            // Agent lifecycle: deactivate on cancel/pause, activate on
+            // active/trial (customer is paying or in a paid-for trial).
+            if (status === 'cancelled' || status === 'paused') {
+              await supabase
+                .from('agent_config')
+                .update({ is_active: false, agent_status: 'offline' })
+                .eq('client_id', client.id);
+            } else if (status === 'active' || status === 'trial') {
+              await supabase
+                .from('agent_config')
+                .update({ is_active: true, agent_status: 'online' })
+                .eq('client_id', client.id);
+            }
           }
         }
 
