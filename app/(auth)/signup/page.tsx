@@ -408,12 +408,12 @@ function SignupWizard() {
             )}
 
             {step === 5 && (
-              <div className="max-w-5xl mx-auto">
+              <div className="max-w-3xl mx-auto">
                 <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-2">
-                  Hire your AI Employee
+                  You&apos;re one click from your AI Employee
                 </h2>
                 <p className="text-slate-400 text-center mb-8">
-                  No long contracts. Cancel anytime.
+                  Review the offer below, then hit &quot;Start my 5-day trial&quot; to pay £20 and get started.
                 </p>
 
                 <PlanCards
@@ -465,13 +465,9 @@ function SignupWizard() {
               className="flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white text-sm font-semibold hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-500/25"
             >
               {loading ? (
-                'Processing...'
-              ) : form.plan === 'trial' ? (
-                <>Try Nexley AI — 5 days<ArrowRight size={16} /></>
-              ) : form.plan === 'voice' ? (
-                <>Hire AI Employee + Voice<ArrowRight size={16} /></>
+                <>Redirecting to Stripe…</>
               ) : (
-                <>Hire your AI Employee<ArrowRight size={16} /></>
+                <>Start my 5-day trial — £20<ArrowRight size={16} /></>
               )}
             </button>
           )}

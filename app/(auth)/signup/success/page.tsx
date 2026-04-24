@@ -1,13 +1,19 @@
 'use client'
 
 import { motion } from 'motion/react'
-import { CheckCircle, Sparkles, ArrowRight } from 'lucide-react'
+import { CheckCircle, Sparkles, ArrowRight, Server, Smartphone, MessageSquare } from 'lucide-react'
 import Link from 'next/link'
 
+/**
+ * Post-payment landing. The customer just paid £20, their card is on file,
+ * their 5-day trial is active, and the webhook has kicked off VPS provisioning.
+ * We don't bother verifying the Stripe session_id server-side — the webhook
+ * is the source of truth. Here we just reassure + give them next steps.
+ */
 export default function SignupSuccessPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#0a0e1a]">
-      {/* Background */}
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#0a0e1a] py-10">
+      {/* Ambient background */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-indigo-500/20 blur-[100px] animate-pulse" />
         <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-emerald-500/15 blur-[100px] animate-pulse" style={{ animationDelay: '1s' }} />
@@ -19,7 +25,7 @@ export default function SignupSuccessPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-md mx-4 relative z-10"
+        className="w-full max-w-xl mx-4 relative z-10"
       >
         {/* Logo */}
         <motion.div
@@ -54,24 +60,60 @@ export default function SignupSuccessPage() {
             </div>
           </motion.div>
 
-          <h1 className="text-xl font-semibold mb-2 text-white">Payment successful</h1>
-          <p className="text-sm text-slate-400 mb-6">
-            Your subscription is active. Check your email for a magic link to access your dashboard and set up your AI Employee.
+          <h1 className="text-2xl font-semibold mb-2 text-white">
+            Payment received — welcome aboard
+          </h1>
+          <p className="text-sm text-slate-400 mb-8">
+            £20 charged · 5-day trial active · £599/mo auto-bills on Day 6 unless you cancel
           </p>
+
+          {/* Next steps timeline */}
+          <div className="text-left space-y-4 mb-8">
+            <StepItem
+              icon={<Server size={16} />}
+              title="We're building your AI Employee right now"
+              body="A dedicated Hetzner server is spinning up just for you. Takes about 15 minutes — happens in the background, no action needed."
+            />
+            <StepItem
+              icon={<Smartphone size={16} />}
+              title="Next: pair your WhatsApp"
+              body="Sign in, and you'll be taken to a page with a QR code. Scan it with WhatsApp Business on your phone — one scan and you're live."
+            />
+            <StepItem
+              icon={<MessageSquare size={16} />}
+              title="Then: connect Gmail, Calendar, Xero"
+              body="One click each from the Integrations tab. Your AI Employee uses them automatically once connected."
+            />
+          </div>
 
           <Link
             href="/login"
             className="inline-flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold text-white transition-all bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40"
           >
-            Go to sign in
+            Sign in to your dashboard
             <ArrowRight size={16} />
           </Link>
         </motion.div>
 
         <p className="text-center text-xs mt-6 text-slate-500">
-          Didn&apos;t get the email? Check your spam folder or sign in to request a new link.
+          Questions? Email <a href="mailto:hello@nexley.ai" className="text-indigo-400 hover:text-indigo-300">hello@nexley.ai</a>.
+          You&apos;ll also get a receipt email from Stripe within a minute.
         </p>
       </motion.div>
+    </div>
+  )
+}
+
+function StepItem({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-indigo-500/15 flex items-center justify-center text-indigo-400 mt-0.5">
+        {icon}
+      </div>
+      <div>
+        <p className="text-sm font-medium text-white mb-0.5">{title}</p>
+        <p className="text-xs text-slate-400 leading-relaxed">{body}</p>
+      </div>
     </div>
   )
 }

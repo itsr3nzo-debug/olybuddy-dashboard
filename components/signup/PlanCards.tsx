@@ -1,8 +1,8 @@
 'use client'
 
 import { motion } from 'motion/react'
-import { Check, Star, Phone } from 'lucide-react'
-import { PLAN_DETAILS } from '@/lib/stripe'
+import { Check, Sparkles } from 'lucide-react'
+import { useEffect } from 'react'
 
 interface PlanCardsProps {
   selected: string
@@ -10,136 +10,89 @@ interface PlanCardsProps {
   industry: string
 }
 
-const PLAN_ORDER = ['trial', 'employee', 'voice'] as const
+/**
+ * Single offer card. We used to show a 3-tier picker (Trial / Employee /
+ * Voice) but all three routed to the same £20 onboarding + £599/mo flow —
+ * misleading UX for anyone who picked "Voice — £999/mo". Product is a
+ * single all-inclusive tier, so the signup surface now mirrors that.
+ *
+ * The parent form still tracks `selected` (stays as 'trial' internally so
+ * the POST body + CTA label keep working); we just display one beautifully
+ * clear offer instead of three conflicting cards.
+ */
+const FEATURES = [
+  'AI Employee answering every WhatsApp message 24/7',
+  'Every inbound phone call answered by Ava (our voice AI)',
+  'Automated follow-ups, quotes, bookings, review requests',
+  'Dedicated private server provisioned just for your business',
+  'Connect Gmail, Calendar, Xero, HubSpot from your dashboard',
+  'Cancel in two clicks from your dashboard — no awkward calls',
+]
 
 export default function PlanCards({ selected, onSelect }: PlanCardsProps) {
+  // Auto-select 'trial' — this is the only plan code the backend now offers.
+  // Keeping a selected value means the parent form's Continue button enables.
+  useEffect(() => {
+    if (selected !== 'trial') onSelect('trial')
+  }, [selected, onSelect])
+
   return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-      {PLAN_ORDER.map((planKey, i) => {
-        const plan = PLAN_DETAILS[planKey]
-        if (!plan) return null
+    <div className="mx-auto max-w-2xl">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        className="relative rounded-3xl border border-indigo-500/30 p-8 sm:p-10 overflow-hidden"
+        style={{
+          background:
+            'linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(139,92,246,0.08) 100%)',
+        }}
+      >
+        {/* subtle ambient glow */}
+        <div className="pointer-events-none absolute -top-24 -right-24 w-64 h-64 rounded-full bg-indigo-500/20 blur-[80px]" />
+        <div className="pointer-events-none absolute -bottom-24 -left-24 w-64 h-64 rounded-full bg-violet-500/15 blur-[80px]" />
 
-        const isSelected = selected === planKey
-        const isTrial = planKey === 'trial'
-        const isEmployee = planKey === 'employee'
-        const isVoice = planKey === 'voice'
+        {/* "5-Day Trial · No risk" pill */}
+        <div className="relative flex justify-center mb-6">
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-indigo-500 px-3 py-1 text-xs font-semibold text-white shadow-lg shadow-indigo-500/30">
+            <Sparkles size={12} fill="currentColor" />
+            5-Day Trial · No risk
+          </div>
+        </div>
 
-        return (
-          <motion.button
-            key={planKey}
-            onClick={() => onSelect(planKey)}
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              type: 'spring',
-              stiffness: 400,
-              damping: 30,
-              delay: i * 0.06,
-            }}
-            whileTap={{ scale: 0.98 }}
-            className={`
-              relative flex flex-col rounded-2xl border p-6 text-left
-              backdrop-blur transition-all duration-200
-              ${
-                isSelected
-                  ? isVoice
-                    ? 'border-violet-500 bg-violet-500/10 shadow-[0_0_28px_rgba(139,92,246,0.18)]'
-                    : 'border-blue-500 bg-blue-500/10 shadow-[0_0_28px_rgba(59,130,246,0.18)]'
-                  : isEmployee
-                    ? 'border-blue-500/30 bg-white/5 hover:border-blue-500/50 hover:bg-white/[0.07]'
-                    : isVoice
-                      ? 'border-violet-500/20 bg-white/5 hover:border-violet-500/40 hover:bg-white/[0.07]'
-                      : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/[0.07]'
-              }
-            `}
-          >
-            {/* Most Popular badge on AI Employee */}
-            {isEmployee && (
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                <div className="flex items-center gap-1 rounded-full bg-blue-500 px-3 py-1 text-xs font-semibold text-white shadow-lg">
-                  <Star className="h-3 w-3" fill="currentColor" />
-                  Most Popular
-                </div>
+        {/* Price block */}
+        <div className="relative text-center mb-8">
+          <p className="text-xs uppercase tracking-widest text-white/50 mb-3">
+            Your AI Employee
+          </p>
+          <div className="flex items-baseline justify-center gap-2 mb-2">
+            <span className="text-6xl font-bold text-white tabular-nums">£20</span>
+            <span className="text-lg text-white/60">today</span>
+          </div>
+          <p className="text-sm text-white/60">
+            Then <span className="font-semibold text-white">£599/month</span> from Day 6 — cancel anytime during the trial
+          </p>
+        </div>
+
+        {/* Features */}
+        <ul className="relative space-y-3 mb-8">
+          {FEATURES.map((feature) => (
+            <li key={feature} className="flex items-start gap-3">
+              <div className="mt-0.5 flex-shrink-0 rounded-full bg-emerald-500/15 p-0.5">
+                <Check size={14} className="text-emerald-400" strokeWidth={3} />
               </div>
-            )}
+              <span className="text-sm text-white/80 leading-snug">{feature}</span>
+            </li>
+          ))}
+        </ul>
 
-            {/* Includes Voice badge */}
-            {isVoice && (
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                <div className="flex items-center gap-1.5 rounded-full bg-violet-500 px-3 py-1 text-xs font-semibold text-white shadow-lg">
-                  <Phone className="h-3 w-3" />
-                  Includes Voice
-                </div>
-              </div>
-            )}
-
-            {/* Plan name row */}
-            <div className="flex items-center gap-2 mb-1">
-              {isVoice && (
-                <div className={`rounded-lg p-1.5 ${isSelected ? 'bg-violet-500/20' : 'bg-white/[0.06]'}`}>
-                  <Phone className={`h-4 w-4 ${isSelected ? 'text-violet-400' : 'text-white/40'}`} />
-                </div>
-              )}
-              <p className={`text-sm font-semibold tracking-wide ${
-                isSelected
-                  ? isVoice ? 'text-violet-400' : 'text-blue-400'
-                  : 'text-white/60'
-              }`}>
-                {plan.name}
-              </p>
-            </div>
-
-            {/* Subtitle */}
-            <p className="text-xs text-white/38 mb-4 leading-snug">{plan.subtitle}</p>
-
-            {/* Price */}
-            <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-bold text-white">{plan.price}</span>
-              <span className="text-sm text-white/40">{plan.period}</span>
-            </div>
-
-            {/* Divider */}
-            <div className={`my-4 h-px ${isSelected && isVoice ? 'bg-violet-500/20' : isSelected ? 'bg-blue-500/20' : 'bg-white/10'}`} />
-
-            {/* Features */}
-            <ul className="flex flex-1 flex-col gap-2.5">
-              {plan.features.map((feature) => (
-                <li key={feature} className="flex items-start gap-2">
-                  <Check
-                    className={`mt-0.5 h-4 w-4 flex-shrink-0 ${
-                      isSelected
-                        ? isVoice ? 'text-violet-400' : 'text-blue-400'
-                        : 'text-emerald-400/70'
-                    }`}
-                    strokeWidth={2.5}
-                  />
-                  <span className="text-sm leading-snug text-white/70">{feature}</span>
-                </li>
-              ))}
-            </ul>
-
-            {/* CTA button */}
-            <div className={`
-              mt-6 rounded-xl py-3 text-center text-sm font-semibold transition-colors
-              ${
-                isSelected
-                  ? isVoice
-                    ? 'bg-violet-500 text-white'
-                    : 'bg-blue-500 text-white'
-                  : isVoice
-                    ? 'border border-violet-500/25 bg-violet-500/8 text-violet-300/60'
-                    : 'bg-white/8 text-white/55'
-              }
-            `}>
-              {isTrial
-                ? 'Try Nexley AI — 5 days'
-                : isVoice
-                  ? 'Hire AI Employee + Voice'
-                  : 'Hire your AI Employee'}
-            </div>
-          </motion.button>
-        )
-      })}
+        {/* Divider + footnote (the Continue button lives in the parent form) */}
+        <div className="relative h-px bg-white/10 mb-5" />
+        <p className="relative text-center text-xs text-white/50">
+          £20 charged securely by Stripe. You&apos;ll get a full 5-day trial on a dedicated server.
+          On Day 6 your card is auto-billed £599 unless you cancel first.
+        </p>
+      </motion.div>
     </div>
   )
 }
