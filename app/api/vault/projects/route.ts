@@ -42,17 +42,15 @@ export async function GET(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Attach file counts — single extra query so the table view isn't N+1.
+  // Attach file counts via a Postgres GROUP BY RPC. The previous impl
+  // pulled every file row and counted them in JS — fine for 10-file
+  // projects, catastrophic once a client archives 20k+ documents.
   const ids = (data ?? []).map(p => p.id)
-  let counts: Record<string, number> = {}
+  const counts: Record<string, number> = {}
   if (ids.length > 0) {
-    const { data: rows } = await reader
-      .from('vault_files')
-      .select('project_id')
-      .in('project_id', ids)
-      .is('deleted_at', null)
-    for (const row of rows ?? []) {
-      counts[row.project_id] = (counts[row.project_id] ?? 0) + 1
+    const { data: rows } = await reader.rpc('vault_project_file_counts', { p_project_ids: ids })
+    for (const row of (rows ?? []) as Array<{ project_id: string; file_count: number | string }>) {
+      counts[row.project_id] = Number(row.file_count)
     }
   }
 

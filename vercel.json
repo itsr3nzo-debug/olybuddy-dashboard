@@ -52,5 +52,8 @@
       "path": "/api/cron/briefings?kind=vat-sanity",
       "schedule": "45 9 * * *"
     }
+  ],
+  "alias": [
+    "nexley.vercel.app"
   ]
 }

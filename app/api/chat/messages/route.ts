@@ -3,16 +3,34 @@ import { createClient } from '@/lib/supabase/server';
 import { resolveClientId, isSuperAdmin } from '@/lib/chat/resolve-client';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 
+// Hard upper bounds on the body so we fail fast instead of OOM-ing the
+// function on a malicious / runaway client. Real messages are well
+// under 100 KB; 2 MB is generous. Attachments come via Supabase Storage
+// direct-upload so the JSON body is only metadata.
+const MAX_BODY_BYTES = 2 * 1024 * 1024;
+const MAX_CONTENT_CHARS = 100_000;
+const MAX_ATTACHMENTS = 20;
+// Per-user rolling 60s window. 10/min is plenty for a human (even rapid
+// edit-and-resend); anything over is runaway client / abuse. Counted by
+// the check_chat_rate_limit RPC against agent_chat_messages+sessions,
+// so every burst attempt is throttled regardless of which session it
+// lands in.
+const RATE_LIMIT_PER_MINUTE = 10;
+
 /**
  * POST /api/chat/messages
  * Body: { session_id?: string, content: string, create_if_missing?: boolean,
- *         title?: string, client_id?: string (admin-only override) }
+ *         title?: string, client_id?: string (admin-only override),
+ *         parent_id?: string (for edit-as-sibling),
+ *         idempotency_key?: uuid }
  *   - writes a user message with status='done'
  *   - inserts an assistant placeholder row (status='pending'), which the VPS
  *     bridge picks up via realtime and fills in.
+ *   - both rows are inserted atomically via insert_chat_message_pair RPC.
  *
  * super_admin may pass client_id in the body to chat as any client. Owner/member
- * are always pinned to their assigned client_id.
+ * are always pinned to their assigned client_id. Admin impersonations are
+ * recorded in admin_audit_log before the write is attempted.
  */
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -20,6 +38,30 @@ export async function POST(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
+  // Rate limit before touching the body — cheap SQL count, filters the
+  // abuser out before we spend any cycles parsing JSON. Service-role
+  // client because the RPC is SECURITY DEFINER and needs the plain key
+  // to bypass our own RLS policies.
+  {
+    const rlClient = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } },
+    );
+    const { data: rl } = await rlClient.rpc('check_chat_rate_limit', { p_user_id: user.id });
+    const sent = Array.isArray(rl) && rl[0]?.message_count ? Number(rl[0].message_count) : 0;
+    if (sent >= RATE_LIMIT_PER_MINUTE) {
+      return NextResponse.json(
+        {
+          error: 'rate_limited',
+          message: `Too many messages — ${RATE_LIMIT_PER_MINUTE} per minute. Please slow down.`,
+          retry_after_seconds: 60,
+        },
+        { status: 429, headers: { 'Retry-After': '60' } },
+      );
+    }
+  }
 
   let body: {
     session_id?: string;
@@ -34,6 +76,13 @@ export async function POST(req: Request) {
      * than a fresh child at the end of the thread. */
     parent_id?: string | null;
   };
+  // Guard the body size before parsing — JSON.parse on a 50MB blob will OOM
+  // the function. If Content-Length is missing (chunked) we parse anyway
+  // and rely on V8's own limits, but the typical client does set it.
+  const lenHeader = req.headers.get('content-length');
+  if (lenHeader && Number(lenHeader) > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: 'payload too large' }, { status: 413 });
+  }
   try {
     body = await req.json();
   } catch {
@@ -41,9 +90,35 @@ export async function POST(req: Request) {
   }
 
   const content = typeof body.content === 'string' ? body.content.trim() : '';
+  if (content.length > MAX_CONTENT_CHARS) {
+    return NextResponse.json({ error: 'content too long' }, { status: 413 });
+  }
   const attachments = Array.isArray(body.attachments) ? body.attachments : [];
+  if (attachments.length > MAX_ATTACHMENTS) {
+    return NextResponse.json({ error: `max ${MAX_ATTACHMENTS} attachments per message` }, { status: 413 });
+  }
   if (!content && attachments.length === 0) {
     return NextResponse.json({ error: 'content or attachments required' }, { status: 400 });
+  }
+
+  // Idempotency — clients may retry on network blip. If the same key has
+  // been seen in the last 24h, return the stored response instead of
+  // inserting a duplicate pair.
+  const idempotencyKey = req.headers.get('x-idempotency-key');
+  if (idempotencyKey && /^[0-9a-f-]{36}$/i.test(idempotencyKey)) {
+    const svc = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } },
+    );
+    const { data: prior } = await svc
+      .from('request_idempotency')
+      .select('response_json')
+      .eq('key', idempotencyKey)
+      .maybeSingle();
+    if (prior?.response_json) {
+      return NextResponse.json(prior.response_json);
+    }
   }
 
   const { clientId, isAdminOverride, spoofRejected } = resolveClientId(user, body.client_id);
@@ -130,56 +205,77 @@ export async function POST(req: Request) {
     userParentId = last?.id ?? null;
   }
 
-  // 1. User message
-  const userPayload: Record<string, unknown> = {
-    session_id,
-    client_id: clientId,
+  // Atomic user + assistant message insert via RPC. Both rows go in a
+  // single transaction so a failure half-way can't leave the thread with
+  // an orphaned user row + no placeholder for the bridge.
+  const meta = attachments.length > 0 ? { attachments } : null;
+  const { data: pair, error: rpcErr } = await service.rpc('insert_chat_message_pair', {
+    p_session_id: session_id,
+    p_client_id: clientId,
+    p_content: content,
+    p_parent_id: userParentId,
+    p_metadata: meta,
+  });
+  if (rpcErr || !pair || pair.length === 0) {
+    return NextResponse.json(
+      { error: `message insert failed: ${rpcErr?.message || 'no rows returned'}` },
+      { status: 500 },
+    );
+  }
+  const row = pair[0] as { user_id: string; user_created_at: string; assistant_id: string; assistant_created_at: string };
+  const userMsg = {
+    id: row.user_id,
     role: 'user',
     content,
     status: 'done',
-    completed_at: new Date().toISOString(),
+    created_at: row.user_created_at,
+    completed_at: row.user_created_at,
+    metadata: meta,
     parent_id: userParentId,
   };
-  if (attachments.length > 0) userPayload.metadata = { attachments };
-  const { data: userMsg, error: uErr } = await writer
-    .from('agent_chat_messages')
-    .insert(userPayload)
-    .select('id, role, content, status, created_at, completed_at, metadata, parent_id')
-    .single();
+  const asst = {
+    id: row.assistant_id,
+    role: 'assistant',
+    status: 'pending',
+    created_at: row.assistant_created_at,
+    parent_id: row.user_id,
+  };
 
-  if (uErr) return NextResponse.json({ error: uErr.message }, { status: 500 });
-
-  // 2. Assistant placeholder — always written with service role because RLS
-  //    restricts INSERT role='user' only for clients, and assistant rows
-  //    come from the VPS anyway. Assistant row parents itself to the user
-  //    message so the thread forms a tree (user_parent → user → assistant).
-  const { data: asst, error: aErr } = await service
-    .from('agent_chat_messages')
-    .insert({
-      session_id,
+  // Audit admin impersonation — blocking await so we never silently lose
+  // the record of who chatted as whom.
+  if (isAdminOverride) {
+    await service.from('admin_audit_log').insert({
+      admin_user_id: user.id,
+      admin_email: user.email ?? null,
       client_id: clientId,
-      role: 'assistant',
-      content: '',
-      status: 'pending',
-      parent_id: userMsg.id,
-    })
-    .select('id, role, status, created_at, parent_id')
-    .single();
-
-  if (aErr || !asst) {
-    return NextResponse.json(
-      { error: `assistant placeholder: ${aErr?.message || 'unknown'}` },
-      { status: 500 }
-    );
+      action: 'chat_message_send',
+      target_kind: 'session',
+      target_id: session_id,
+      context: { message_id: row.user_id, content_length: content.length },
+    });
   }
 
-  if (isAdminOverride) console.log(`[admin] ${user.email} chatted as client ${clientId}`);
-
-  return NextResponse.json({
+  const responsePayload = {
     session_id,
     user_message: userMsg,
     assistant_message: asst,
-  });
+  };
+
+  // Persist the idempotency key + response so replays within 24h return
+  // the same result without double-inserting.
+  if (idempotencyKey && /^[0-9a-f-]{36}$/i.test(idempotencyKey)) {
+    await service.from('request_idempotency').upsert(
+      {
+        key: idempotencyKey,
+        user_id: user.id,
+        endpoint: '/api/chat/messages',
+        response_json: responsePayload,
+      },
+      { onConflict: 'key' },
+    );
+  }
+
+  return NextResponse.json(responsePayload);
 }
 
 // Silence unused warning for isSuperAdmin when imported by other routes later

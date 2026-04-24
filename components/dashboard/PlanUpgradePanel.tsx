@@ -3,11 +3,20 @@ import { Sparkles, ArrowRight, CheckCircle2, Zap } from 'lucide-react'
 
 type ClientRow = {
   id: string
+  email: string | null
   subscription_status: string | null
   subscription_plan: string | null
   stripe_customer_id: string | null
   stripe_subscription_id: string | null
   trial_ends_at: string | null
+}
+
+// Internal Nexley team accounts don't pay for the product. Suppress the
+// billing CTAs so the admin/demo clients aren't nagged to "Set up billing".
+function isInternalAccount(client: ClientRow): boolean {
+  if (client.email?.toLowerCase().endsWith('@nexley.ai')) return true
+  if (client.subscription_plan === 'enterprise') return true
+  return false
 }
 
 /**
@@ -29,12 +38,15 @@ export default async function PlanUpgradePanel({ clientId }: { clientId: string 
   const supabase = await createClient()
   const { data } = await supabase
     .from('clients')
-    .select('id, subscription_status, subscription_plan, stripe_customer_id, stripe_subscription_id, trial_ends_at')
+    .select('id, email, subscription_status, subscription_plan, stripe_customer_id, stripe_subscription_id, trial_ends_at')
     .eq('id', clientId)
     .single()
 
   const client = data as ClientRow | null
   if (!client) return null
+
+  // Internal Nexley team accounts — hide the nag
+  if (isInternalAccount(client)) return null
 
   // Active paying customer — no upgrade panel needed
   if (

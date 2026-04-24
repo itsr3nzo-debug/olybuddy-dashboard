@@ -177,6 +177,27 @@ export default function ChatApp(props: ChatAppProps) {
   // selected; we only show the indicator for `error` / `closed`.
   const [rtStatus, setRtStatus] = useState<RealtimeStatus>('idle');
 
+  // Global reconnection banner — appears at the top of the chat pane when
+  // the realtime websocket has been closed/errored for >10s. This is
+  // separate from the header pill, which only shows during an in-flight
+  // reply; the banner always shows regardless so the user is never left
+  // wondering why "nothing's happening". Polling fallback still works in
+  // the background, so they're not actually stuck — just slower.
+  const [showReconnectBanner, setShowReconnectBanner] = useState(false);
+  const [reconnectNonce, setReconnectNonce] = useState(0);
+  useEffect(() => {
+    const bad = rtStatus === 'closed' || rtStatus === 'error';
+    if (!bad) {
+      setShowReconnectBanner(false);
+      return;
+    }
+    // Only fire the banner after 10s of continuous bad status. Transient
+    // drops happen all the time (page sleep, wifi hiccup) — shoving a
+    // banner up on every blink would be noise.
+    const t = setTimeout(() => setShowReconnectBanner(true), 10_000);
+    return () => clearTimeout(t);
+  }, [rtStatus]);
+
   const currentSession = sessions.find((s) => s.id === currentSessionId) || null;
 
   // Realtime ──────────────────────────────────────────────────────────

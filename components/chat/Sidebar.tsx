@@ -6,7 +6,7 @@ import {
   MoreHorizontal, ChevronDown, Pin, Trash2, Pencil, Download, History,
   Book, PanelLeft, HelpCircle, LogOut, Zap, Users,
 } from 'lucide-react';
-import { cx, relativeTime, groupSessionsByDate } from '@/lib/chat/utils';
+import { cx, relativeTime, absoluteTime, groupSessionsByDate } from '@/lib/chat/utils';
 import type { Session } from '@/lib/chat/types';
 import { useClient } from '@/lib/chat/client-context';
 import { createClient } from '@/lib/supabase/client';
@@ -452,6 +452,7 @@ function SessionItem({ session, active, onSelect, onRename, onDelete, onPin }: {
       ) : (
         <button
           onClick={onSelect}
+          title={`${session.title}\n${absoluteTime(session.updatedAt ?? session.createdAt)}`}
           className={cx(
             'w-full text-left pl-2 pr-7 py-1 rounded-md text-[12.5px] truncate transition-colors focus-ring',
             active ? 'bg-subtle fg-base' : 'fg-subtle hover:bg-hover hover:fg-base'

@@ -23,6 +23,12 @@ export function useChatRealtime(
   sessionId: string | null,
   onMessage: (msg: Message, kind: 'insert' | 'update') => void,
   onStatus?: (status: RealtimeStatus) => void,
+  /**
+   * Bump this to force a tear-down + fresh subscribe. Used by the
+   * "Reconnect" button on the dropped-connection banner so the user can
+   * manually retry instead of waiting for Supabase's internal backoff.
+   */
+  reconnectKey?: number,
 ): void {
   useEffect(() => {
     if (!sessionId) {
@@ -72,5 +78,7 @@ export function useChatRealtime(
       supabase.removeChannel(channel);
       onStatus?.('closed');
     };
-  }, [sessionId, onMessage, onStatus]);
+    // reconnectKey is listed so a bump triggers tear-down + re-subscribe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, onMessage, onStatus, reconnectKey]);
 }

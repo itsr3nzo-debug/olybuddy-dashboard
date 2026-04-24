@@ -680,3 +680,27 @@ a { color: inherit; }
   white-space: nowrap;
 }
 
+/* ------- Reduced-motion fallback -------
+ * Respect the OS-level "Reduce motion" accessibility setting. We don't
+ * strip animations entirely — layout needs to settle — but we collapse
+ * every duration to ~1 frame so the motion is imperceptible. This
+ * covers every animation/transition on this page without listing them
+ * by name: bubble-in, fade-in, shimmer, streaming cursor pulse,
+ * skeleton loader, sidebar width resize, etc.
+ *
+ * Exception: the streaming cursor and thinking dots are purely
+ * decorative — hide them rather than flash-static them, so reduced-
+ * motion users don't get a jarring solid block. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .streaming-cursor,
+  .typing-dot {
+    display: none !important;
+  }
+}
+

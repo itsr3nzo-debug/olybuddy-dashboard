@@ -8,7 +8,7 @@ import {
   Briefcase, Receipt, Copy, RefreshCw, ThumbsUp, ThumbsDown, X,
   ImageIcon, Film, FileAudio, File as FileIconLucide, Mic, MicOff,
 } from 'lucide-react';
-import { cx, relativeTime } from '@/lib/chat/utils';
+import { cx, relativeTime, absoluteTime } from '@/lib/chat/utils';
 import { renderMarkdown } from '@/lib/chat/markdown';
 import { uploadAttachment } from '@/lib/chat/upload';
 import { useClient } from '@/lib/chat/client-context';
@@ -733,7 +733,7 @@ export function UserBubble({ message, onEdit }: { message: Message; onEdit?: (me
     <div
       className="flex flex-col items-end gap-1.5 anim-bubble-in group"
       data-message-id={message.id}
-      title={relativeTime(message.createdAt)}
+      title={absoluteTime(message.createdAt)}
     >
       {atts.length > 0 && (
         <div className="flex flex-wrap justify-end gap-2 max-w-[80%]">
@@ -916,6 +916,7 @@ function AssistantBubbleInner({ message, onOpenSource, streamingText, isActive, 
     <div
       className={cx('flex gap-3 group anim-bubble-in', isActive && 'relative')}
       data-message-id={message.id}
+      title={absoluteTime(message.createdAt)}
     >
       <div
         className="flex-shrink-0 h-7 w-7 rounded-full inline-flex items-center justify-center text-[11px] font-semibold"

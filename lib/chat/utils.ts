@@ -24,6 +24,33 @@ export function relativeTime(iso: string | undefined | null): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+/**
+ * Absolute, pinpoint-accurate timestamp for hover tooltips. Visible
+ * bubbles keep the relative label ("2 min ago") because it matches how
+ * humans think; the tooltip gives them the exact moment when they
+ * actually need it (debugging, citing, scrolling far back in history).
+ *
+ * Uses the caller's locale + timezone via `Intl.DateTimeFormat` with
+ * `dateStyle: 'medium'` and `timeStyle: 'short'` so it reads
+ * naturally in en-GB ("24 Apr 2026, 14:23"), en-US ("Apr 24, 2026,
+ * 2:23 PM"), de-DE, etc. without any manual formatting.
+ */
+export function absoluteTime(iso: string | undefined | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(d);
+  } catch {
+    // Intl.DateTimeFormat options are widely supported but fall back
+    // gracefully on ancient engines.
+    return d.toLocaleString();
+  }
+}
+
 export function groupSessionsByDate(sessions: Session[]): Array<[string, Session[]]> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);

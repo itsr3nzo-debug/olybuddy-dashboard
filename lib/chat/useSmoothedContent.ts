@@ -3,6 +3,26 @@
 import { useEffect, useRef, useState } from 'react';
 
 /**
+ * Reads OS-level "Reduce motion" preference. When set, we skip the
+ * typewriter RAF loop entirely and snap to the target immediately — a
+ * motion-sensitive user doesn't want a 4-second animated reveal of a
+ * 240-char reply. Purely client-side; defaults to `false` on the
+ * server so SSR output matches the first client render.
+ */
+function useReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReduced(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return reduced;
+}
+
+/**
  * Smooth out bursty content updates into a steady-pace typewriter reveal.
  *
  * The bridge writes to Supabase in ~40-char bursts (every ~1.5s or every
@@ -26,10 +46,13 @@ export function useSmoothedContent(
   const [display, setDisplay] = useState(target);
   const rafRef = useRef<number | null>(null);
   const lastTickRef = useRef<number>(0);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
-    // If streaming is off, just show whatever the target is.
-    if (!active) {
+    // Reduced motion or streaming off → snap immediately. Motion-
+    // sensitive users don't want a typewriter animation regardless of
+    // how smooth we make it.
+    if (!active || reducedMotion) {
       setDisplay(target);
       lastTickRef.current = 0;
       if (rafRef.current) {
@@ -75,7 +98,7 @@ export function useSmoothedContent(
     // setter so we don't need it as a dep. Including it would restart
     // the RAF on every frame, which is exactly what we want to avoid.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target, active, charsPerSec]);
+  }, [target, active, charsPerSec, reducedMotion]);
 
   return display;
 }

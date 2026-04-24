@@ -71,6 +71,19 @@ export interface PostMessageResult {
   assistant_message: Message;
 }
 
+// tiny RFC4122 v4 generator — only used for idempotency keys, no need for a full uuid dep
+function randomUuid(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback for older browsers
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.floor(Math.random() * 16);
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export async function postMessage(
   content: string,
   session_id: string | null,
@@ -78,9 +91,16 @@ export async function postMessage(
   attachments?: Message['attachments'],
   parentId?: string | null,
 ): Promise<PostMessageResult> {
+  // Idempotency — if this same fetch retries (browser retry / connection
+  // blip / user double-send), the server returns the first response
+  // rather than creating duplicate messages. Valid for 24h.
+  const idempotencyKey = randomUuid();
   const res = await fetch('/api/chat/messages', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Idempotency-Key': idempotencyKey,
+    },
     body: JSON.stringify({
       content,
       session_id: session_id ?? undefined,
@@ -95,7 +115,22 @@ export async function postMessage(
       parent_id: parentId ?? undefined,
     }),
   });
-  if (!res.ok) throw new Error('postMessage failed');
+  if (!res.ok) {
+    // Try to surface the server's error message (rate-limited, payload
+    // too large, etc.) so the UI can show something useful instead of
+    // the generic "postMessage failed". Fall back to the generic if the
+    // body isn't JSON.
+    let serverMsg: string | null = null;
+    try {
+      const errBody = await res.json();
+      serverMsg = typeof errBody?.message === 'string' ? errBody.message
+        : typeof errBody?.error === 'string' ? errBody.error
+        : null;
+    } catch { /* non-JSON response */ }
+    const err = new Error(serverMsg || 'postMessage failed') as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
   return await res.json();
 }
 
