@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Sparkles, LayoutDashboard, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Plug, Shield, Users, Bot, Target } from 'lucide-react'
+import { Sparkles, LayoutDashboard, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Plug, Shield, Users, Bot, Target, CreditCard } from 'lucide-react'
 import type { UserRole } from '@/lib/rbac'
 import { MEMBER_BLOCKED_PAGES } from '@/lib/rbac'
 
@@ -19,13 +19,19 @@ const allNavItems = [
   { href: '/integrations',          label: 'Integrations', Icon: Plug },
   { href: '/settings/sender-roles', label: 'Sender Roles', Icon: Users },
   { href: '/settings/agent-trust',  label: 'Agent trust',  Icon: Shield },
+  { href: '/settings/billing',      label: 'Billing',      Icon: CreditCard },
   { href: '/settings',              label: 'Settings',     Icon: Settings },
 ]
 
 function getNavItems(role: UserRole) {
   let items = allNavItems
   if (role === 'member') {
-    items = items.filter(item => !MEMBER_BLOCKED_PAGES.includes(item.href))
+    // Match the page-level access check (which treats /settings/foo as blocked
+    // when /settings is in the list). Strict equality here would show links
+    // that 307-redirect away when clicked — ugly for members.
+    items = items.filter(item =>
+      !MEMBER_BLOCKED_PAGES.some(p => item.href === p || item.href.startsWith(p + '/'))
+    )
   }
   if (role === 'super_admin') {
     items = [
