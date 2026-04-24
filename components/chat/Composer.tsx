@@ -365,6 +365,54 @@ export function SourceChip({ source, onOpen }: { source: Source; onOpen: (s: Sou
   );
 }
 
+/**
+ * Chip for a vault file the agent cited with `[vault:<uuid>]`. On mount we
+ * resolve the file to its filename + signed URL via /api/vault/files/[id]/url;
+ * click opens the signed URL in a new tab. RLS on the url endpoint means a
+ * citation for a file the user can't see will show "Unknown file" — the
+ * chip never leaks existence of cross-tenant files.
+ */
+function VaultCitationChip({ fileId }: { fileId: string }) {
+  const [state, setState] = useState<'loading' | 'ready' | 'missing'>('loading');
+  const [filename, setFilename] = useState<string>('');
+  const [url, setUrl] = useState<string>('');
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/vault/files/${fileId}/url`)
+      .then(r => r.ok ? r.json() : null)
+      .then(body => {
+        if (!alive) return;
+        if (!body || !body.filename) { setState('missing'); return; }
+        setFilename(body.filename);
+        setUrl(body.url);
+        setState('ready');
+      })
+      .catch(() => { if (alive) setState('missing'); });
+    return () => { alive = false; };
+  }, [fileId]);
+
+  const label = state === 'loading' ? 'Loading…' : state === 'missing' ? 'File unavailable' : filename;
+  const disabled = state !== 'ready';
+
+  return (
+    <a
+      href={disabled ? undefined : url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cx(
+        'inline-flex items-center gap-1.5 rounded px-2 py-1 text-[11.5px] bg-subtle transition-colors focus-ring max-w-[320px]',
+        disabled ? 'fg-muted cursor-default' : 'hover:bg-hover fg-subtle hover:fg-base',
+      )}
+      title={state === 'ready' ? `Open ${filename}` : undefined}
+      onClick={disabled ? (e) => e.preventDefault() : undefined}
+    >
+      <FileText size={12} className="flex-shrink-0" />
+      <span className="truncate">{label}</span>
+    </a>
+  );
+}
+
 export function SourceChipLarge({ source, onOpen }: { source: Source; onOpen: (s: Source) => void }) {
   const IconC = iconForSource(source.type);
   return (
@@ -500,11 +548,27 @@ interface AssistantBubbleProps {
   isActive?: boolean;
 }
 
+// Vault citation tokens the agent emits inline when it references a file
+// from the user's Vault. We strip them from the rendered text and show
+// clickable chips beneath the reply. UUID shape is the one Supabase
+// generates (8-4-4-4-12 hex).
+const VAULT_CITATION_RE = /\[vault:([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\]/g;
+function parseVaultCitations(raw: string): { stripped: string; fileIds: string[] } {
+  if (!raw) return { stripped: raw, fileIds: [] };
+  const ids = new Set<string>();
+  const stripped = raw.replace(VAULT_CITATION_RE, (_match, id: string) => {
+    ids.add(id);
+    return '';
+  }).replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+  return { stripped: stripped.trim(), fileIds: [...ids] };
+}
+
 export function AssistantBubble({ message, onOpenSource, streamingText, isActive }: AssistantBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [rating, setRating] = useState<null | 'up' | 'down'>(null);
   const isStreaming = message.status === 'drafting';
-  const content = isStreaming ? (streamingText || '') : message.content;
+  const rawContent = isStreaming ? (streamingText || '') : message.content;
+  const { stripped: content, fileIds: vaultFileIds } = parseVaultCitations(rawContent);
   // Show status pill for in-flight states so the user isn't left staring at a blank screen.
   return (
     <div className={cx('flex gap-3 group', isActive && 'relative')}>
@@ -532,13 +596,14 @@ export function AssistantBubble({ message, onOpenSource, streamingText, isActive
           </div>
         )
       }
-      {message.sources && message.sources.length > 0 && message.status === 'done' && (
+      {(vaultFileIds.length > 0 || (message.sources && message.sources.length > 0)) && message.status === 'done' && (
         <div
           className="flex flex-wrap items-center gap-1.5 mt-2 pt-2.5"
           style={{ borderTop: '1px solid rgb(var(--hy-border) / 0.6)' }}
         >
           <span className="text-[11px] fg-muted mr-1">Referenced:</span>
-          {message.sources.map(s => <SourceChip key={s.id} source={s} onOpen={onOpenSource} />)}
+          {vaultFileIds.map(id => <VaultCitationChip key={id} fileId={id} />)}
+          {message.sources?.map(s => <SourceChip key={s.id} source={s} onOpen={onOpenSource} />)}
         </div>
       )}
       {message.status === 'done' && (

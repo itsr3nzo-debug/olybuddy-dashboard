@@ -121,61 +121,12 @@ function ViewShell({ children }: { children: React.ReactNode }) {
 }
 
 /* ────────────────────────────────────────────────────────────────
-   Vault
+   Vault — the real, end-to-end implementation lives in its own file.
+   Re-exported here so existing imports (`import { VaultView } from
+   './TabViews'`) keep working.
    ──────────────────────────────────────────────────────────── */
 
-export function VaultView() {
-  const { clientName } = useClient();
-  const [q, setQ] = useState('');
-
-  return (
-    <ViewShell>
-      <ViewHeader
-        title="Vault"
-        description={`Organise documents by matter. Upload contracts, correspondence, and files — Nexley reads across the whole project so you can ask questions spanning every document in ${clientName}'s book.`}
-        action={
-          <button
-            className="inline-flex items-center gap-1.5 rounded-md px-3 h-8 text-[12px] font-medium transition-opacity focus-ring hover:opacity-90"
-            style={{ background: 'rgb(var(--hy-fg-base))', color: 'rgb(var(--hy-fg-inverse))' }}
-          >
-            <FolderPlus size={13} />
-            New project
-          </button>
-        }
-      />
-
-      <SearchRow placeholder="Search projects…" value={q} onChange={setQ} />
-
-      <EmptyState
-        icon={Folder}
-        title="No vault projects yet"
-        hint="Create a project for each matter or client. Drop in documents and Nexley can draft, review, and summarise across the whole corpus."
-        cta={{ label: 'Create your first project' }}
-      />
-
-      <div className="mt-8 pt-6 border-t-hy">
-        <h4 className="text-[11px] uppercase tracking-wider fg-muted mb-3">How teams use the Vault</h4>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {[
-            { icon: Scroll, title: 'Matter files', hint: 'All documents for a single client or case in one place.' },
-            { icon: Bookmark, title: 'Precedent library', hint: 'Reusable templates, standard clauses, and past drafts.' },
-            { icon: FilePlus2, title: 'Discovery sets', hint: 'Large document sets Nexley can search and cite from.' },
-          ].map(({ icon: IconC, title, hint }) => (
-            <div
-              key={title}
-              className="rounded-lg p-4 transition-colors hover:bg-hover"
-              style={{ border: '1px solid rgb(var(--hy-border))' }}
-            >
-              <IconC size={16} className="fg-base mb-2" />
-              <div className="text-[13px] fg-base font-medium mb-1">{title}</div>
-              <p className="text-[12px] fg-subtle leading-relaxed">{hint}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </ViewShell>
-  );
-}
+export { VaultView } from './VaultView';
 
 /* ────────────────────────────────────────────────────────────────
    Workflows
