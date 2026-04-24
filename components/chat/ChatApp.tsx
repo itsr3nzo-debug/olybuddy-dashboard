@@ -19,7 +19,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, WifiOff } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { cx } from '@/lib/chat/utils';
 import { SUGGESTIONS, WORKFLOWS } from '@/lib/chat/mock';
@@ -238,7 +238,7 @@ export default function ChatApp(props: ChatAppProps) {
     currentSessionIdRef.current = currentSessionId;
   }, [currentSessionId]);
 
-  useChatRealtime(currentSessionId, applyRealtime, setRtStatus);
+  useChatRealtime(currentSessionId, applyRealtime, setRtStatus, reconnectNonce);
 
   // Polling fallback — realtime websocket respects RLS and admin JWTs can
   // occasionally miss events. Every 2.5s, while the active session has at
@@ -713,6 +713,30 @@ export default function ChatApp(props: ChatAppProps) {
             Chatting as <strong>{props.clientName}</strong>&apos;s AI Employee. Every message you send hits the live client agent.
           </span>
           <a href="/chat" className="ml-auto underline underline-offset-2 hover:opacity-80 font-medium" style={{ color: 'rgb(120 53 15)' }}>Switch client</a>
+        </div>
+      )}
+      {showReconnectBanner && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-3 px-4 py-2 text-[12.5px] border-b-hy fg-base flex-shrink-0 anim-fade-in"
+          style={{ background: 'rgb(var(--hy-bg-hover))' }}
+        >
+          <WifiOff size={14} aria-hidden="true" className="flex-shrink-0 fg-muted" />
+          <span className="truncate flex-1">
+            Realtime connection dropped. We&rsquo;re polling for updates in the
+            background — your messages are safe.
+          </span>
+          <button
+            onClick={() => {
+              setShowReconnectBanner(false);
+              setRtStatus('connecting');
+              setReconnectNonce((n) => n + 1);
+            }}
+            className="text-[11px] px-2 py-0.5 rounded bg-surface border-hy hover:bg-hover transition-colors focus-ring"
+          >
+            Reconnect now
+          </button>
         </div>
       )}
       {errorBanner && (
