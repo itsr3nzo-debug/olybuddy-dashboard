@@ -9,17 +9,19 @@ import CallsChart, { ChartSkeleton } from '@/components/dashboard/CallsChart'
 import DashboardRealtime from '@/components/dashboard/DashboardRealtime'
 import EmptyState from '@/components/shared/EmptyState'
 import HeroRoiCard from '@/components/dashboard/HeroRoiCard'
-import WeeklyROIWidget from '@/components/dashboard/WeeklyROIWidget'
 import AgentStatusCard from '@/components/dashboard/AgentStatusCard'
 import IntegrationsCta from '@/components/dashboard/IntegrationsCta'
 import VpsHeartbeatBadge from '@/components/dashboard/VpsHeartbeatBadge'
-import WeeklyChallengeCard from '@/components/dashboard/WeeklyChallengeCard'
-import OpportunityDonut from '@/components/dashboard/OpportunityDonut'
 import type { CallLog, AgentStatus } from '@/lib/types'
-import { MessageSquare, Calendar, PoundSterling, UserPlus, Zap, Link2, Activity } from 'lucide-react'
+import { MessageSquare, Calendar, UserPlus, TrendingUp } from 'lucide-react'
 import GettingStarted from '@/components/dashboard/GettingStarted'
-import { AI_PHONE_DISPLAY } from '@/lib/constants'
 import { TimePeriodSelector } from '@/components/ui/time-period-selector'
+/* Pruned imports (WeeklyROIWidget, WeeklyChallengeCard, OpportunityDonut,
+ * PoundSterling/Zap/Link2/Activity icons, AI_PHONE_DISPLAY) — their
+ * sections were removed from the dashboard layout below as part of the
+ * simplification pass. The component files remain in the repo so they
+ * can be re-added later if the trimmed view loses a metric someone
+ * actually uses. */
 
 /* ── Helpers ─────────────────────────────────────── */
 
@@ -272,9 +274,25 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const savedSparkline = answeredSparkline.map(v => v * 15)
   const missedSparkline = buildDailySparkline(calls, c => c.status === 'no_answer' || c.status === 'failed')
 
+  // Pipeline value (formatted from pence → £, shorthand when > £10k)
+  const pipelineValuePounds = Math.round(oppTotalValue / 100)
+  const fmtShortGBP = (p: number): string => {
+    if (p === 0) return '£0'
+    if (p >= 1000000) return '£' + (p / 1000000).toFixed(1) + 'm'
+    if (p >= 10000) return '£' + Math.round(p / 1000) + 'k'
+    if (p >= 1000) return '£' + (p / 1000).toFixed(1) + 'k'
+    return '£' + p.toLocaleString('en-GB')
+  }
+
+  // `calls` / `streak` / `avgDurationStr` / `missed` retained above for any
+  // future re-add of the voice-agent sub-card; not rendered in the trimmed
+  // layout below (lint suppressed via void).
+  void answered; void missed; void streak
+
   return (
     <div>
-      {/* Header */}
+      {/* Header — minimal: title + heartbeat dot + period picker.
+          Streak badge removed (gamification for trade owners was noise). */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
@@ -284,24 +302,20 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             {periodLabel} · {allTimeMessages + allTimeCalls} conversations all time
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          {streak > 0 && (
-            <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium bg-card-bg ${streak >= 7 ? 'text-brand-success' : 'text-muted-foreground'}`}>
-              🔥 {streak}d streak
-            </div>
-          )}
-          <Suspense fallback={null}>
-            <TimePeriodSelector value={periodKey} />
-          </Suspense>
-        </div>
+        <Suspense fallback={null}>
+          <TimePeriodSelector value={periodKey} />
+        </Suspense>
       </div>
 
+      {/* Nag bar: integrations missing. Conditional, high-impact. */}
       {clientId && integrationsCount === 0 && (
         <div className="mb-6">
           <IntegrationsCta />
         </div>
       )}
 
+      {/* Orphan-client warning (super_admin whose stamped client_id doesn't
+          resolve). Kept because it's recoverable-only-by-support. */}
       {!clientId && (
         <div className="rounded-xl p-4 mb-6 border bg-brand-warning/5 border-brand-warning/20">
           <p className="text-sm text-brand-warning">
@@ -310,7 +324,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
       )}
 
-      {/* AI Employee Status */}
+      {/* AI Employee status — the "is my employee alive" signal */}
       {clientId && (
         <AgentStatusCard
           agentName={agentName}
@@ -321,13 +335,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         />
       )}
 
-      {/* Hero ROI Card */}
+      {/* One hero metric — £ saved vs hiring an admin. The pitch number. */}
       <HeroRoiCard savedPounds={savedPounds} />
 
-      {/* Weekly ROI — concrete breakdown of what the AI Employee did */}
-      {clientId && <WeeklyROIWidget />}
-
-      {/* KPI Grid */}
+      {/* KPI grid — four cards that don't duplicate the hero above.
+          Previously this grid ALSO had "Money Saved" which doubled up on
+          HeroRoi. Replaced with Pipeline value so each card covers a
+          distinct axis (volume / bookings / value / leads). */}
       <Suspense fallback={
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
           {[0,1,2,3].map(i => <KpiCardSkeleton key={i} />)}
@@ -354,15 +368,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             icon={<Calendar size={16} />}
           />
           <KpiCard
-            label="Money Saved"
-            value={savedPounds}
-            prefix="£"
-            sub="vs hiring an admin"
+            label="Pipeline value"
+            value={fmtShortGBP(pipelineValuePounds)}
+            sub={`${oppOpen} open · ${oppWon} won`}
             color="success"
             animate
-            trend={trendPct(savedPounds, prevSavedPounds)}
-            icon={<PoundSterling size={16} />}
-            sparklineData={savedSparkline}
+            icon={<TrendingUp size={16} />}
+            index={2}
           />
           <KpiCard
             label="Leads Captured"
@@ -376,44 +388,22 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
       </Suspense>
 
-      {/* Secondary KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <KpiCard label="Follow-ups Sent" value={followUpsSent} sub="automated chase messages" color="accent" animate icon={<Zap size={16} />} index={4} />
-        <KpiCard label="Active Today" value={calls.filter(c => c.started_at && new Date(c.started_at).toDateString() === today).length + (messagesThisPeriod > 0 ? 1 : 0)} sub="conversations today" color="default" animate icon={<Activity size={16} />} index={5} />
-        <KpiCard label="Integrations" value={integrationsCount} sub="apps connected" color="default" animate icon={<Link2 size={16} />} index={6} />
-      </div>
-
-      {/* Voice Agent Section — only for £999/mo Voice plan */}
-      {isVoicePlan && calls.length > 0 && (
-        <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-5 mb-6">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-violet-400 mb-3">Voice Agent</h3>
-          <div className="grid grid-cols-3 gap-4">
-            <KpiCard label="Calls Handled" value={calls.length} sub={`${answered} answered`} color="accent" />
-            <KpiCard label="Missed Calls" value={missed} sub={missed === 0 ? 'Perfect!' : 'AI will follow up'} color={missed > 0 ? 'danger' : 'success'} />
-            <KpiCard label="Avg Duration" value={avgDurationStr(calls)} sub="completed calls only" />
-          </div>
-        </div>
-      )}
-
-      {/* Getting Started — show for new clients with no activity */}
+      {/* Getting Started checklist — only shown while there's no activity at
+          all, so it doesn't shout at established clients. */}
       {clientId && totalConversations === 0 && (
         <GettingStarted hasGreeting={agentName !== 'Nexley'} hasHours={false} />
       )}
 
-      {/* Weekly Challenge */}
-      <WeeklyChallengeCard lastWeekCalls={prevTotalConversations} thisWeekCalls={totalConversations} />
-
-      {/* Pipeline Overview */}
-      <OpportunityDonut openCount={oppOpen} wonCount={oppWon} lostCount={oppLost} totalValue={oppTotalValue} />
-
-      {/* Chart */}
+      {/* Activity trend — single chart is enough. Was also paired with a
+          donut + weekly-challenge card that showed the same raw numbers in
+          different shapes; both removed. */}
       <Suspense fallback={<ChartSkeleton />}>
         <div className="mb-6">
           <CallsChart data={buildCallVolume(calls)} />
         </div>
       </Suspense>
 
-      {/* Recent Calls with Realtime */}
+      {/* Recent conversations — realtime list, the "what just happened" feed */}
       <Suspense fallback={
         <div className="rounded-xl border p-5 bg-card-bg">
           <div className="skeleton h-4 w-32 mb-4 rounded" />
