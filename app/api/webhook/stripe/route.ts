@@ -318,9 +318,32 @@ export async function POST(req: NextRequest) {
 
       case 'customer.subscription.trial_will_end': {
         // Fires 3 days before trial ends. Our 5-day trial → fires on Day 2.
-        // Email nudge handled by /api/cron/trial-sequence (Day 3/4/5 emails),
-        // so here we just log the event. Stripe auto-bills on trial end unless
-        // the user cancels or payment method is missing.
+        // Email nudge handled by /api/cron/trial-sequence (Day 3/4/5 emails).
+        // OPS Telegram alert lets Kade make a proactive conversion-boost call.
+        const sub = event.data.object;
+        try {
+          const { data: client } = await supabase
+            .from('clients')
+            .select('name, email')
+            .eq('stripe_customer_id', sub.customer)
+            .maybeSingle();
+          const botToken = process.env.TELEGRAM_BOT_TOKEN;
+          const chatId = process.env.TELEGRAM_CHAT_ID;
+          if (botToken && chatId && client) {
+            const trialEnd = sub.trial_end
+              ? new Date(sub.trial_end * 1000).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+              : 'in 3 days';
+            const msg = `⏰ Trial ending soon: ${client.name || 'customer'}\n` +
+                        `Email: ${client.email || 'unknown'}\n` +
+                        `£599/mo auto-bills on ${trialEnd}.\n` +
+                        `Consider a quick "how's it going?" message — high-value conversion moment.`;
+            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: chatId, text: msg }),
+            });
+          }
+        } catch { /* non-fatal */ }
         await supabase
           .from('stripe_events')
           .update({ processed: true, processed_at: new Date().toISOString() })
@@ -329,10 +352,44 @@ export async function POST(req: NextRequest) {
       }
 
       case 'invoice.paid': {
-        // Fires on every successful invoice — most importantly the Day 6 £599
-        // first charge. We don't need to do anything special here because the
-        // customer.subscription.updated webhook will flip status to 'active'.
-        // Just mark the event processed.
+        // Fires on every successful invoice. Most are routine monthly renewals
+        // that don't need an alert. But the FIRST charge (billing_reason =
+        // subscription_create OR subscription_cycle post-trial) is a big
+        // conversion moment — a trial just became a paying customer. Worth
+        // knowing about in real time.
+        const invoice = event.data.object;
+        const billingReason = invoice.billing_reason;
+        // Trial converting to paid → invoice is subscription_cycle (first real
+        // billing cycle after trial_end). billing_reason='subscription_create'
+        // only fires if there was NO trial. We check both to cover all paths.
+        const isFirstPaidInvoice =
+          billingReason === 'subscription_create' ||
+          (billingReason === 'subscription_cycle' && invoice.amount_paid >= 50000);
+
+        if (isFirstPaidInvoice) {
+          try {
+            const { data: client } = await supabase
+              .from('clients')
+              .select('name, email')
+              .eq('stripe_customer_id', invoice.customer)
+              .maybeSingle();
+            const botToken = process.env.TELEGRAM_BOT_TOKEN;
+            const chatId = process.env.TELEGRAM_CHAT_ID;
+            if (botToken && chatId && client) {
+              const amt = (invoice.amount_paid / 100).toFixed(2);
+              const msg = `💷 Trial converted — first paid month: ${client.name}\n` +
+                          `Email: ${client.email || 'unknown'}\n` +
+                          `Amount: £${amt}\n` +
+                          `This is a real paying customer now.`;
+              await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: chatId, text: msg }),
+              });
+            }
+          } catch { /* non-fatal */ }
+        }
+
         await supabase
           .from('stripe_events')
           .update({ processed: true, processed_at: new Date().toISOString() })
@@ -415,6 +472,32 @@ export async function POST(req: NextRequest) {
                 .update({ is_active: true, agent_status: 'online' })
                 .eq('client_id', client.id);
             }
+
+            // OPS Telegram alert on cancellation — gives a chance to chase
+            // the reason / offer save-offer before the billing period ends
+            // and the VPS cleanup cron nukes them 14 days later.
+            if (status === 'cancelled') {
+              try {
+                const botToken = process.env.TELEGRAM_BOT_TOKEN;
+                const chatId = process.env.TELEGRAM_CHAT_ID;
+                if (botToken && chatId) {
+                  const { data: c } = await supabase
+                    .from('clients')
+                    .select('name, email')
+                    .eq('id', client.id)
+                    .single();
+                  const msg = `❌ Subscription cancelled: ${c?.name || client.id}\n` +
+                              `Email: ${c?.email || 'unknown'}\n` +
+                              `Data retained for 30 days · VPS deleted in 14 days by cleanup cron.\n` +
+                              `Reach out now if you want to save the deal.`;
+                  await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: chatId, text: msg }),
+                  });
+                }
+              } catch { /* non-fatal */ }
+            }
           }
         }
 
@@ -432,7 +515,7 @@ export async function POST(req: NextRequest) {
 
         const { data: client } = await supabase
           .from('clients')
-          .select('id')
+          .select('id, name, email')
           .eq('stripe_customer_id', stripeCustomerId)
           .single();
 
@@ -441,6 +524,27 @@ export async function POST(req: NextRequest) {
             .from('clients')
             .update({ subscription_status: 'paused' })
             .eq('id', client.id);
+
+          // OPS Telegram alert — card just failed, customer needs to update
+          // their payment method before Stripe's dunning cycle auto-cancels
+          // them (default: 4 retries over 3 weeks, then cancel). Nudging
+          // early keeps retention high.
+          try {
+            const botToken = process.env.TELEGRAM_BOT_TOKEN;
+            const chatId = process.env.TELEGRAM_CHAT_ID;
+            if (botToken && chatId) {
+              const amountPence = invoice.amount_due;
+              const msg = `💳 Card declined for ${client.name || client.id}\n` +
+                          `Email: ${client.email || 'unknown'}\n` +
+                          `Amount: £${((amountPence || 0) / 100).toFixed(2)}\n` +
+                          `Status now 'paused'. Stripe will retry automatically but consider reaching out — they should update the card at /settings/billing → Update payment method.`;
+              await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: chatId, text: msg }),
+              });
+            }
+          } catch { /* non-fatal */ }
         }
 
         await supabase

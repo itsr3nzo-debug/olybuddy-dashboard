@@ -51,6 +51,10 @@
     {
       "path": "/api/cron/briefings?kind=vat-sanity",
       "schedule": "45 9 * * *"
+    },
+    {
+      "path": "/api/cron/pending-payment-cleanup",
+      "schedule": "0 4 * * *"
     }
   ],
   "alias": [
