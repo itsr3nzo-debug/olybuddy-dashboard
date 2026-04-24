@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Search, Plus, Plug } from 'lucide-react'
+import { Search, Plus, Globe, HelpCircle, ChevronDown } from 'lucide-react'
 import { PROVIDERS, CATEGORIES, getOAuthProviderId, type ProviderConfig } from '@/lib/integrations-config'
 import ProviderIcon from '@/components/integrations/ProviderIcon'
 import { Badge, StatusBadge } from '@/components/ui/badge'
@@ -23,29 +23,35 @@ interface ConnectedIntegration {
 
 function ConnectedRow({ integration, onDisconnect }: { integration: ConnectedIntegration; onDisconnect: (id: string, provider: string) => void }) {
   const def = PROVIDERS.find(p => p.id === integration.provider)
+  // Match the ElevenLabs layout: Name | Created by | Date created | action.
+  // The status pill lives under the provider name so the middle column can
+  // carry the account email (what the user recognises as "who owns this").
   return (
     <tr className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
       <td className="py-4 px-4">
         <div className="flex items-center gap-3">
-          <ProviderIcon provider={def || { id: integration.provider, name: integration.provider, iconColor: 'bg-gray-700/30 text-gray-300' }} size={40} />
-          <div>
-            <p className="font-medium text-gray-900 dark:text-white text-sm">{def?.name || integration.provider}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{integration.account_email || def?.description}</p>
+          <ProviderIcon provider={def || { id: integration.provider, name: integration.provider, iconColor: 'bg-gray-700/30 text-gray-300' }} size={36} />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{def?.name || integration.provider}</p>
+              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                integration.status === 'connected' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
+                integration.status === 'expired' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' :
+                'bg-red-500/10 text-red-600 dark:text-red-400'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  integration.status === 'connected' ? 'bg-emerald-500' :
+                  integration.status === 'expired' ? 'bg-amber-500' : 'bg-red-500'
+                }`} />
+                {integration.status === 'connected' ? 'Active' : integration.status === 'expired' ? 'Expired' : 'Error'}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{def?.description}</p>
           </div>
         </div>
       </td>
-      <td className="py-4 px-4">
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-          integration.status === 'connected' ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' :
-          integration.status === 'expired' ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' :
-          'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'
-        }`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${
-            integration.status === 'connected' ? 'bg-green-500' :
-            integration.status === 'expired' ? 'bg-amber-500' : 'bg-red-500'
-          }`} />
-          {integration.status === 'connected' ? 'Active' : integration.status === 'expired' ? 'Expired' : 'Error'}
-        </span>
+      <td className="py-4 px-4 text-sm text-gray-600 dark:text-gray-300 truncate">
+        {integration.account_email || integration.account_name || '\u2014'}
       </td>
       <td className="py-4 px-4 text-sm text-gray-500 dark:text-gray-400">
         {integration.created_at ? new Date(integration.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '\u2014'}
@@ -364,26 +370,34 @@ export default function IntegrationsPage() {
     return def?.name.toLowerCase().includes(search.toLowerCase()) || i.account_email?.toLowerCase().includes(search.toLowerCase())
   })
 
+  // Quick-connect tiles shown on the main page (not just inside the modal).
+  // Mirrors the ElevenLabs pattern of surfacing a small curated set below the
+  // empty state so owners can one-click-connect the common ones without
+  // opening the "Add integration" dialog first.
+  const quickTiles = PROVIDERS.filter(p =>
+    p.available && p.recommendedForTrades && !connectedProviders.has(p.id)
+  ).slice(0, 6)
+
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="px-6 py-8 max-w-6xl mx-auto">
       {/* Success Banner */}
       {success && (
         <div className="mb-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between">
-          <p className="text-sm text-emerald-400">{success}</p>
-          <button onClick={() => setSuccess('')} className="text-emerald-400 hover:text-emerald-300 text-xs">Dismiss</button>
+          <p className="text-sm text-emerald-600 dark:text-emerald-400">{success}</p>
+          <button onClick={() => setSuccess('')} className="text-emerald-600 dark:text-emerald-400 hover:opacity-80 text-xs">Dismiss</button>
         </div>
       )}
 
       {/* Expired-token re-link banner */}
       {integrations.some(i => i.status === 'expired' || i.status === 'error') && (
         <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-          <p className="text-sm text-amber-300 font-medium">Some integrations need re-authorising</p>
-          <ul className="mt-1 text-xs text-amber-300/80 space-y-0.5">
+          <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">Some integrations need re-authorising</p>
+          <ul className="mt-1 text-xs text-amber-700/80 dark:text-amber-300/80 space-y-0.5">
             {integrations.filter(i => i.status === 'expired' || i.status === 'error').map(i => (
               <li key={i.id} className="flex items-center justify-between">
                 <span>· {i.provider.replace(/_/g, ' ')} {i.error_message ? `\u2014 ${i.error_message.slice(0, 80)}` : ''}</span>
                 <a href={`/api/oauth/${getOAuthProviderId(i.provider)}`}
-                   className="ml-3 px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-[11px]">
+                   className="ml-3 px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-200 text-[11px]">
                   Reconnect
                 </a>
               </li>
@@ -395,81 +409,123 @@ export default function IntegrationsPage() {
       {/* Error Banner */}
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-between">
-          <p className="text-sm text-red-400">{error}</p>
-          <button onClick={() => setError('')} className="text-red-400 hover:text-red-300 text-xs">Dismiss</button>
+          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <button onClick={() => setError('')} className="text-red-600 dark:text-red-400 hover:opacity-80 text-xs">Dismiss</button>
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Integrations</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Connect your accounts. Your AI Employee uses them automatically.
-          </p>
+      {/* Header — matches ElevenLabs: title + Alpha pill on left, primary CTA on right */}
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-semibold text-gray-900 dark:text-white tracking-tight">Integrations</h1>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
+            Alpha
+          </span>
         </div>
         <button
           onClick={() => setModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors shadow-sm"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4" strokeWidth={2.5} />
           Add integration
         </button>
       </div>
 
-      {/* Search */}
-      {integrations.length > 0 && (
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+      {/* Search + sort controls — always visible (ElevenLabs parity) */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search integrations..."
-            className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+            className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-white/10 focus:border-gray-300 dark:focus:border-gray-700 outline-none transition-shadow"
           />
         </div>
-      )}
+        <button
+          type="button"
+          className="inline-flex items-center gap-2 px-3.5 py-2.5 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9M3 12h5m0 0l4-4m-4 4l4 4" /></svg>
+          Recent
+          <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+        </button>
+      </div>
 
-      {/* Table or empty state */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="w-6 h-6 border-2 border-gray-300 border-t-gray-900 dark:border-gray-600 dark:border-t-white rounded-full animate-spin" />
-        </div>
-      ) : integrations.length > 0 ? (
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200 dark:border-gray-800">
-                <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
-                <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date connected</th>
-                <th className="py-3 px-4"></th>
-              </tr>
-            </thead>
+      {/* Table shell — header always visible; body is either rows, loading, or the empty-state illustration */}
+      <div className="border-b border-gray-200 dark:border-gray-800 mb-0">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-gray-200 dark:border-gray-800">
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 dark:text-gray-400 tracking-wide">Name</th>
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 dark:text-gray-400 tracking-wide">Created by</th>
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 dark:text-gray-400 tracking-wide">
+                <span className="inline-flex items-center gap-1">Date created <ChevronDown className="w-3 h-3" /></span>
+              </th>
+              <th className="py-3 px-4"></th>
+            </tr>
+          </thead>
+          {loading ? null : filtered.length > 0 ? (
             <tbody>
               {filtered.map(integration => (
                 <ConnectedRow key={integration.id} integration={integration} onDisconnect={handleDisconnect} />
               ))}
             </tbody>
-          </table>
+          ) : null}
+        </table>
+      </div>
+
+      {/* Loading spinner OR empty-state illustration */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="w-6 h-6 border-2 border-gray-300 border-t-gray-900 dark:border-gray-600 dark:border-t-white rounded-full animate-spin" />
         </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
-            <Plug className="w-7 h-7 text-gray-400" />
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="relative mb-5">
+            <div className="w-20 h-20 rounded-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 flex items-center justify-center">
+              <Globe className="w-9 h-9 text-gray-300 dark:text-gray-700" strokeWidth={1.5} />
+            </div>
+            <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 flex items-center justify-center">
+              <HelpCircle className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" strokeWidth={2} />
+            </div>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">No integrations configured</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm">
-            Connect your accounts so your AI Employee can read emails, manage your calendar, and handle invoicing automatically.
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1.5">No integrations configured</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
+            Connect your accounts so your AI Employee can handle email, calendar, quotes and invoicing on your behalf. Browse the library below.
           </p>
-          <button
-            onClick={() => setModalOpen(true)}
-            className="mt-4 flex items-center gap-2 px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add integration
-          </button>
+        </div>
+      ) : null}
+
+      {/* Quick-connect tile grid — surface a curated subset of providers on the page
+          itself (rather than only inside the modal) so one-click connect is visible
+          below the empty state. Matches the ElevenLabs quick-access tile pattern. */}
+      {!loading && quickTiles.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-2">
+          {quickTiles.map(provider => {
+            const oauthProviderId = getOAuthProviderId(provider.id)
+            return (
+              <a
+                key={provider.id}
+                href={provider.available && !provider.pat ? `/api/oauth/${oauthProviderId}` : undefined}
+                onClick={(e) => {
+                  if (!provider.available) return
+                  if (provider.pat) {
+                    e.preventDefault()
+                    setModalOpen(true)
+                  }
+                }}
+                className="flex items-start gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-sm cursor-pointer transition-all"
+              >
+                <ProviderIcon provider={provider} size={36} />
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{provider.name}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{provider.description}</p>
+                </div>
+              </a>
+            )
+          })}
         </div>
       )}
 

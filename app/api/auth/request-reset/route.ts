@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
  * Generates a password-reset link via Supabase admin API and emails it to the
  * user via Resend. This bypasses Supabase's built-in mailer and Site URL
  * config entirely — so even if the project's Site URL still points at a dead
- * domain (olybuddy-dashboard), the link we send lands on the correct host.
+ * domain (pre-rebrand), the link we send lands on the correct host.
  *
  * Always returns 200 with a generic message to avoid leaking which emails
  * have accounts (enumeration defence).
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
   // That hop does two things in order: (a) exchange the token and mint a
   // session, (b) redirect to redirect_to — but (b) enforces the project's
   // redirect-URL allowlist, which is out of date for this project and drops
-  // us back to the dead olybuddy-dashboard Site URL.
+  // us back to the dead pre-rebrand Site URL.
   //
   // Sidestep the whole hop: pull the `token` and `type`, link the user
   // straight to our own /reset-password, and let the page call verifyOtp()
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
 
   // Fallback: fire Supabase's built-in recovery email. Delivery works but the
   // link in the email honours the project's Site URL — if that's still the
-  // dead olybuddy-dashboard origin, the user's click lands on a 404. This is
+  // dead pre-rebrand origin, the user's click lands on a 404. This is
   // purely a "better than nothing" path while SMTP/Resend creds are fixed.
   console.error('[request-reset] SMTP send failed — falling back to Supabase mailer:', sent.error);
   await service.auth.resetPasswordForEmail(email, {
