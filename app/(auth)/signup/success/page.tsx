@@ -3,14 +3,60 @@
 import { motion } from 'motion/react'
 import { CheckCircle, Sparkles, ArrowRight, Server, Smartphone, MessageSquare } from 'lucide-react'
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 
 /**
  * Post-payment landing. The customer just paid £20, their card is on file,
  * their 5-day trial is active, and the webhook has kicked off VPS provisioning.
  * We don't bother verifying the Stripe session_id server-side — the webhook
- * is the source of truth. Here we just reassure + give them next steps.
+ * is the source of truth.
+ *
+ * The signup page pre-signs them in BEFORE redirecting to Stripe so the
+ * session cookie survives the round-trip. If we detect an auth'd session
+ * here, we skip the "sign in to your dashboard" step entirely and redirect
+ * straight to /onboarding. Falls back to the reassuring landing card + manual
+ * sign-in if the pre-auth failed (network blip, etc).
  */
 export default function SignupSuccessPage() {
+  const router = useRouter()
+  const [checking, setChecking] = useState(true)
+
+  useEffect(() => {
+    const supabase = createClient()
+    // Safety timeout — if Supabase is slow/down, never leave them spinning.
+    const timeoutId = setTimeout(() => setChecking(false), 2500)
+    supabase.auth.getUser().then(({ data }) => {
+      clearTimeout(timeoutId)
+      if (data?.user) {
+        // They're signed in from the pre-Checkout sign-in — skip the card,
+        // go straight to the WhatsApp pairing / onboarding flow. Webhook
+        // handles provisioning in the background.
+        router.replace('/onboarding')
+      } else {
+        setChecking(false)
+      }
+    }).catch(() => {
+      clearTimeout(timeoutId)
+      setChecking(false)
+    })
+    return () => clearTimeout(timeoutId)
+  }, [router])
+
+  // While we check auth, show a lightweight loading state (no flash of the
+  // full card). If they're auth'd, the redirect fires before this renders.
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0e1a]">
+        <div className="text-center">
+          <div className="inline-block w-10 h-10 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-slate-400 text-sm">Taking you to your dashboard…</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#0a0e1a] py-10">
       {/* Ambient background */}

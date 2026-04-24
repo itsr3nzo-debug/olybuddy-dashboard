@@ -118,6 +118,21 @@ function SignupWizard() {
       }
 
       if (data.checkoutUrl) {
+        // Sign in BEFORE redirecting to Stripe. Supabase sets a session cookie
+        // that survives the round-trip to Stripe Checkout, so when the customer
+        // returns to /signup/success they're already authenticated — no manual
+        // "Sign in to your dashboard" step needed. Makes the whole signup →
+        // payment → dashboard flow single-click after they enter their card.
+        const supabase = createClient()
+        try {
+          await supabase.auth.signInWithPassword({
+            email: form.email,
+            password: form.password,
+          })
+        } catch {
+          // Non-fatal — they can still sign in manually from /signup/success
+          // if this silent pre-auth fails for any reason.
+        }
         window.location.href = data.checkoutUrl
         return
       }
