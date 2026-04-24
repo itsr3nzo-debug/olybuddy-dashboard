@@ -122,9 +122,7 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
     fileInputRef.current?.click();
   };
 
-  const onFilesPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    e.target.value = '';
+  const uploadFiles = async (files: File[]) => {
     if (files.length === 0) return;
     setUploading(true);
     setUploadError(null);
@@ -137,6 +135,65 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
     setAttachments((prev) => [...prev, ...uploaded]);
     setUploading(false);
   };
+
+  const onFilesPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    await uploadFiles(files);
+  };
+
+  // Handle paste of images (screenshot → ⌘V). Plain text paste behaves
+  // normally — only intercept when the clipboard holds a file.
+  const onPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = Array.from(e.clipboardData?.items ?? []);
+    const files = items.filter(it => it.kind === 'file').map(it => it.getAsFile()).filter((f): f is File => !!f);
+    if (files.length > 0) {
+      e.preventDefault();
+      void uploadFiles(files);
+    }
+  };
+
+  // Whole-window drag-drop — listen at document level so users can drop
+  // anywhere on the chat, not just on the composer. Shows a full-page
+  // "Drop to upload" overlay while a file is being dragged in.
+  const [dragActive, setDragActive] = useState(false);
+  const dragDepthRef = useRef(0);
+  useEffect(() => {
+    const onDragEnter = (e: DragEvent) => {
+      if (!e.dataTransfer || !Array.from(e.dataTransfer.types).includes('Files')) return;
+      dragDepthRef.current += 1;
+      setDragActive(true);
+    };
+    const onDragLeave = () => {
+      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+      if (dragDepthRef.current === 0) setDragActive(false);
+    };
+    const onDragOver = (e: DragEvent) => {
+      if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+        e.preventDefault(); // required to allow drop
+      }
+    };
+    const onDrop = (e: DragEvent) => {
+      dragDepthRef.current = 0;
+      setDragActive(false);
+      if (!e.dataTransfer) return;
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length === 0) return;
+      e.preventDefault();
+      void uploadFiles(files);
+    };
+    window.addEventListener('dragenter', onDragEnter);
+    window.addEventListener('dragleave', onDragLeave);
+    window.addEventListener('dragover', onDragOver);
+    window.addEventListener('drop', onDrop);
+    return () => {
+      window.removeEventListener('dragenter', onDragEnter);
+      window.removeEventListener('dragleave', onDragLeave);
+      window.removeEventListener('dragover', onDragOver);
+      window.removeEventListener('drop', onDrop);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId, sessionId]);
 
   const removeAttachment = (idx: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== idx));
@@ -188,6 +245,28 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
 
   return (
     <div className="w-full">
+      {/* Whole-window drop overlay — shown while a file is being dragged
+          anywhere on the page. The actual drop handler is window-level, so
+          this overlay is just a visual cue; dropping on it vs anywhere
+          else behaves identically. */}
+      {dragActive && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+          style={{ background: 'rgb(var(--hy-fg-base) / 0.05)' }}
+        >
+          <div
+            className="rounded-xl px-6 py-5 text-center anim-fade-in"
+            style={{
+              background: 'rgb(var(--hy-bg-surface))',
+              border: '2px dashed rgb(var(--hy-fg-base))',
+              boxShadow: '0 20px 40px rgb(0 0 0 / 0.15)',
+            }}
+          >
+            <div className="text-[14px] fg-base font-medium mb-1">Drop to attach</div>
+            <div className="text-[11.5px] fg-muted">Files will be uploaded to this chat</div>
+          </div>
+        </div>
+      )}
       {(refining || refinedText) && (
         <div className="mb-2 rounded-md border-hy bg-surface px-3 py-2.5 anim-fade-in">
           {refining
@@ -265,6 +344,7 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
           placeholder={placeholder}
           rows={variant === 'hero' ? 3 : 1}
           className="w-full resize-none bg-transparent px-4 pt-3.5 pb-2 text-[14px] fg-base outline-none"
