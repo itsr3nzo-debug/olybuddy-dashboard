@@ -77,29 +77,63 @@ export default function ChatApp(props: ChatAppProps) {
     };
   }, [props.clientId]);
 
+  // Track which session IDs are currently fetching messages — lets
+  // AssistPanel show a skeleton instead of an empty scroll area while
+  // loadSession is in flight. Reset once the messages land (or fail).
+  const [loadingSessions, setLoadingSessions] = useState<Set<string>>(new Set());
+
   // When we activate a session, lazy-load its full message list
   useEffect(() => {
     if (!currentSessionId) return;
     const existing = sessions.find((s) => s.id === currentSessionId);
     if (existing && existing.messages.length > 0) return;
+    const sessionId = currentSessionId; // pin for closure so showError references the right id
 
     let alive = true;
-    loadSession(currentSessionId, props.clientId)
+    setLoadingSessions((prev) => {
+      if (prev.has(sessionId)) return prev;
+      const next = new Set(prev);
+      next.add(sessionId);
+      return next;
+    });
+    loadSession(sessionId, props.clientId)
       .then((res) => {
-        if (!alive || !res) return;
+        if (!alive) return;
+        if (!res) {
+          // 404 — the session was deleted (or was never ours). Surface it so
+          // the user isn\u2019t staring at a blank scroll area forever, and
+          // drop the dead reference from local state + active selection.
+          showError('That chat couldn\u2019t be found. It may have been deleted.');
+          setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+          if (currentSessionIdRef.current === sessionId) setCurrentSessionId(null);
+          return;
+        }
         setSessions((prev) =>
           prev.map((s) =>
-            s.id === currentSessionId ? { ...s, title: res.session.title, messages: res.messages } : s
+            s.id === sessionId ? { ...s, title: res.session.title, messages: res.messages } : s
           )
         );
       })
       .catch(() => {
-        /* ignore */
+        if (!alive) return;
+        showError('Couldn\u2019t load that chat. Check your connection and try again.');
+      })
+      .finally(() => {
+        if (!alive) return;
+        setLoadingSessions((prev) => {
+          if (!prev.has(sessionId)) return prev;
+          const next = new Set(prev);
+          next.delete(sessionId);
+          return next;
+        });
       });
     return () => {
       alive = false;
     };
-  }, [currentSessionId, sessions]);
+    // `showError` is stable via useCallback; `sessions` is intentionally
+    // omitted to avoid re-running on every message merge.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSessionId, props.clientId]);
 
   // Overlays ──────────────────────────────────────────────────────────
   const [openSource, setOpenSource] = useState<Source | null>(null);
@@ -319,6 +353,11 @@ export default function ChatApp(props: ChatAppProps) {
   const handleMobileBack = useCallback(() => {
     setCurrentSessionId(null);
     setActiveView('assistant');
+    // Clear any armed @mention so it doesn\u2019t leak into the next session\u2019s
+    // composer — previously the mention prefix stayed "pending" across the
+    // drill-down and got auto-injected when the user landed on another chat.
+    setPendingMention(null);
+    setMentionOpen(false);
   }, []);
 
   // Each of these three optimistically updates local state, fires the API
@@ -560,6 +599,7 @@ export default function ChatApp(props: ChatAppProps) {
             streamingText=""
             busy={busy}
             rtStatus={rtStatus}
+            loadingMessages={loadingSessions.has(currentSession.id) && currentSession.messages.length === 0}
             onRenameSession={renameSession}
             onDeleteSession={deleteSession}
             onPinSession={pinSession}

@@ -446,6 +446,8 @@ interface AssistPanelProps {
   busy: boolean;
   /** Realtime websocket state — drives the "reconnecting" pill in the header. */
   rtStatus?: 'idle' | 'connecting' | 'open' | 'closed' | 'error';
+  /** True while the initial message-list fetch is in flight for this session. */
+  loadingMessages?: boolean;
   onRenameSession: (id: string, title: string) => void;
   onDeleteSession?: (id: string) => void;
   onPinSession?: (id: string, pinned: boolean) => void;
@@ -455,12 +457,23 @@ interface AssistPanelProps {
   onMentionConsumed?: () => void;
 }
 
-export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy, rtStatus, onOpenMention, onOpenPalette, onRenameSession, onDeleteSession, onPinSession, pendingMention, onMentionConsumed }: AssistPanelProps) {
+export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy, rtStatus, loadingMessages, onOpenMention, onOpenPalette, onRenameSession, onDeleteSession, onPinSession, pendingMention, onMentionConsumed }: AssistPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [moreOpen, setMoreOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameVal, setRenameVal] = useState('');
+  // Two-step delete confirm for the header "More" menu — same pattern as the
+  // sidebar's SessionItem so delete can't happen on a single stray click.
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  useEffect(() => {
+    if (!deleteArmed) return;
+    const t = setTimeout(() => setDeleteArmed(false), 4000);
+    return () => clearTimeout(t);
+  }, [deleteArmed]);
+  useEffect(() => {
+    if (!moreOpen) setDeleteArmed(false);
+  }, [moreOpen]);
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -567,7 +580,16 @@ export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy
                 { label: 'Rename', action: () => { setRenameVal(session.title); setRenaming(true); setMoreOpen(false); } },
                 { label: session.pinned ? 'Unpin' : 'Pin', action: () => { onPinSession?.(session.id, !session.pinned); setMoreOpen(false); } },
                 { label: 'Export', action: () => { exportSession(); setMoreOpen(false); } },
-                { label: 'Delete', action: () => { onDeleteSession?.(session.id); setMoreOpen(false); }, danger: true },
+                {
+                  label: deleteArmed ? 'Click again to delete' : 'Delete',
+                  danger: true,
+                  action: () => {
+                    if (!deleteArmed) { setDeleteArmed(true); return; }
+                    onDeleteSession?.(session.id);
+                    setMoreOpen(false);
+                    setDeleteArmed(false);
+                  },
+                },
               ] as Array<{ label: string; action: () => void; danger?: boolean }>).map((it, i) => (
                 <button
                   key={i}
@@ -585,6 +607,28 @@ export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy
         className="flex-1 min-h-0 overflow-y-auto scroll-thin"
       >
         <div className="mx-auto w-full max-w-[780px] px-6 py-8 space-y-6">
+          {/* Skeleton while the initial message list is loading. Only shown
+              when the session has no cached messages yet — otherwise we
+              already have something to render. */}
+          {loadingMessages && session.messages.length === 0 && (
+            <div className="space-y-4" aria-label="Loading chat history" aria-live="polite">
+              {[72, 120, 88].map((w, i) => (
+                <div
+                  key={i}
+                  className="h-3 rounded bg-hover animate-pulse"
+                  style={{ width: `${w}%` }}
+                />
+              ))}
+              <div className="h-6" />
+              {[60, 96, 40].map((w, i) => (
+                <div
+                  key={`b-${i}`}
+                  className="h-3 rounded bg-hover animate-pulse"
+                  style={{ width: `${w}%`, marginLeft: 'auto' }}
+                />
+              ))}
+            </div>
+          )}
           {session.messages.map((m) =>
             m.role === 'user'
               ? <UserBubble key={m.id} message={m} />
