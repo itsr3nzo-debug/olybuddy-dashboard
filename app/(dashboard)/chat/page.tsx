@@ -35,7 +35,18 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
 
   // Super_admin without a selected client → render picker
   if (session.role === 'super_admin' && !activeClientId) {
-    const { data: allClients } = await supabase
+    // Use service-role for this query. The normal user-scoped `supabase` client
+    // runs under the super_admin's JWT, which still has a `client_id` in
+    // app_metadata — RLS on `clients` restricts reads to rows where id matches
+    // that, so a super_admin would see only their own client (1 row) and miss
+    // every other tenant in the fleet. Service role bypasses RLS so the picker
+    // actually shows the whole fleet for shadow-chat.
+    const pickerReader = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+    const { data: allClients } = await pickerReader
       .from('clients')
       .select('id, name, slug, onboarding_completed, subscription_status, vps_ready, vps_ip')
       .order('name', { ascending: true });
