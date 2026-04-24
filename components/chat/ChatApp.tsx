@@ -30,7 +30,7 @@ import { ClientContextProvider } from '@/lib/chat/client-context';
 import Sidebar, { type ChatView } from './Sidebar';
 import Dashboard from './Features';
 import { AssistPanel } from './Views';
-import { VaultView, WorkflowsView, HistoryView, KnowledgeView } from './TabViews';
+import { CustomersView, VaultView, WorkflowsView, HistoryView, KnowledgeView } from './TabViews';
 import { SourceSlideOver, CommandPalette, MentionMenu } from './Overlays';
 
 interface ChatAppProps {
@@ -609,6 +609,7 @@ export default function ChatApp(props: ChatAppProps) {
             onMentionConsumed={() => setPendingMention(null)}
           />
         )}
+        {activeView === 'customers' && <CustomersView />}
         {activeView === 'vault' && <VaultView />}
         {activeView === 'workflows' && (
           <WorkflowsView

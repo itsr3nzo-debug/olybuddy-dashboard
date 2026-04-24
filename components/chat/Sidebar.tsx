@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import {
   MessageSquare, Folder, PencilLine, Plus, Search, Settings, Sun, Moon,
   MoreHorizontal, ChevronDown, Pin, Trash2, Pencil, Download, History,
-  Book, PanelLeft, HelpCircle, LogOut, Zap,
+  Book, PanelLeft, HelpCircle, LogOut, Zap, Users,
 } from 'lucide-react';
 import { cx, relativeTime, groupSessionsByDate } from '@/lib/chat/utils';
 import type { Session } from '@/lib/chat/types';
@@ -12,7 +12,7 @@ import { useClient } from '@/lib/chat/client-context';
 import { createClient } from '@/lib/supabase/client';
 import IconButton from './IconButton';
 
-export type ChatView = 'assistant' | 'vault' | 'workflows' | 'history' | 'knowledge';
+export type ChatView = 'assistant' | 'customers' | 'vault' | 'workflows' | 'history' | 'knowledge';
 
 interface SidebarProps {
   sessions: Session[];
@@ -94,6 +94,7 @@ function SidebarRail({ onNewChat, onOpenPalette, onToggleTheme, theme, onToggleC
       <IconButton icon={Search} label="Search (⌘K)" onClick={onOpenPalette} size={14} />
       <div className="h-px w-6 my-1" style={{ background: 'rgb(var(--hy-border))' }} />
       <IconButton icon={MessageSquare} label="Assistant" size={14} active={activeView === 'assistant'} onClick={() => onNavChange('assistant')} />
+      <IconButton icon={Users} label="Customers" size={14} active={activeView === 'customers'} onClick={() => onNavChange('customers')} />
       <IconButton icon={Folder} label="Vault" size={14} active={activeView === 'vault'} onClick={() => onNavChange('vault')} />
       <IconButton icon={Zap} label="Workflows" size={14} active={activeView === 'workflows'} onClick={() => onNavChange('workflows')} />
       <IconButton icon={History} label="History" size={14} active={activeView === 'history'} onClick={() => onNavChange('history')} />
@@ -152,6 +153,7 @@ function SidebarFull({ clientInitials, groups, currentSessionId, onSelectSession
 
       <nav className="px-1.5 space-y-0.5">
         <NavItem icon={MessageSquare} label="Assistant" active={activeView === 'assistant'} onClick={() => onNavChange('assistant')} />
+        <NavItem icon={Users} label="Customers" active={activeView === 'customers'} onClick={() => onNavChange('customers')} />
         <NavItem icon={Folder} label="Vault" active={activeView === 'vault'} onClick={() => onNavChange('vault')} />
         <NavItem icon={Zap} label="Workflows" active={activeView === 'workflows'} onClick={() => onNavChange('workflows')} />
         <NavItem icon={History} label="History" active={activeView === 'history'} onClick={() => onNavChange('history')} />

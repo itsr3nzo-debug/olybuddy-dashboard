@@ -17,7 +17,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Folder, FolderPlus, Zap, Search, Plus, Book, Clock, FileText,
   BookOpen, Scroll, Bookmark, Sparkles, ChevronRight, Pin, Tag,
-  FilePlus2,
+  FilePlus2, Users,
 } from 'lucide-react';
 import { cx, relativeTime, groupSessionsByDate } from '@/lib/chat/utils';
 import type { Session, Workflow } from '@/lib/chat/types';
@@ -127,6 +127,85 @@ function ViewShell({ children }: { children: React.ReactNode }) {
    ──────────────────────────────────────────────────────────── */
 
 export { VaultView } from './VaultView';
+
+/* ────────────────────────────────────────────────────────────────
+   Customers — Inbox folded into Chat. Shows every WhatsApp / SMS /
+   email thread the AI Employee has handled. Previously lived at
+   /conversations (top-level sidebar entry "Inbox"). Moved here so the
+   chat surface is the single unified messaging view — owner ↔ agent
+   on the Assistant tab, customers ↔ agent on this tab.
+   ──────────────────────────────────────────────────────────── */
+
+export function CustomersView() {
+  const { clientId } = useClient();
+  const [contacts, setContacts] = React.useState<Array<Record<string, unknown>>>([]);
+  const [messages, setMessages] = React.useState<Array<Record<string, unknown>>>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { createClient } = await import('@/lib/supabase/client');
+      const supabase = createClient();
+      const [contactsRes, messagesRes] = await Promise.all([
+        supabase
+          .from('contacts')
+          .select('id, first_name, last_name, phone, email, company')
+          .eq('client_id', clientId)
+          .order('last_contacted', { ascending: false }),
+        supabase
+          .from('comms_log')
+          .select('id, contact_id, channel, direction, body, status, sent_at')
+          .eq('client_id', clientId)
+          .order('sent_at', { ascending: false })
+          .limit(200),
+      ]);
+      if (!alive) return;
+      setContacts((contactsRes.data ?? []) as Array<Record<string, unknown>>);
+      setMessages((messagesRes.data ?? []) as Array<Record<string, unknown>>);
+      setLoading(false);
+    })().catch(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [clientId]);
+
+  if (loading) {
+    return (
+      <ViewShell>
+        <ViewHeader title="Customers" description="Every conversation your AI Employee is handling" />
+        <div className="px-4 py-10 fg-muted text-[13px] text-center">Loading conversations…</div>
+      </ViewShell>
+    );
+  }
+
+  const isEmpty = contacts.length === 0 && messages.length === 0;
+  if (isEmpty) {
+    return (
+      <ViewShell>
+        <ViewHeader title="Customers" description="Every conversation your AI Employee is handling" />
+        <EmptyState
+          icon={Users}
+          title="No customer conversations yet"
+          hint="Threads appear here as your AI Employee answers WhatsApp, SMS, or email on your behalf."
+        />
+      </ViewShell>
+    );
+  }
+
+  // Reuse the existing ConversationsLayout so the list/detail split pane
+  // looks identical to what Inbox used to show — this is literally the same
+  // UI, just hosted inside the chat shell now.
+  const ConversationsLayout = React.lazy(() => import('@/components/conversations/ConversationsLayout'));
+  return (
+    <ViewShell>
+      <ViewHeader title="Customers" description="Every conversation your AI Employee is handling" />
+      <div className="flex-1 min-h-0 px-4 pb-4">
+        <React.Suspense fallback={<div className="px-4 py-10 fg-muted text-[13px] text-center">Loading…</div>}>
+          <ConversationsLayout contacts={contacts} messages={messages} clientId={clientId} />
+        </React.Suspense>
+      </div>
+    </ViewShell>
+  );
+}
 
 /* ────────────────────────────────────────────────────────────────
    Workflows

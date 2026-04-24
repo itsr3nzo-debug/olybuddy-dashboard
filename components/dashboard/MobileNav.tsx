@@ -2,28 +2,29 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Kanban, MessageSquare, Calendar, ScrollText, Target, Plug } from 'lucide-react'
+import { LayoutDashboard, Bot, Plug, Users, Shield, Settings, Target } from 'lucide-react'
 import type { UserRole } from '@/lib/rbac'
 
-// Mobile bottom nav. Sidebar is hidden on mobile (lg:block), so without
-// an Integrations tab here, mobile owners had no way to reach /integrations
-// except via the one-time "Connect now" banner on the dashboard — meaning
-// once it disappeared they were locked out of managing connections.
+// Mobile bottom nav mirrors the desktop sidebar's simplified 6-item set
+// (Dashboard / Chat / Integrations / Sender Roles / Agent trust / Settings).
+// Sidebar is hidden on mobile (`hidden lg:block`), so this bar is the only
+// persistent navigation — it must carry the same items the rail does or
+// mobile users lose access to the kept pages.
 const baseTabs = [
-  { href: '/dashboard',      label: 'Home',         Icon: LayoutDashboard },
-  { href: '/pipeline',       label: 'Pipeline',     Icon: Kanban },
-  { href: '/conversations',  label: 'Inbox',        Icon: MessageSquare },
-  { href: '/calls',          label: 'Activity',     Icon: ScrollText },
-  { href: '/integrations',   label: 'Integrations', Icon: Plug },
-  { href: '/calendar',       label: 'Calendar',     Icon: Calendar },
+  { href: '/dashboard',             label: 'Home',         Icon: LayoutDashboard },
+  { href: '/chat',                  label: 'Chat',         Icon: Bot },
+  { href: '/integrations',          label: 'Integrations', Icon: Plug },
+  { href: '/settings/sender-roles', label: 'Senders',      Icon: Users },
+  { href: '/settings/agent-trust',  label: 'Trust',        Icon: Shield },
+  { href: '/settings',              label: 'Settings',     Icon: Settings },
 ]
 
 export default function MobileNav({ role = 'owner' }: { role?: UserRole }) {
   const pathname = usePathname()
 
-  // Super-admins get Client Usage instead of Calendar on mobile (closer-to-hand
-  // tool). Keep the first 5 owner tabs (Home, Pipeline, Inbox, Activity,
-  // Integrations) and swap Calendar for Usage in the last slot.
+  // Super-admins swap Settings for Client Usage in the last slot (Settings is
+  // still reachable from inside Chat → profile menu, and Client Usage is the
+  // day-to-day admin tool that deserves the nav slot on mobile).
   const tabs = role === 'super_admin'
     ? [...baseTabs.slice(0, 5), { href: '/admin/close', label: 'Usage', Icon: Target }]
     : baseTabs

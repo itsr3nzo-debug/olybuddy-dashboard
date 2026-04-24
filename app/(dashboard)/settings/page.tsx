@@ -84,6 +84,69 @@ export default async function SettingsPage() {
       )}
 
       <div className="space-y-6">
+        {/* Tools & Views — the pages that used to live in the sidebar. Every
+            route still works; we just collected them here so the sidebar rail
+            isn't a 16-item wall. The grid groups them by what they do rather
+            than by URL structure. */}
+        <Section
+          title="Tools & Views"
+          description="All the pages your AI Employee uses — kept out of the sidebar so it stays clean"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 -mx-5 sm:-mx-6 px-5 sm:px-6 py-2">
+            <ToolLink
+              href="/conversations"
+              title="Inbox"
+              sub="Every customer WhatsApp / SMS thread your AI Employee is handling."
+            />
+            <ToolLink
+              href="/pipeline"
+              title="Pipeline"
+              sub="Drag booked leads across stages — new / contacted / demo / won."
+            />
+            <ToolLink
+              href="/calls"
+              title="Call log"
+              sub="Transcripts + outcomes for every voice call handled by your agent."
+            />
+            <ToolLink
+              href="/calendar"
+              title="Calendar"
+              sub="Upcoming deals + expected-close dates at a glance."
+            />
+            <ToolLink
+              href="/jobs/captured"
+              title="Captured jobs"
+              sub="Voice notes / photos / forwards your AI turned into structured jobs."
+            />
+            <ToolLink
+              href="/variations"
+              title="Variations"
+              sub="Scope-change notices your AI logged against live jobs — review and send."
+            />
+            <ToolLink
+              href="/estimates"
+              title="Estimates"
+              sub="Upload a plan PDF — your AI drafts the take-off and pricing for you to review."
+            />
+            <ToolLink
+              href="/settings/pricing-rules"
+              title="Pricing rules"
+              sub="The rate card every quote is drafted against — labour, markups, loadings."
+            />
+            <ToolLink
+              href="/settings/inbound-webhook"
+              title="Inbound webhook"
+              sub="Point external integrations at your AI Employee. Copy the URL + token."
+            />
+            <ToolLink
+              href="/settings/emergency"
+              title="Pause agent"
+              sub="Emergency stop — takes your AI Employee offline for every customer."
+              danger
+            />
+          </div>
+        </Section>
+
         <Section
           title="Sender Roles"
           description="Tell your AI Employee who's the boss — owner numbers vs customer numbers"
@@ -252,5 +315,40 @@ function SettingRow({ label, value, mono = false }: { label: string; value: Reac
         {value}
       </span>
     </div>
+  )
+}
+
+/** One tile in the Tools & Views grid — link card with a title + explainer.
+ *  Variant `danger` tints the border red for the Pause-agent tile so the
+ *  emergency stop is visually distinct. */
+function ToolLink({
+  href,
+  title,
+  sub,
+  danger,
+}: {
+  href: string
+  title: string
+  sub: string
+  danger?: boolean
+}) {
+  return (
+    <a
+      href={href}
+      className={
+        'block rounded-lg border px-3.5 py-3 transition-colors hover:bg-muted/30 ' +
+        (danger
+          ? 'border-red-500/30 hover:bg-red-500/5'
+          : 'border-border')
+      }
+    >
+      <div className="flex items-center justify-between gap-3">
+        <p className={'text-sm font-medium ' + (danger ? 'text-red-400' : 'text-foreground')}>
+          {title}
+        </p>
+        <span className="text-xs text-brand-accent">Open →</span>
+      </div>
+      <p className="text-xs text-muted-foreground mt-1 leading-snug">{sub}</p>
+    </a>
   )
 }

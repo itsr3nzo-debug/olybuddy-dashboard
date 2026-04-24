@@ -1,10 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import { motion } from 'motion/react'
 import { formatRelativeTime } from '@/lib/format'
 import { useAgentStatus } from '@/lib/hooks/useAgentStatus'
 import type { AgentStatus } from '@/lib/types'
-import { Clock, MessageSquare, Wifi, WifiOff } from 'lucide-react'
+import { Clock, MessageSquare, Wifi, WifiOff, Pause, Play, Loader2 } from 'lucide-react'
 
 interface AgentStatusCardProps {
   agentName: string
@@ -31,8 +32,44 @@ export default function AgentStatusCard({ agentName, status: initialStatus, last
   const status = realtimeStatus
   const lastCallAt = realtimeLastCallAt
   const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.online
-  const effectiveStatus = isActive ? status : 'offline'
-  const effectiveConfig = isActive ? config : STATUS_CONFIG.offline
+  // `active` is the server-rendered value; `activeLocal` is the optimistic
+  // client-side state after the user toggles Pause/Resume here. We keep both
+  // so a failed request can roll back and a successful one doesn't wait for
+  // a page refresh.
+  const [activeLocal, setActiveLocal] = useState<boolean>(isActive)
+  const [toggling, setToggling] = useState(false)
+  const effectiveStatus = activeLocal ? status : 'offline'
+  const effectiveConfig = activeLocal ? config : STATUS_CONFIG.offline
+
+  const togglePause = async () => {
+    // Nexley-level kill-switch — confirm before taking the agent down
+    // because it stops responding to customers across all channels.
+    if (activeLocal) {
+      const ok = window.confirm(
+        'Pause ' + agentName + '?\n\nWhile paused, customers messaging on WhatsApp or calling won\u2019t get a reply. Owner messages are still handled. You can resume from the same button.',
+      )
+      if (!ok) return
+    }
+    setToggling(true)
+    const targetPaused = activeLocal // if currently active → we want paused
+    // Optimistic flip
+    setActiveLocal(!activeLocal)
+    try {
+      const res = await fetch('/api/settings/pause-agent', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paused: targetPaused }),
+      })
+      if (!res.ok) throw new Error('Failed')
+    } catch {
+      // Roll back
+      setActiveLocal(activeLocal)
+      window.alert('Could not update pause state — please try again.')
+    } finally {
+      setToggling(false)
+    }
+  }
 
   return (
     <motion.div
@@ -56,15 +93,42 @@ export default function AgentStatusCard({ agentName, status: initialStatus, last
           </span>
         </div>
         <p className="text-xs text-muted-foreground">
-          {effectiveConfig.description}
+          {activeLocal ? effectiveConfig.description : 'Paused — messages queue until resumed'}
           {lastCallAt && ` · Last call ${formatRelativeTime(lastCallAt)}`}
         </p>
       </div>
 
-      {/* 24/7 badge */}
-      <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full bg-brand-success/10 text-brand-success text-xs font-semibold">
-        24/7
-      </div>
+      {/* Pause / Resume toggle — the emergency kill-switch. Previously
+          lived only behind the sidebar "Pause agent" nav item. Now reachable
+          in one click from the dashboard where the owner actually looks. */}
+      <button
+        type="button"
+        onClick={togglePause}
+        disabled={toggling}
+        aria-label={activeLocal ? 'Pause agent' : 'Resume agent'}
+        className={
+          'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-ring ' +
+          (activeLocal
+            ? 'border border-border text-muted-foreground hover:text-foreground hover:bg-muted'
+            : 'border border-red-500/30 text-red-400 hover:bg-red-500/10')
+        }
+      >
+        {toggling ? (
+          <Loader2 size={11} className="animate-spin" />
+        ) : activeLocal ? (
+          <Pause size={11} />
+        ) : (
+          <Play size={11} />
+        )}
+        {activeLocal ? 'Pause' : 'Resume'}
+      </button>
+
+      {/* 24/7 badge — only when the agent is running */}
+      {activeLocal && (
+        <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full bg-brand-success/10 text-brand-success text-xs font-semibold">
+          24/7
+        </div>
+      )}
     </motion.div>
   )
 }

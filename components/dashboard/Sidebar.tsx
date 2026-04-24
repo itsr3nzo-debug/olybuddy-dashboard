@@ -5,30 +5,21 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Sparkles, LayoutDashboard, BarChart3, PoundSterling, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Kanban, MessageSquare, Calendar, ScrollText, FileBarChart, Plug, Shield, Users, Mic, FileEdit, FileText, Pause, Webhook, Bot, Target } from 'lucide-react'
+import { Sparkles, LayoutDashboard, Settings, LogOut, Sun, Moon, PanelLeftClose, PanelLeft, Plug, Shield, Users, Bot, Target } from 'lucide-react'
 import type { UserRole } from '@/lib/rbac'
 import { MEMBER_BLOCKED_PAGES } from '@/lib/rbac'
 
+// Sidebar nav trimmed from 16 → 6 items (owner/member) and 18 → 8 items
+// (super_admin). See docs note in `/app/(dashboard)/settings/page.tsx` for
+// why each cut item is still reachable via the Settings → Tools grid.
+// Every removed route still exists — only its visibility in the rail changed.
 const allNavItems = [
-  // Core
-  { href: '/dashboard',      label: 'Dashboard',      Icon: LayoutDashboard },
-  { href: '/chat',           label: 'Chat',           Icon: Bot },
-  { href: '/pipeline',       label: 'Pipeline',       Icon: Kanban },
-  { href: '/conversations',  label: 'Inbox',          Icon: MessageSquare },
-  { href: '/calls',          label: 'Conversations',  Icon: ScrollText },
-  { href: '/calendar',       label: 'Calendar',       Icon: Calendar },
-  // Trades-ops
-  { href: '/jobs/captured',  label: 'Captured jobs',  Icon: Mic },
-  { href: '/variations',     label: 'Variations',     Icon: FileEdit },
-  { href: '/estimates',      label: 'Estimates',      Icon: FileText },
-  // Settings
-  { href: '/integrations',   label: 'Integrations',   Icon: Plug },
+  { href: '/dashboard',             label: 'Dashboard',    Icon: LayoutDashboard },
+  { href: '/chat',                  label: 'Chat',         Icon: Bot },
+  { href: '/integrations',          label: 'Integrations', Icon: Plug },
   { href: '/settings/sender-roles', label: 'Sender Roles', Icon: Users },
-  { href: '/settings/pricing-rules', label: 'Pricing rules', Icon: PoundSterling },
-  { href: '/settings/agent-trust', label: 'Agent trust', Icon: Shield },
-  { href: '/settings/inbound-webhook', label: 'Inbound webhook', Icon: Webhook },
-  { href: '/settings/emergency', label: 'Pause agent', Icon: Pause },
-  { href: '/settings',       label: 'Settings',       Icon: Settings },
+  { href: '/settings/agent-trust',  label: 'Agent trust',  Icon: Shield },
+  { href: '/settings',              label: 'Settings',     Icon: Settings },
 ]
 
 function getNavItems(role: UserRole) {
