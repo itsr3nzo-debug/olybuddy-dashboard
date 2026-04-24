@@ -223,10 +223,19 @@ function SidebarBottom({ onToggleTheme, theme }: { onToggleTheme: () => void; th
 
   return (
     <div className="px-3 py-2 flex items-center justify-between relative">
-      <button className="inline-flex items-center gap-1.5 text-[11.5px] fg-muted hover:fg-base transition-colors px-1 py-0.5 rounded focus-ring">
+      {/* Help was previously a decorative button with no onClick — now opens
+          a plain <a> to the Nexley docs so clicking actually does something.
+          target="_blank" keeps the dashboard open. */}
+      <a
+        href="https://nexley.ai/docs"
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-1.5 text-[11.5px] fg-muted hover:fg-base transition-colors px-1 py-0.5 rounded focus-ring"
+        title="Opens the Nexley docs in a new tab"
+      >
         <HelpCircle size={12} />
         Help
-      </button>
+      </a>
       <button
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
         className="h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-semibold focus-ring"

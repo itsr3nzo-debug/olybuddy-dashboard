@@ -191,15 +191,23 @@ const WORKFLOW_STEPS: Record<number, string[]> = {
   3: ['Extract quote line items', 'Check margin vs template', 'Flag anomalies', 'Summarize for approval'],
 };
 
-function WorkflowCell({ w, i, last }: { w: Workflow; i: number; last: boolean }) {
+function WorkflowCell({ w, i, last, onRun }: { w: Workflow; i: number; last: boolean; onRun?: (prompt: string) => void }) {
   const [hover, setHover] = useState(false);
   const steps = WORKFLOW_STEPS[i] || [];
   const dotColors = ['rgb(var(--dot-crm))', 'rgb(var(--dot-invoices))', 'rgb(var(--dot-calls))', 'rgb(var(--dot-calendar))'];
+  // Building the actual prompt from the workflow's title + steps list so the
+  // agent has everything it needs (was: dead click with no onClick at all).
+  const handleRun = () => {
+    if (!onRun) return;
+    const stepList = steps.length > 0 ? '\n- ' + steps.join('\n- ') : '';
+    onRun(`Run the "${w.title}" workflow:${stepList}`);
+  };
   return (
     <button
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      className="text-left px-4 py-3.5 transition-colors focus-ring group relative"
+      onClick={handleRun}
+      className="text-left px-4 py-3.5 transition-colors focus-ring group relative hover:bg-hover cursor-pointer"
       style={!last ? { borderRight: '1px solid rgb(var(--hy-border))' } : undefined}
     >
       <p
@@ -241,8 +249,55 @@ function WorkflowCell({ w, i, last }: { w: Workflow; i: number; last: boolean })
   );
 }
 
-/* ───────────── Heartbeat card ───────────── */
+/* ───────────── Heartbeat card — real agent_actions data ─────────────
+ * Previously the three cells rendered hardcoded values ("4 nudges drafted,
+ * £13.2k at stake", etc.) regardless of actual activity. Now it fetches the
+ * last 7 days of agent_actions for the current client and aggregates into
+ * three honest counts. Falls back to the "getting started" message when the
+ * client is new (zero actions logged yet) rather than lying about activity. */
 function HeartbeatCard() {
+  const { clientId } = useClient();
+  const [stats, setStats] = useState<{ nudges: number; nudgeValue: number; overdue: number; overdueTotal: number; silent: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const supabase = (await import('@/lib/supabase/client')).createClient();
+      const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { data } = await supabase
+        .from('agent_actions')
+        .select('category, value_gbp, meta, occurred_at')
+        .eq('client_id', clientId)
+        .gte('occurred_at', since)
+        .limit(500);
+      if (!alive) return;
+      const rows = data ?? [];
+      const nudgeCats = new Set(['follow_up_sent', 'quote_chased', 'review_requested']);
+      const overdueCats = new Set(['quote_chased', 'invoice_chased']);
+      const silentCats = new Set(['dormant_revival_nudge', 'database_reactivation']);
+      let nudges = 0, nudgeValue = 0, overdue = 0, overdueTotal = 0, silent = 0;
+      for (const r of rows) {
+        const c = r.category as string;
+        const v = (r.value_gbp as number | null) ?? 0;
+        if (nudgeCats.has(c)) { nudges++; nudgeValue += v; }
+        if (overdueCats.has(c)) { overdue++; overdueTotal += v; }
+        if (silentCats.has(c)) silent++;
+      }
+      setStats({ nudges, nudgeValue, overdue, overdueTotal, silent });
+      setLoading(false);
+    })().catch(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [clientId]);
+
+  const fmtGBP = (pence: number) => {
+    if (pence === 0) return '£0';
+    if (pence >= 1000) return '£' + (pence / 1000).toFixed(1) + 'k';
+    return '£' + pence.toLocaleString('en-GB');
+  };
+
+  const hasActivity = stats && (stats.nudges + stats.overdue + stats.silent) > 0;
+
   return (
     <div className="mt-8">
       <div className="flex items-center justify-between mb-2 px-1">
@@ -250,24 +305,27 @@ function HeartbeatCard() {
           <Activity size={10} />
           Nexley this week
         </div>
-        <button className="text-[10.5px] fg-muted hover:fg-base transition-colors inline-flex items-center gap-1">
+        <a
+          href="/admin/close"
+          className="text-[10.5px] fg-muted hover:fg-base transition-colors inline-flex items-center gap-1"
+        >
           Open report
           <ChevronRight size={10} />
-        </button>
+        </a>
       </div>
       <div className="heartbeat-card">
         <div className="heartbeat-cell">
-          <div className="heartbeat-num">4</div>
+          <div className="heartbeat-num">{loading ? '—' : (stats?.nudges ?? 0)}</div>
           <div className="heartbeat-label">nudges drafted</div>
-          <div className="heartbeat-sub">£13.2k at stake</div>
+          <div className="heartbeat-sub">{loading ? ' ' : (hasActivity ? fmtGBP(stats!.nudgeValue) + ' at stake' : 'last 7 days')}</div>
         </div>
         <div className="heartbeat-cell">
-          <div className="heartbeat-num">2</div>
+          <div className="heartbeat-num">{loading ? '—' : (stats?.overdue ?? 0)}</div>
           <div className="heartbeat-label">overdue invoices flagged</div>
-          <div className="heartbeat-sub">£3,480 total</div>
+          <div className="heartbeat-sub">{loading ? ' ' : (hasActivity ? fmtGBP(stats!.overdueTotal) + ' total' : 'last 7 days')}</div>
         </div>
         <div className="heartbeat-cell">
-          <div className="heartbeat-num">6</div>
+          <div className="heartbeat-num">{loading ? '—' : (stats?.silent ?? 0)}</div>
           <div className="heartbeat-label">silent customers found</div>
           <div className="heartbeat-sub">30+ days</div>
         </div>
@@ -357,17 +415,13 @@ export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows, pen
           <div className="mt-10">
             <div className="flex items-center justify-between mb-3 px-1">
               <h3 className="text-[11.5px] fg-muted uppercase tracking-wider">Recommended workflows</h3>
-              <div className="flex items-center gap-4 text-[11.5px] fg-muted">
-                <button className="inline-flex items-center gap-1 hover:fg-base transition-colors">
-                  <Search size={11} />
-                  Search
-                </button>
-                <button className="hover:fg-base transition-colors">View all</button>
-              </div>
+              {/* Prior "Search" and "View all" buttons were decorative with no
+                  onClick handlers — removed rather than leaving dead buttons.
+                  Command palette (⌘K) covers the search need. */}
             </div>
             <div className="grid grid-cols-2" style={{ borderTop: '1px solid rgb(var(--hy-border))' }}>
               {workflows.slice(0, 4).map((w, i) => (
-                <WorkflowCell key={i} w={w} i={i} last={i === 3} />
+                <WorkflowCell key={i} w={w} i={i} last={i === 3} onRun={onSend} />
               ))}
             </div>
           </div>

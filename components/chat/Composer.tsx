@@ -239,7 +239,9 @@ function Composer({ onSend, busy, autoFocus, variant = 'panel', onOpenPalette, o
         <div className="flex items-center gap-0.5 px-2 pb-2 pt-1">
           <ComposerChip icon={Plus} label={variant === 'hero' ? 'Files and sources' : 'Files'} onClick={pickFiles} />
           <ComposerChip icon={CommandIcon} label="Prompts" onClick={onOpenPalette} />
-          {variant === 'hero' && <ComposerChip icon={Settings} label="Customize" onClick={onOpenPalette} />}
+          {/* "Customize" button removed — it was wired to the same onOpenPalette
+              handler as "Prompts" above, so two visible buttons triggered the
+              exact same overlay. Kept the single Prompts entry. */}
           <ComposerChip icon={Sparkles} label="Improve" onClick={doRefine} disabled={isEmpty} />
           <div className="flex-1" />
           <button
