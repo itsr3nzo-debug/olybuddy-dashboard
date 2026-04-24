@@ -58,14 +58,20 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         </Suspense>
       )}
 
-      {/* Cal.com booking embed placeholder */}
+      {/* Booking link — Cal.com is a standalone external tool your AI Employee
+          can point customers at. Keeping this card as a surface to the external
+          workflow is honest about the scope (no "coming soon" promise of a
+          native embed we aren't actively building). When a proper Cal.com
+          integration exists it'll show up on /integrations and this card can
+          go away. */}
       <div className="rounded-xl border p-6 bg-card mt-6 border-border">
         <div className="flex items-center gap-2 mb-3">
           <Clock size={16} className="text-brand-primary" />
-          <h2 className="text-sm font-semibold text-foreground">Book a Consultation</h2>
+          <h2 className="text-sm font-semibold text-foreground">Use Cal.com alongside Nexley</h2>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
-          Let your customers book appointments directly. Cal.com scheduling integration coming soon.
+          Your AI Employee can share a Cal.com booking link with customers so they pick their own slot.
+          Set up a free Cal.com account, then paste your booking URL under Sender Roles &rarr; booking link.
         </p>
         <a
           href="https://cal.com"
@@ -73,7 +79,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           rel="noopener noreferrer"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-brand-primary text-white hover:bg-brand-primary/90 transition-colors"
         >
-          Set up Cal.com <ExternalLink size={14} />
+          Open Cal.com <ExternalLink size={14} />
         </a>
       </div>
     </div>

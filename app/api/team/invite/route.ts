@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getSupabase } from "@/lib/supabase";
 import { getUserSession, hasPermission } from "@/lib/rbac";
+import { getTeamLimit, isAtCap } from "@/lib/team-limits";
 
 export async function POST(req: NextRequest) {
   // Auth: get current user
@@ -36,6 +37,33 @@ export async function POST(req: NextRequest) {
   }
 
   const adminSupabase = getSupabase();
+
+  // ── Per-plan invite cap ─────────────────────────────────────────────
+  // Count current team size (every user stamped with this client_id —
+  // owner, members, and any super_admin who's linked here). Reject the
+  // invite BEFORE calling createUser so we don't leave orphaned auth rows
+  // on cap-hit. Free-tier-style "too many seats on your plan" UX.
+  const { data: clientRowForCap } = await adminSupabase
+    .from("clients")
+    .select("subscription_plan, name")
+    .eq("id", session.clientId)
+    .maybeSingle();
+  const subscriptionPlan = (clientRowForCap as { subscription_plan?: string } | null)?.subscription_plan ?? "trial";
+  const limit = getTeamLimit(subscriptionPlan);
+
+  const { data: { users: allUsers } } = await adminSupabase.auth.admin.listUsers({ perPage: 200 });
+  const teamCount = (allUsers ?? []).filter(u => u.app_metadata?.client_id === session.clientId).length;
+  if (isAtCap(teamCount, limit.cap)) {
+    return NextResponse.json(
+      {
+        error: `Your ${limit.plan} plan allows ${limit.label}. You already have ${teamCount}. Upgrade to invite more.`,
+        plan: limit.plan,
+        cap: limit.cap,
+        current: teamCount,
+      },
+      { status: 409 },
+    );
+  }
 
   // Create auth user with member role
   const { data: authData, error: authErr } = await adminSupabase.auth.admin.createUser({

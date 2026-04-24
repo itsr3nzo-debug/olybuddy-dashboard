@@ -11,6 +11,12 @@ interface TeamMember {
   last_sign_in_at: string | null
 }
 
+interface TeamLimit {
+  plan: string
+  cap: number | 'unlimited'
+  label: string
+}
+
 interface InviteResponse {
   success?: boolean
   userId?: string
@@ -19,6 +25,10 @@ interface InviteResponse {
   emailSent?: boolean
   inviteUrl?: string
   error?: string
+  /** Returned by /api/team/invite when the request is rejected for hitting the plan cap. */
+  plan?: string
+  cap?: number | 'unlimited'
+  current?: number
 }
 
 const ROLE_ICONS: Record<string, React.ReactNode> = {
@@ -29,19 +39,18 @@ const ROLE_ICONS: Record<string, React.ReactNode> = {
 
 export default function TeamSection() {
   const [members, setMembers] = useState<TeamMember[]>([])
+  const [limit, setLimit] = useState<TeamLimit | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [copiedInviteUrl, setCopiedInviteUrl] = useState<string | null>(null)
-  const [pendingRowAction, setPendingRowAction] = useState<{ id: string; kind: 'remove' | 'resend' } | null>(null)
+  const [pendingRowAction, setPendingRowAction] = useState<{ id: string; kind: 'remove' | 'resend' | 'role' } | null>(null)
 
-  // Load the current user id + the team list in parallel. The user id is
-  // used to hide the viewer themselves from their own team list — showing
-  // yourself in "Team Members" is confusing and was a pre-existing bug.
-  // Read the id from the client-side Supabase session directly so we don't
-  // need to add a `/api/auth/me` route just for this.
+  // Load the current user id + the team list (+ plan cap) in parallel.
+  // The user id is used to hide the viewer themselves from their own team
+  // list — showing yourself in "Team Members" was a pre-existing bug.
   useEffect(() => {
     let alive = true
     ;(async () => {
@@ -53,12 +62,24 @@ export default function TeamSection() {
       if (!alive) return
       const uid = sessionRes?.data?.user?.id ?? null
       if (uid) setCurrentUserId(uid)
-      if (Array.isArray(listRes)) setMembers(listRes)
+      // Back-compat: the old API returned a bare array, the new one
+      // returns { members, count, limit }. Handle both so a stale cached
+      // bundle against a new API (or vice versa) doesn't blank the list.
+      if (Array.isArray(listRes)) {
+        setMembers(listRes)
+      } else if (listRes && Array.isArray(listRes.members)) {
+        setMembers(listRes.members)
+        if (listRes.limit) setLimit(listRes.limit as TeamLimit)
+      }
     })()
     return () => {
       alive = false
     }
   }, [])
+
+  // Server-authoritative count is members.length (all seats on this client).
+  const seatsUsed = members.length
+  const atCap = limit ? (limit.cap === 'unlimited' ? false : seatsUsed >= (limit.cap as number)) : false
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault()
@@ -136,6 +157,42 @@ export default function TeamSection() {
     setPendingRowAction(null)
   }
 
+  async function handleRoleChange(member: TeamMember, newRole: 'member' | 'owner') {
+    if (newRole === member.role) return
+    // Promotion is the high-trust action — require a confirm so an
+    // accidental click on the dropdown doesn't quietly hand someone
+    // settings + billing access. Demotion is less risky but still
+    // worth a prompt so owners don't surprise each other.
+    const verb = newRole === 'owner' ? 'promote' : 'change'
+    const consequence = newRole === 'owner'
+      ? `They will gain full access: settings, billing, integrations, and the ability to invite or remove other teammates.`
+      : `They will lose settings, billing, and integrations access. They can still view the dashboard.`
+    const ok = window.confirm(
+      `${verb === 'promote' ? 'Promote' : 'Change role for'} ${member.email} to ${newRole}?\n\n${consequence}`,
+    )
+    if (!ok) return
+    setPendingRowAction({ id: member.id, kind: 'role' })
+    setError('')
+    setSuccess('')
+    // Optimistic UI: flip the role locally, roll back on failure.
+    const previousRole = member.role
+    setMembers(prev => prev.map(m => m.id === member.id ? { ...m, role: newRole } : m))
+    const res = await fetch(`/api/team/members/${member.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: newRole }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok && data.success) {
+      setSuccess(`${member.email} is now ${newRole === 'owner' ? 'an owner' : 'a member'}`)
+    } else {
+      // Rollback
+      setMembers(prev => prev.map(m => m.id === member.id ? { ...m, role: previousRole } : m))
+      setError(data.error || 'Failed to change role')
+    }
+    setPendingRowAction(null)
+  }
+
   async function copyLink(url: string) {
     try {
       await navigator.clipboard.writeText(url)
@@ -156,10 +213,25 @@ export default function TeamSection() {
 
   return (
     <div className="bg-card rounded-xl border p-6">
-      <h3 className="text-lg font-semibold mb-1">Team members</h3>
+      <div className="flex items-start justify-between gap-3 mb-1">
+        <h3 className="text-lg font-semibold">Team members</h3>
+        {limit && (
+          <span
+            className={
+              atCap
+                ? 'text-xs font-medium px-2 py-1 rounded-full bg-amber-500/10 text-amber-600'
+                : 'text-xs text-muted-foreground px-2 py-1'
+            }
+          >
+            {limit.cap === 'unlimited'
+              ? `${seatsUsed} seats used`
+              : `${seatsUsed} of ${limit.cap} seats used`}
+          </span>
+        )}
+      </div>
       <p className="text-sm text-muted-foreground mb-5">
-        Invite teammates to view the dashboard. They can see conversations, calls, and pipeline
-        but can&apos;t change settings or billing.
+        Invite teammates to view the dashboard. Members can see conversations, calls, and pipeline
+        but can&apos;t change settings or billing. Owners can.
       </p>
 
       {/* Member list */}
@@ -167,24 +239,40 @@ export default function TeamSection() {
         {visibleMembers.map(m => {
           const isPending = !m.last_sign_in_at && m.role === 'member'
           const rowBusy = pendingRowAction?.id === m.id
+          const roleEditable = m.role !== 'super_admin'
           return (
             <div key={m.id} className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg bg-muted/50">
               <div className="flex items-center gap-2 min-w-0">
                 {ROLE_ICONS[m.role] ?? ROLE_ICONS.member}
                 <span className="text-sm truncate">{m.email}</span>
-                <span className="text-xs text-muted-foreground capitalize hidden sm:inline">({m.role})</span>
                 {isPending && (
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 text-[10px] font-medium flex-shrink-0">
                     Pending
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <span className="text-xs text-muted-foreground hidden md:inline">
                   {m.last_sign_in_at
                     ? `Last seen ${new Date(m.last_sign_in_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
                     : 'Never signed in'}
                 </span>
+                {roleEditable ? (
+                  <select
+                    value={m.role}
+                    onChange={e => handleRoleChange(m, e.target.value as 'member' | 'owner')}
+                    disabled={rowBusy}
+                    aria-label={`Change role for ${m.email}`}
+                    className="text-xs rounded-md border bg-background px-2 py-1 disabled:opacity-50"
+                  >
+                    <option value="member">Member</option>
+                    <option value="owner">Owner</option>
+                  </select>
+                ) : (
+                  <span className="text-xs text-muted-foreground capitalize px-2 py-1">
+                    {m.role.replace('_', ' ')}
+                  </span>
+                )}
                 {isPending && (
                   <button
                     type="button"
@@ -230,19 +318,27 @@ export default function TeamSection() {
           type="email"
           value={email}
           onChange={e => setEmail(e.target.value)}
-          placeholder="teammate@company.com"
-          className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm"
+          placeholder={atCap ? 'At capacity — upgrade to invite more' : 'teammate@company.com'}
+          className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm disabled:opacity-60"
+          disabled={atCap}
           required
         />
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || atCap}
+          title={atCap ? 'Upgrade your plan to invite more teammates' : undefined}
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-primary text-white px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
         >
           {loading ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
           {loading ? 'Inviting…' : 'Send invite'}
         </button>
       </form>
+
+      {atCap && (
+        <p className="text-xs text-muted-foreground mt-2">
+          Your {limit?.plan} plan is capped at {limit?.label}. Upgrade in billing to add more seats.
+        </p>
+      )}
 
       {error && (
         <p className="text-sm text-red-500 mt-3">{error}</p>
