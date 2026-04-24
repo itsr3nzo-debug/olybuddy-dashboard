@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { User } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { resolveClientId } from '@/lib/chat/resolve-client';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
@@ -10,6 +11,38 @@ function writerFor(supabase: Awaited<ReturnType<typeof createClient>>, isAdmin: 
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
+}
+
+/**
+ * Record an admin impersonation event for any mutation that crossed
+ * tenants. Blocking await — we never want to silently lose the trail.
+ * Idempotent from the caller's POV: if the audit insert itself fails
+ * we swallow the error so the user-facing mutation still succeeds
+ * (partial audit is better than a 500 on a valid admin write).
+ */
+async function auditAdminChatAction(
+  user: User,
+  clientId: string,
+  action: string,
+  sessionId: string,
+  context: Record<string, unknown> = {},
+): Promise<void> {
+  try {
+    const svc = createServiceClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } },
+    );
+    await svc.from('admin_audit_log').insert({
+      admin_user_id: user.id,
+      admin_email: user.email ?? null,
+      client_id: clientId,
+      action,
+      target_kind: 'session',
+      target_id: sessionId,
+      context,
+    });
+  } catch { /* non-fatal */ }
 }
 
 /** GET /api/chat/sessions/:id?client=<uuid?> */
@@ -89,6 +122,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (isAdminOverride) {
+    await auditAdminChatAction(user, clientId, 'chat_session_patch', id, update);
+  }
   return NextResponse.json({ session: data });
 }
 
@@ -115,5 +151,8 @@ export async function DELETE(
     .eq('id', id)
     .eq('client_id', clientId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (isAdminOverride) {
+    await auditAdminChatAction(user, clientId, 'chat_session_delete', id);
+  }
   return NextResponse.json({ ok: true });
 }

@@ -24,6 +24,10 @@ interface FleetRow {
   } | null;
   subscription_alert: { severity: string; expires_in_sec: number } | null;
   provisioning_alerts: number;
+  /** Short sha of the web-chat-bridge.ts revision currently deployed to
+   *  this client's VPS (set by scripts/propagate-dashboard-chat-to-fleet.sh). */
+  bridge_sha: string | null;
+  bridge_synced_at: string | null;
 }
 
 function ageSec(ts: string | null): number | null {
@@ -55,12 +59,13 @@ export default async function AdminFleetPage() {
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-  const [clientsRes, pulsesRes, subsRes, provAlertsRes, provHbRes] = await Promise.all([
-    service.from('clients').select('id, name, slug, vps_ip, subscription_status, trial_ends_at').order('created_at', { ascending: false }),
+  const [clientsRes, pulsesRes, subsRes, provAlertsRes, provHbRes, fleetStateRes] = await Promise.all([
+    service.from('clients').select('id, name, slug, vps_ip, subscription_status, trial_ends_at, bridge_sha, bridge_synced_at').order('created_at', { ascending: false }),
     service.from('agent_pulse').select('client_id, last_beat_at, stale, tmux_ok, pulse_age_sec'),
     service.from('subscription_expiry_alerts').select('client_id, severity, expires_in_sec'),
     service.from('provisioning_alerts').select('client_id').is('resolved_at', null),
     service.from('provisioning_heartbeat').select('hostname, last_beat_at, queue_depth'),
+    service.from('fleet_state').select('current_bridge_sha, updated_at').eq('id', 'singleton').maybeSingle(),
   ]);
 
   const pulseByClient = new Map((pulsesRes.data ?? []).map((p) => [p.client_id, p]));
@@ -80,14 +85,58 @@ export default async function AdminFleetPage() {
     agent_pulse: pulseByClient.get(c.id) ?? null,
     subscription_alert: subByClient.get(c.id) ?? null,
     provisioning_alerts: alertCount.get(c.id) ?? 0,
+    bridge_sha: (c as { bridge_sha?: string | null }).bridge_sha ?? null,
+    bridge_synced_at: (c as { bridge_synced_at?: string | null }).bridge_synced_at ?? null,
   }));
 
   const prov = provHbRes.data ?? [];
+  const currentBridgeSha = fleetStateRes.data?.current_bridge_sha ?? null;
+  const fleetStateAgeS = fleetStateRes.data?.updated_at ? ageSec(fleetStateRes.data.updated_at) : null;
+
+  // Bridge sync summary — rows that are on the current sha vs stale/missing.
+  // VPS-less clients (free-demo Vercel sites) are excluded from the count.
+  const vpsRows = rows.filter((r) => r.vps_ip);
+  const onCurrent = currentBridgeSha
+    ? vpsRows.filter((r) => r.bridge_sha === currentBridgeSha).length
+    : 0;
+  const staleOrMissing = vpsRows.length - onCurrent;
 
   return (
     <div className="max-w-6xl mx-auto p-8">
       <h1 className="text-2xl font-bold mb-1">Fleet health</h1>
       <p className="text-sm text-slate-400 mb-6">Live view of every VPS. Refreshes every 30s.</p>
+
+      {/* Bridge rollout — shows how many VPSes are running the current
+          template's web-chat-bridge.ts. A non-zero staleOrMissing count
+          is a call to run scripts/propagate-dashboard-chat-to-fleet.sh. */}
+      <section className="mb-8">
+        <h2 className="text-sm uppercase tracking-wider text-slate-500 mb-2">Dashboard chat bridge rollout</h2>
+        <div className="rounded-lg border border-white/10 bg-slate-900/50 p-4 text-sm">
+          {currentBridgeSha ? (
+            <div className="flex items-center gap-4 flex-wrap">
+              <span className={`inline-block w-2 h-2 rounded-full ${staleOrMissing === 0 ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+              <span>
+                <strong>{onCurrent}</strong> of <strong>{vpsRows.length}</strong> client VPSes on current bridge
+                <span className="text-slate-500 font-mono ml-2">({currentBridgeSha})</span>
+              </span>
+              {staleOrMissing > 0 && (
+                <span className="text-amber-400">
+                  {staleOrMissing} stale — run <code className="px-1 py-0.5 rounded bg-slate-800 font-mono text-xs">scripts/propagate-dashboard-chat-to-fleet.sh</code>
+                </span>
+              )}
+              {fleetStateAgeS != null && (
+                <span className="text-slate-500 ml-auto">template stamp: {fleetStateAgeS < 3600 ? `${Math.round(fleetStateAgeS / 60)}m ago` : `${Math.round(fleetStateAgeS / 3600)}h ago`}</span>
+              )}
+            </div>
+          ) : (
+            <div className="text-red-400">
+              No bridge rollout recorded yet. Run{' '}
+              <code className="px-1 py-0.5 rounded bg-slate-800 font-mono text-xs">bash scripts/propagate-dashboard-chat-to-fleet.sh</code>{' '}
+              from Clawdbot to seed.
+            </div>
+          )}
+        </div>
+      </section>
 
       <section className="mb-8">
         <h2 className="text-sm uppercase tracking-wider text-slate-500 mb-2">Provisioning poller</h2>
@@ -118,6 +167,7 @@ export default async function AdminFleetPage() {
                 <th className="text-left px-4 py-2">Pulse</th>
                 <th className="text-left px-4 py-2">Subscription</th>
                 <th className="text-left px-4 py-2">Alerts</th>
+                <th className="text-left px-4 py-2">Bridge</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -154,6 +204,21 @@ export default async function AdminFleetPage() {
                       {r.provisioning_alerts > 0
                         ? <span className="text-red-400">{r.provisioning_alerts} open</span>
                         : <span>—</span>}
+                    </td>
+                    <td className="px-4 py-2 text-slate-400">
+                      {!r.vps_ip ? (
+                        <span className="text-slate-600">—</span>
+                      ) : !r.bridge_sha ? (
+                        <span className="text-red-400" title="Bridge never synced to this VPS">never</span>
+                      ) : currentBridgeSha && r.bridge_sha !== currentBridgeSha ? (
+                        <span className="text-amber-400 font-mono text-xs" title={`Stale — current is ${currentBridgeSha}`}>
+                          {r.bridge_sha} ⚠
+                        </span>
+                      ) : (
+                        <span className="text-emerald-400/70 font-mono text-xs" title={r.bridge_synced_at ?? ''}>
+                          {r.bridge_sha}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );

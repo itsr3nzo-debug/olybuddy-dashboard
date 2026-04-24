@@ -71,5 +71,27 @@ export async function POST(req: Request) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Audit admin-impersonated session creation so the trail isn't
+  // limited to the message-send path. Deliberately blocking await.
+  if (isAdminOverride && data?.id) {
+    try {
+      const svc = createServiceClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { autoRefreshToken: false, persistSession: false } },
+      );
+      await svc.from('admin_audit_log').insert({
+        admin_user_id: user.id,
+        admin_email: user.email ?? null,
+        client_id: clientId,
+        action: 'chat_session_create',
+        target_kind: 'session',
+        target_id: data.id,
+        context: { title },
+      });
+    } catch { /* non-fatal */ }
+  }
+
   return NextResponse.json({ session: data });
 }
