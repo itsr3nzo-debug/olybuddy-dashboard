@@ -173,6 +173,41 @@ export class FergusClient {
     return []                            // filter ignored + no substring match
   }
 
+  /**
+   * List ALL customers across every page. Used by the contact-sync job on
+   * VPSes to seed WhatsApp's name↔phone mapping without requiring the owner
+   * to re-pair their WhatsApp session. Pulls up to `maxPages` pages of
+   * `pageSize` each (default: 2000 customers). Stops early when Fergus
+   * returns a short page.
+   */
+  async listAllCustomers(opts?: { pageSize?: number; maxPages?: number }): Promise<FergusCustomer[]> {
+    const pageSize = Math.min(Math.max(opts?.pageSize ?? 100, 10), 200)
+    const maxPages = Math.min(Math.max(opts?.maxPages ?? 40, 1), 100)
+    const all: FergusCustomer[] = []
+    let cursor = 0
+    for (let page = 0; page < maxPages; page++) {
+      const params = new URLSearchParams({
+        pageSize: String(pageSize),
+        sortField: 'createdAt',
+        sortOrder: 'desc',
+        pageCursor: String(cursor),
+      })
+      const res = await this.req<{ data: FergusCustomer[]; pagination?: { pageCursor?: number } }>(
+        'GET',
+        `/customers?${params.toString()}`,
+      )
+      const rows = res?.data ?? []
+      if (rows.length === 0) break
+      all.push(...rows)
+      // Short page = final page
+      if (rows.length < pageSize) break
+      // Some Fergus responses echo the next cursor; otherwise advance by pageSize.
+      const nextCursor = res?.pagination?.pageCursor
+      cursor = typeof nextCursor === 'number' && nextCursor > cursor ? nextCursor : cursor + pageSize
+    }
+    return all
+  }
+
   async createCustomer(args: { customerFullName: string; mainContact: FergusContact; physicalAddress?: FergusAddress; postalAddress?: FergusAddress }): Promise<FergusCustomer> {
     const body: Record<string, unknown> = {
       customerFullName: args.customerFullName,
