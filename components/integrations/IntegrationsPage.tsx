@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Search, Plus, Globe, HelpCircle, ChevronDown } from 'lucide-react'
+import { Search, Plus, Globe, HelpCircle, ChevronDown, ArrowUpDown } from 'lucide-react'
 import { PROVIDERS, CATEGORIES, getOAuthProviderId, type ProviderConfig } from '@/lib/integrations-config'
 import ProviderIcon from '@/components/integrations/ProviderIcon'
 import { Badge, StatusBadge } from '@/components/ui/badge'
@@ -376,7 +376,7 @@ export default function IntegrationsPage() {
   // opening the "Add integration" dialog first.
   const quickTiles = PROVIDERS.filter(p =>
     p.available && p.recommendedForTrades && !connectedProviders.has(p.id)
-  ).slice(0, 6)
+  ).slice(0, 4)
 
   return (
     <div className="px-6 py-8 max-w-6xl mx-auto">
@@ -417,8 +417,8 @@ export default function IntegrationsPage() {
       {/* Header — matches ElevenLabs: title + Alpha pill on left, primary CTA on right */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-semibold text-gray-900 dark:text-white tracking-tight">Integrations</h1>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
+          <h1 className="text-4xl font-semibold text-gray-900 dark:text-white tracking-tight">Integrations</h1>
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
             Alpha
           </span>
         </div>
@@ -447,7 +447,7 @@ export default function IntegrationsPage() {
           type="button"
           className="inline-flex items-center gap-2 px-3.5 py-2.5 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
         >
-          <svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9M3 12h5m0 0l4-4m-4 4l4 4" /></svg>
+          <ArrowUpDown className="w-3.5 h-3.5 text-gray-400" strokeWidth={2} />
           Recent
           <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
         </button>
@@ -458,9 +458,9 @@ export default function IntegrationsPage() {
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-200 dark:border-gray-800">
-              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 dark:text-gray-400 tracking-wide">Name</th>
-              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 dark:text-gray-400 tracking-wide">Created by</th>
-              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 dark:text-gray-400 tracking-wide">
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 dark:text-gray-400">Name</th>
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 dark:text-gray-400">Created by</th>
+              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 dark:text-gray-400">
                 <span className="inline-flex items-center gap-1">Date created <ChevronDown className="w-3 h-3" /></span>
               </th>
               <th className="py-3 px-4"></th>
@@ -484,16 +484,16 @@ export default function IntegrationsPage() {
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="relative mb-5">
-            <div className="w-20 h-20 rounded-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 flex items-center justify-center">
-              <Globe className="w-9 h-9 text-gray-300 dark:text-gray-700" strokeWidth={1.5} />
+            <div className="w-20 h-20 rounded-full bg-gray-50/50 dark:bg-gray-900/50 flex items-center justify-center">
+              <Globe className="w-11 h-11 text-gray-300 dark:text-gray-600" strokeWidth={1} />
             </div>
-            <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 flex items-center justify-center">
+            <div className="absolute top-0 right-0 w-6 h-6 rounded-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 flex items-center justify-center shadow-sm">
               <HelpCircle className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" strokeWidth={2} />
             </div>
           </div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1.5">No integrations configured</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
-            Connect your accounts so your AI Employee can handle email, calendar, quotes and invoicing on your behalf. Browse the library below.
+            Connect your AI Employee to your existing tools or browse the library of integrations below.
           </p>
         </div>
       ) : null}
