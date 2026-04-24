@@ -19,12 +19,13 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AlertCircle } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { cx } from '@/lib/chat/utils';
 import { SUGGESTIONS, WORKFLOWS } from '@/lib/chat/mock';
 import type { Message, Session, Source } from '@/lib/chat/types';
 import { listSessions, loadSession, postMessage, renameSession as apiRenameSession, deleteSession as apiDeleteSession, pinSession as apiPinSession, rowToMessage, summaryToSession } from '@/lib/chat/api';
-import { useChatRealtime } from '@/lib/chat/useChatRealtime';
+import { useChatRealtime, type RealtimeStatus } from '@/lib/chat/useChatRealtime';
 import { ClientContextProvider } from '@/lib/chat/client-context';
 import Sidebar, { type ChatView } from './Sidebar';
 import Dashboard from './Features';
@@ -113,10 +114,24 @@ export default function ChatApp(props: ChatAppProps) {
   // Busy state — true while a reply is in-flight
   const [busy, setBusy] = useState(false);
 
-  // streamingText is derived: when an assistant message is 'drafting', its
-  // content field IS the partial text. The prototype's separate streamingText
-  // state is no longer needed (realtime pushes content updates directly).
-  const streamingText = '';
+  // Ephemeral error banner — surfaces API failures (send / rename / pin /
+  // delete). Auto-dismisses after 6s; the `key` forces re-mount so a second
+  // error while the first is still visible re-triggers the animation + timer.
+  const [errorBanner, setErrorBanner] = useState<{ key: number; message: string } | null>(null);
+  const showError = useCallback((message: string) => {
+    setErrorBanner({ key: Date.now(), message });
+  }, []);
+  useEffect(() => {
+    if (!errorBanner) return;
+    const t = setTimeout(() => setErrorBanner(null), 6000);
+    return () => clearTimeout(t);
+  }, [errorBanner]);
+
+  // Realtime connection status — shown as a subtle "reconnecting" pill on
+  // the active conversation header when the websocket drops AND we have an
+  // in-flight message. `idle` is the initial state before a session is
+  // selected; we only show the indicator for `error` / `closed`.
+  const [rtStatus, setRtStatus] = useState<RealtimeStatus>('idle');
 
   const currentSession = sessions.find((s) => s.id === currentSessionId) || null;
 
@@ -158,7 +173,7 @@ export default function ChatApp(props: ChatAppProps) {
     currentSessionIdRef.current = currentSessionId;
   }, [currentSessionId]);
 
-  useChatRealtime(currentSessionId, applyRealtime);
+  useChatRealtime(currentSessionId, applyRealtime, setRtStatus);
 
   // Polling fallback — realtime websocket respects RLS and admin JWTs can
   // occasionally miss events. Every 2.5s, while the active session has at
@@ -253,11 +268,20 @@ export default function ChatApp(props: ChatAppProps) {
           return [newSess, ...prev];
         });
         if (!currentSessionId) setCurrentSessionId(res.session_id);
-      } catch {
+      } catch (err) {
+        // Surface the failure so the user knows their message didn't land —
+        // previously this was silent, leaving them staring at an idle
+        // composer with no indication the send failed.
         setBusy(false);
+        const detail = err instanceof Error ? err.message : 'Couldn\u2019t send';
+        showError(
+          detail.includes('failed')
+            ? 'Couldn\u2019t send that message. Check your connection and try again.'
+            : detail
+        );
       }
     },
-    [busy, currentSessionId]
+    [busy, currentSessionId, showError, props.clientId]
   );
 
   const newChat = useCallback(() => {
@@ -292,21 +316,60 @@ export default function ChatApp(props: ChatAppProps) {
     setActiveView('assistant');
   }, []);
 
+  // Each of these three optimistically updates local state, fires the API
+  // call, and rolls back on failure. Previously they all silently swallowed
+  // errors — which left the UI in a lying state (e.g. a rename looked
+  // successful while the DB still had the old title).
   const renameSession = useCallback((id: string, title: string) => {
-    setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)));
-    apiRenameSession(id, title).catch(() => {});
-  }, []);
+    let previousTitle: string | undefined;
+    setSessions((prev) => prev.map((s) => {
+      if (s.id !== id) return s;
+      previousTitle = s.title;
+      return { ...s, title };
+    }));
+    apiRenameSession(id, title).catch(() => {
+      // Roll back to the previous title so the UI reflects reality.
+      if (previousTitle !== undefined) {
+        setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, title: previousTitle! } : s)));
+      }
+      showError('Couldn\u2019t rename that chat. Try again.');
+    });
+  }, [showError]);
 
   const deleteSession = useCallback((id: string) => {
-    setSessions((prev) => prev.filter((s) => s.id !== id));
-    if (currentSessionId === id) setCurrentSessionId(null);
-    apiDeleteSession(id).catch(() => {});
-  }, [currentSessionId]);
+    let removed: Session | undefined;
+    let removedIdx = -1;
+    setSessions((prev) => {
+      const idx = prev.findIndex((s) => s.id === id);
+      if (idx === -1) return prev;
+      removed = prev[idx];
+      removedIdx = idx;
+      return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+    });
+    const wasActive = currentSessionId === id;
+    if (wasActive) setCurrentSessionId(null);
+    apiDeleteSession(id).catch(() => {
+      // Put it back where it was, preserving order, and re-select if needed.
+      if (removed) {
+        setSessions((prev) => {
+          const next = prev.slice();
+          next.splice(Math.min(removedIdx, next.length), 0, removed!);
+          return next;
+        });
+        if (wasActive) setCurrentSessionId(id);
+      }
+      showError('Couldn\u2019t delete that chat. Try again.');
+    });
+  }, [currentSessionId, showError]);
 
   const pinSession = useCallback((id: string, pinned: boolean) => {
     setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, pinned } : s)));
-    apiPinSession(id, pinned).catch(() => {});
-  }, []);
+    apiPinSession(id, pinned).catch(() => {
+      // Revert the pin toggle.
+      setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, pinned: !pinned } : s)));
+      showError(pinned ? 'Couldn\u2019t pin that chat.' : 'Couldn\u2019t unpin that chat.');
+    });
+  }, [showError]);
 
   const toggleTheme = useCallback(() => {
     setNextTheme(theme === 'dark' ? 'light' : 'dark');
@@ -357,7 +420,7 @@ export default function ChatApp(props: ChatAppProps) {
                 ...m,
                 status: 'error' as const,
                 errorMessage:
-                  'No agent picked this up. The AI Employee may not be deployed for this client yet, or the bridge is offline.',
+                  'Didn\u2019t reach your AI Employee. It may be offline — try again in a moment.',
               };
             }
             if ((m.status === 'thinking' || m.status === 'drafting') && ageMs > 120_000) {
@@ -365,7 +428,7 @@ export default function ChatApp(props: ChatAppProps) {
               return {
                 ...m,
                 status: 'error' as const,
-                errorMessage: 'Took too long to reply — try again.',
+                errorMessage: 'Your AI Employee took too long to reply. Give it another go.',
               };
             }
             return m;
@@ -408,6 +471,24 @@ export default function ChatApp(props: ChatAppProps) {
             Chatting as <strong className="fg-base">{props.clientName}</strong>&apos;s AI Employee. All messages hit the live client agent.
           </span>
           <a href="/chat" className="ml-auto fg-base underline underline-offset-2 hover:opacity-80">Switch client</a>
+        </div>
+      )}
+      {errorBanner && (
+        <div
+          key={errorBanner.key}
+          role="alert"
+          className="flex items-center gap-3 px-4 py-2 text-[12.5px] border-b-hy fg-danger flex-shrink-0 anim-fade-in"
+          style={{ background: 'rgb(var(--hy-danger) / 0.1)' }}
+        >
+          <AlertCircle size={14} aria-hidden="true" className="flex-shrink-0" />
+          <span className="truncate flex-1">{errorBanner.message}</span>
+          <button
+            onClick={() => setErrorBanner(null)}
+            aria-label="Dismiss"
+            className="ml-auto text-[11px] px-2 py-0.5 rounded hover:bg-hover fg-subtle hover:fg-base transition-colors"
+          >
+            Dismiss
+          </button>
         </div>
       )}
       <div className="flex flex-1 min-h-0">
@@ -471,8 +552,9 @@ export default function ChatApp(props: ChatAppProps) {
             session={currentSession}
             onSend={sendMessage}
             onOpenSource={setOpenSource}
-            streamingText={streamingText}
+            streamingText=""
             busy={busy}
+            rtStatus={rtStatus}
             onRenameSession={renameSession}
             onDeleteSession={deleteSession}
             onPinSession={pinSession}

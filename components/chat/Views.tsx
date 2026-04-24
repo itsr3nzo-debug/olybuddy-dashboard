@@ -444,6 +444,8 @@ interface AssistPanelProps {
   onOpenSource: (src: Source) => void;
   streamingText: string;
   busy: boolean;
+  /** Realtime websocket state — drives the "reconnecting" pill in the header. */
+  rtStatus?: 'idle' | 'connecting' | 'open' | 'closed' | 'error';
   onRenameSession: (id: string, title: string) => void;
   onDeleteSession?: (id: string) => void;
   onPinSession?: (id: string, pinned: boolean) => void;
@@ -453,7 +455,7 @@ interface AssistPanelProps {
   onMentionConsumed?: () => void;
 }
 
-export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy, onOpenMention, onOpenPalette, onRenameSession, onDeleteSession, onPinSession, pendingMention, onMentionConsumed }: AssistPanelProps) {
+export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy, rtStatus, onOpenMention, onOpenPalette, onRenameSession, onDeleteSession, onPinSession, pendingMention, onMentionConsumed }: AssistPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -515,7 +517,24 @@ export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy
               className="w-full text-[13px] fg-base font-medium bg-surface border-hy rounded px-2 py-0.5 outline-none"
             />
           ) : (
-            <div className="text-[13px] fg-base truncate font-medium" title={session.title}>{session.title}</div>
+            <div className="text-[13px] fg-base truncate font-medium flex items-center gap-2" title={session.title}>
+              <span className="truncate">{session.title}</span>
+              {/* Reconnecting pill — shown only when the realtime socket is
+                  disconnected AND there's an in-flight assistant message.
+                  Otherwise it's noise: healthy closed-but-idle looks bad. */}
+              {(rtStatus === 'closed' || rtStatus === 'error') &&
+                session.messages.some(
+                  (m) => m.role === 'assistant' && (m.status === 'pending' || m.status === 'thinking' || m.status === 'drafting')
+                ) && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[10px] font-normal px-1.5 py-0.5 rounded-full bg-hover fg-muted flex-shrink-0"
+                    title="Realtime connection dropped — polling for updates"
+                  >
+                    <span className="h-1 w-1 rounded-full bg-current opacity-60 animate-pulse" />
+                    Reconnecting…
+                  </span>
+                )}
+            </div>
           )}
           <div className="text-[10.5px] fg-muted">
             {relativeTime(session.updatedAt ?? session.createdAt)}

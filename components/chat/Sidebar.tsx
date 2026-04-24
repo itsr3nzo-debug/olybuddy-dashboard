@@ -319,6 +319,17 @@ function SessionItem({ session, active, onSelect, onRename, onDelete, onPin }: {
   const [showPreview, setShowPreview] = useState(false);
   const [renameEditing, setRenameEditing] = useState(false);
   const [renameVal, setRenameVal] = useState('');
+  // Two-step delete confirm: first click arms, second click commits. Auto-
+  // disarms after 4s so a stray click doesn't leave a loaded gun in the menu.
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  useEffect(() => {
+    if (!deleteArmed) return;
+    const t = setTimeout(() => setDeleteArmed(false), 4000);
+    return () => clearTimeout(t);
+  }, [deleteArmed]);
+  useEffect(() => {
+    if (!menuOpen) setDeleteArmed(false);
+  }, [menuOpen]);
 
   const onEnter = () => {
     const t = setTimeout(() => setShowPreview(true), 450);
@@ -354,7 +365,23 @@ function SessionItem({ session, active, onSelect, onRename, onDelete, onPin }: {
     { icon: Pencil, label: 'Rename', action: () => { setRenameVal(session.title); setRenameEditing(true); setMenuOpen(false); } },
     { icon: Pin, label: session.pinned ? 'Unpin' : 'Pin', action: () => { onPin(!session.pinned); setMenuOpen(false); } },
     { icon: Download, label: 'Export', action: () => { exportSession(); setMenuOpen(false); } },
-    { icon: Trash2, label: 'Delete', danger: true, action: () => { onDelete(); setMenuOpen(false); } },
+    // Delete is a 2-step confirm: first click arms + relabels the menu item;
+    // second click within 4s commits. Prevents accidental data loss from a
+    // misclick in a small hover menu.
+    {
+      icon: Trash2,
+      label: deleteArmed ? 'Click again to delete' : 'Delete',
+      danger: true,
+      action: () => {
+        if (!deleteArmed) {
+          setDeleteArmed(true);
+          return;
+        }
+        onDelete();
+        setMenuOpen(false);
+        setDeleteArmed(false);
+      },
+    },
   ];
 
   return (
