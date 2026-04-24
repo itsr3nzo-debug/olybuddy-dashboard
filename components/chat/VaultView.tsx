@@ -479,7 +479,7 @@ function ProjectDetail({ project, onBack }: { project: VaultProject; onBack: () 
               ))}
             </div>
           ) : files.length === 0 ? (
-            <p className="text-[12.5px] fg-subtle py-4">No files yet. Drop some in above — Nexley can cite them in chat once they\u2019re ready.</p>
+            <p className="text-[12.5px] fg-subtle py-4">No files yet. Drop some in above — Nexley can cite them in chat once they&rsquo;re ready.</p>
           ) : (
             <div className="space-y-1">
               {files.map(f => (

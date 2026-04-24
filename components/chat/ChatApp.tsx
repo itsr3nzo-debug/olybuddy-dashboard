@@ -49,10 +49,16 @@ interface ChatAppProps {
 export default function ChatApp(props: ChatAppProps) {
   // Theme ─────────────────────────────────────────────────────────────
   // Use the dashboard's next-themes provider so the chat honors the same
-  // toggle as the rest of the dashboard. resolvedTheme is undefined during
-  // SSR / first client render to avoid hydration mismatch.
+  // toggle as the rest of the dashboard. resolvedTheme is undefined on the
+  // server and during the first client render — if we wrote the class at
+  // that moment we'd get a hydration mismatch when next-themes swaps in the
+  // real theme from localStorage. `mounted` gates theme-dependent output to
+  // client-only. We also suppressHydrationWarning on the root div so the
+  // one-frame flash of classless output doesn't trip React.
   const { resolvedTheme, setTheme: setNextTheme } = useTheme();
-  const theme: 'light' | 'dark' = resolvedTheme === 'dark' ? 'dark' : 'light';
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  const theme: 'light' | 'dark' = mounted && resolvedTheme === 'dark' ? 'dark' : 'light';
 
   // Sessions ──────────────────────────────────────────────────────────
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -505,7 +511,10 @@ export default function ChatApp(props: ChatAppProps) {
         userEmail: props.userEmail,
         ownerName: props.ownerName,
       }}
-    ><div className={cx('nexley-chat-root flex flex-col h-full w-full overflow-hidden bg-app', theme)}>
+    ><div
+      suppressHydrationWarning
+      className={cx('nexley-chat-root flex flex-col h-full w-full overflow-hidden bg-app', theme)}
+    >
       {props.isAdminView && (
         <div className="flex items-center gap-3 px-4 py-2 text-[12px] border-b-hy bg-subtle fg-subtle flex-shrink-0">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-hover px-2 py-0.5 text-[11px] fg-base">
