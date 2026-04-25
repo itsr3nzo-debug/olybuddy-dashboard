@@ -369,8 +369,15 @@ export class FergusClient {
   /**
    * Add labour + materials line items to a job. Fergus doesn't expose
    * /jobs/{id}/lineItems — line items belong to PHASES (/phases/{phaseId}/stockOnHand).
-   * This helper fetches the job's phases, picks the first one (or creates a
-   * default phase if none exists yet), and adds each line item there.
+   *
+   * Targeting: pass `target.phaseId` to add to a specific phase, or
+   * `target.phaseName` to look up a phase by title (case-insensitive)
+   * and auto-create it if missing. With no target, falls back to the
+   * first phase (creating a "Default" if none exist) — back-compat for
+   * callers that don't care which phase.
+   *
+   * Returns the resolved `phaseId` alongside the per-item create
+   * results so the caller can echo it back to the user / store it.
    */
   async addJobLineItems(jobId: number, items: Array<{
     description: string
@@ -378,19 +385,17 @@ export class FergusClient {
     unitPrice?: number
     unitCost?: number
     itemType?: 'labour' | 'materials' | 'other'
-  }>): Promise<Array<Record<string, unknown>>> {
-    let phases = await this.listJobPhases(jobId)
-    if (!phases.length) {
-      // No phase yet — create a default one
-      const created = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>(
-        'POST', `/jobs/${jobId}/phases`, { title: 'Default', description: '' },
-      )
-      const c = (created as { data?: Record<string, unknown> })?.data ?? (created as Record<string, unknown>)
-      phases = [c]
-    }
-    const firstPhase = phases[0]
-    const phaseId = (firstPhase?.id ?? (firstPhase as { jobPhaseId?: number })?.jobPhaseId) as number | undefined
-    if (!phaseId) throw new Error(`Could not resolve a phaseId for job ${jobId}`)
+  }>, target?: {
+    phaseId?: number
+    phaseName?: string
+  }): Promise<{
+    phaseId: number
+    phaseTitle?: string
+    phaseCreated: boolean
+    results: Array<Record<string, unknown>>
+  }> {
+    const resolved = await this.resolvePhase(jobId, target)
+    const phaseId = resolved.phaseId
 
     const results = await Promise.all(
       items.map(it =>
@@ -403,7 +408,83 @@ export class FergusClient {
         }).catch(e => ({ error: e instanceof Error ? e.message : 'unknown', description: it.description })),
       ),
     )
-    return results.map(r => (r as { data?: Record<string, unknown> })?.data ?? (r as Record<string, unknown>))
+    return {
+      phaseId,
+      phaseTitle: resolved.phaseTitle,
+      phaseCreated: resolved.phaseCreated,
+      results: results.map(r => (r as { data?: Record<string, unknown> })?.data ?? (r as Record<string, unknown>)),
+    }
+  }
+
+  /**
+   * Resolve a phase target — used by addJobLineItems and any future caller
+   * that wants "by ID, by name, or default" semantics. Returns:
+   *   - phaseId: numeric ID
+   *   - phaseTitle: the matched/created phase title (when known)
+   *   - phaseCreated: true if we had to create a phase to satisfy the target
+   *
+   * Name match is case-insensitive, trimmed. If a name has no match, we
+   * create the phase rather than 404 — keeps the agent's flow single-call
+   * for the common "add labour to a 'Labour' phase that may or may not
+   * already exist" case.
+   */
+  private async resolvePhase(jobId: number, target?: {
+    phaseId?: number
+    phaseName?: string
+  }): Promise<{ phaseId: number; phaseTitle?: string; phaseCreated: boolean }> {
+    // Direct ID — trust it; Fergus will 404 on POST if it's wrong and
+    // that surfaces as the upstream error to the caller.
+    if (target?.phaseId) {
+      return { phaseId: target.phaseId, phaseCreated: false }
+    }
+
+    const phases = await this.listJobPhases(jobId)
+    const phaseTitle = (p: Record<string, unknown>) =>
+      ((p?.title as string | undefined) ?? (p?.name as string | undefined) ?? '').trim()
+    const phaseIdOf = (p: Record<string, unknown>) =>
+      (p?.id ?? (p as { jobPhaseId?: number })?.jobPhaseId) as number | undefined
+
+    // Name-targeted — case-insensitive title match, auto-create if missing.
+    if (target?.phaseName) {
+      const wanted = target.phaseName.trim().toLowerCase()
+      const match = phases.find(p => phaseTitle(p).toLowerCase() === wanted)
+      if (match) {
+        const id = phaseIdOf(match)
+        if (id) return { phaseId: id, phaseTitle: phaseTitle(match), phaseCreated: false }
+      }
+      // Not found — create
+      const created = await this.createJobPhase(jobId, { title: target.phaseName.trim() })
+      const newId = phaseIdOf(created as Record<string, unknown>)
+      if (!newId) throw new Error(`Could not resolve phaseId after creating phase "${target.phaseName}"`)
+      return { phaseId: newId, phaseTitle: target.phaseName.trim(), phaseCreated: true }
+    }
+
+    // No target — first phase, or create "Default".
+    if (phases.length) {
+      const id = phaseIdOf(phases[0])
+      if (id) return { phaseId: id, phaseTitle: phaseTitle(phases[0]) || undefined, phaseCreated: false }
+    }
+    const created = await this.createJobPhase(jobId, { title: 'Default' })
+    const newId = phaseIdOf(created as Record<string, unknown>)
+    if (!newId) throw new Error(`Could not resolve a phaseId for job ${jobId}`)
+    return { phaseId: newId, phaseTitle: 'Default', phaseCreated: true }
+  }
+
+  /**
+   * Create a phase on a job. Maps to `POST /jobs/{jobId}/phases`.
+   * Phases hold line items (stockOnHand) — typically named after the
+   * work breakdown ("Labour", "Materials", "Site visit 1", etc.).
+   */
+  async createJobPhase(jobId: number, args: {
+    title: string
+    description?: string
+  }): Promise<Record<string, unknown>> {
+    const body: Record<string, unknown> = { title: args.title }
+    if (args.description) body.description = args.description
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>(
+      'POST', `/jobs/${jobId}/phases`, body,
+    )
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>)
   }
 
   /**
