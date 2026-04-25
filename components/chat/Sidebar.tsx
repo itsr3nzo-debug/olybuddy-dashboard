@@ -124,12 +124,30 @@ interface SidebarFullProps extends SidebarRailProps {
 
 function SidebarFull({ clientInitials, groups, currentSessionId, onSelectSession, onNewChat, onOpenPalette, onToggleTheme, theme, onToggleCollapse, onGoHome, onRenameSession, onDeleteSession, onPinSession, activeView, onNavChange }: SidebarFullProps) {
   const [showAll, setShowAll] = useState<Record<string, boolean>>({});
-  const { clientName } = useClient();
+  const { clientName, isAdminView } = useClient();
+
+  // Workspace button click:
+  //   - Owner / member: go home (current behavior — chevron is hidden so
+  //     the affordance doesn't lie about a dropdown)
+  //   - Super-admin viewing as a client: navigate to /chat (clears the
+  //     ?client=<uuid> query param), which renders the client picker page.
+  //     Lets them switch which client they're shadow-chatting as.
+  const onWorkspaceClick = () => {
+    if (isAdminView) {
+      // Use a full navigation (not router.push) so the server-rendered
+      // picker on /chat reads the cleared search params correctly.
+      if (typeof window !== 'undefined') window.location.href = '/chat';
+    } else {
+      onGoHome();
+    }
+  };
+
   return (
     <>
       <div className="px-2.5 pt-3 pb-2 flex items-center justify-between gap-1">
         <button
-          onClick={onGoHome}
+          onClick={onWorkspaceClick}
+          title={isAdminView ? 'Switch client (admin)' : 'Go to chat home'}
           className="flex items-center gap-1.5 min-w-0 px-1.5 py-1 rounded-md hover:bg-hover transition-colors focus-ring text-left"
         >
           <div
@@ -137,7 +155,9 @@ function SidebarFull({ clientInitials, groups, currentSessionId, onSelectSession
             style={{ background: 'rgb(var(--hy-fg-base))', color: 'rgb(var(--hy-fg-inverse))', letterSpacing: '-0.01em' }}
           >{clientInitials}</div>
           <span className="text-[12px] fg-base truncate max-w-[110px]">{clientName}</span>
-          <ChevronDown size={11} className="fg-muted flex-shrink-0" />
+          {isAdminView && (
+            <ChevronDown size={11} className="fg-muted flex-shrink-0" />
+          )}
         </button>
         <div className="flex items-center">
           <IconButton icon={Search} label="Search (⌘K)" onClick={onOpenPalette} size={12} className="h-6 w-6" />

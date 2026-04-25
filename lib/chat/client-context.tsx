@@ -8,12 +8,16 @@ export interface ClientCtx {
   userEmail: string;
   /** Owner's display name (first name), if available */
   ownerName?: string;
+  /** True when a super_admin is viewing the chat — used to enable the
+   * client-switcher chevron on the workspace name in the sidebar. */
+  isAdminView?: boolean;
 }
 
 const Ctx = createContext<ClientCtx>({
   clientId: '',
   clientName: 'My Business',
   userEmail: '',
+  isAdminView: false,
 });
 
 export function ClientContextProvider({

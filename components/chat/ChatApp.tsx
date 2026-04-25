@@ -684,6 +684,7 @@ export default function ChatApp(props: ChatAppProps) {
         clientName: props.clientName,
         userEmail: props.userEmail,
         ownerName: props.ownerName,
+        isAdminView: props.isAdminView ?? false,
       }}
     ><div
       suppressHydrationWarning
