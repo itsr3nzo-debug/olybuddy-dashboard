@@ -73,7 +73,8 @@ export async function GET() {
 
   // Derive a display-level state
   let state:
-    | 'awaiting_vps'      // signed up, VPS not ready yet
+    | 'awaiting_payment'  // signed up but Stripe payment not completed
+    | 'awaiting_vps'      // paid, VPS not ready yet
     | 'provisioning'      // VPS ready, worker processing
     | 'needs_pairing'     // VPS ready, WhatsApp not linked yet
     | 'live'              // everything completed + linked
@@ -87,6 +88,15 @@ export async function GET() {
   if (!clientRow) {
     state = 'unknown'
     message = 'Client record not found.'
+  } else if (clientRow.subscription_status === 'pending_payment') {
+    // Round-3+ fix: don't claim "Your AI Employee is being set up" for users
+    // who haven't paid yet. The VPS provisioning gate filters by
+    // subscription_status IN ('trial', 'active') — pending_payment never
+    // triggers a real VPS spin-up. Surface a clear "complete payment" state
+    // so the banner copy is honest. The proxy redirects these users to
+    // /settings/billing anyway, where the "Resume payment" CTA lives.
+    state = 'awaiting_payment'
+    message = 'Complete payment to start your 5-day trial — your AI Employee will be set up the moment Stripe confirms the charge.'
   } else if (!clientRow.vps_ready) {
     state = 'awaiting_vps'
     message = 'Your AI Employee is being set up on its own private server. This normally takes 3–5 minutes.'

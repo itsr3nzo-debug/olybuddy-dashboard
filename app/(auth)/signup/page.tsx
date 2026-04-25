@@ -580,7 +580,7 @@ function SignupWizard() {
                   You&apos;re one click from your AI Employee
                 </h2>
                 <p className="text-slate-400 text-center mb-8">
-                  Review the offer below, then hit &quot;Start my 5-day trial&quot; to pay £20 and get started.
+                  Review the offer below, then hit &quot;Start my 5-day trial&quot; to pay £19.99 and get started.
                 </p>
 
                 <PlanCards
@@ -634,7 +634,7 @@ function SignupWizard() {
               {loading ? (
                 <>Redirecting to Stripe…</>
               ) : (
-                <>Start my 5-day trial — £20<ArrowRight size={16} /></>
+                <>Start my 5-day trial — £19.99<ArrowRight size={16} /></>
               )}
             </button>
           )}

@@ -188,18 +188,34 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
 
       {client && state && (
         <div className="space-y-6">
-          {/* STATE: pending_payment — Checkout in flight. Don't offer a second. */}
+          {/* STATE: pending_payment — Checkout in flight OR they abandoned
+              the checkout tab. Two CTAs: "Refresh" for users still mid-payment
+              (waiting for webhook), and "Resume payment" for users who closed
+              the Stripe tab and want a fresh Checkout (uses the ?resume=true
+              escape hatch on /api/stripe/upgrade — without it, abandoned-
+              checkout users were stuck until the 24h cleanup cron deleted them). */}
           {state.kind === 'pending_payment' && (
             <Section title="Finalising your payment" description="Stripe is confirming the charge">
               <p className="text-sm text-muted-foreground leading-relaxed mb-4">
                 This page will update automatically once Stripe confirms your payment (usually within 15 seconds of checkout completion). If nothing has happened after a minute, refresh the page — if it&apos;s still stuck, email hello@nexley.ai and we&apos;ll sort it.
               </p>
-              <a
-                href="/settings/billing"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-muted/30 border border-border text-sm font-medium text-foreground hover:bg-muted/50 transition-colors"
-              >
-                Refresh
-              </a>
+              <p className="text-sm text-muted-foreground leading-relaxed mb-4">
+                <strong>Closed the payment tab by accident?</strong> Use &quot;Resume payment&quot; below to start a fresh Stripe Checkout — your earlier session won&apos;t double-charge.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href="/settings/billing"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-muted/30 border border-border text-sm font-medium text-foreground hover:bg-muted/50 transition-colors"
+                >
+                  Refresh
+                </a>
+                <a
+                  href="/api/stripe/upgrade?resume=true"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+                >
+                  Resume payment →
+                </a>
+              </div>
             </Section>
           )}
 
@@ -209,7 +225,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
               <Section title="Set up billing" description="Activate your paid AI Employee subscription">
                 <div className="px-1">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-                    <Perk title="£20 onboarding fee" sub="Charged now — unlocks your 5-day trial on a dedicated VPS" />
+                    <Perk title="£19.99 onboarding fee" sub="Charged now — unlocks your 5-day trial on a dedicated VPS" />
                     <Perk title="5-day trial" sub="Full access to your AI Employee. Cancel any time with no further charge." />
                     <Perk title="£599 / month" sub="Auto-billed on Day 6 unless you cancel during the trial" />
                   </div>
@@ -218,16 +234,16 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
                     className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-indigo-500/25"
                   >
                     <Sparkles size={16} />
-                    Set up billing — £20
+                    Set up billing — £19.99
                   </a>
                   <p className="text-xs text-muted-foreground mt-3">
                     You&apos;ll be redirected to Stripe to enter your card. Nexley never sees or stores your card details.
                   </p>
                 </div>
               </Section>
-              <Section title="Why we charge £20 upfront" description="Reduces no-shows and proves you&apos;re serious">
+              <Section title="Why we charge £19.99 upfront" description="Reduces no-shows and proves you&apos;re serious">
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  The £20 onboarding covers the cost of provisioning your dedicated Hetzner server, WhatsApp number, and 5 days of Claude API usage. If you decide the AI Employee isn&apos;t for you within those 5 days, cancel from here in two clicks — no further charge. If you stay on, your first £599 month kicks in on Day 6 and the £20 is effectively absorbed into the subscription.
+                  The £19.99 onboarding covers the cost of provisioning your dedicated Hetzner server, WhatsApp number, and 5 days of Claude API usage. If you decide the AI Employee isn&apos;t for you within those 5 days, cancel from here in two clicks — no further charge. If you stay on, your first £599 month kicks in on Day 6 and the £19.99 is effectively absorbed into the subscription.
                 </p>
               </Section>
             </>
@@ -342,7 +358,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
               <Section title="Subscription ended" description={state.legacy ? 'Your legacy trial has ended' : 'Your paid subscription was cancelled'}>
                 <p className="text-sm text-muted-foreground mb-4">
                   {state.legacy
-                    ? 'Ready to come back? Set up billing now — £20 to unlock a fresh 5-day trial, then £599/mo if you stay.'
+                    ? 'Ready to come back? Set up billing now — £19.99 to unlock a fresh 5-day trial, then £599/mo if you stay.'
                     : 'Your data is kept for 30 days after cancellation under UK GDPR. Reactivate now to pick up exactly where you left off.'}
                 </p>
                 <a
@@ -350,7 +366,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
                   className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white text-sm font-semibold hover:opacity-90 transition-opacity"
                 >
                   <RefreshCw size={16} />
-                  Reactivate — £20
+                  Reactivate — £19.99
                 </a>
               </Section>
             </>

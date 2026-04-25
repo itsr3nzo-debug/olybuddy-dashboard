@@ -19,11 +19,17 @@ export async function GET(req: NextRequest) {
   // to 'active' via the webhook. We only manually expire orphan trials that
   // have NO stripe_subscription_id (legacy signups from before billing was
   // wired up, or subscription creation failures).
+  //
+  // Sentinel filter: trial_ends_at > NOW + 1 year is interpreted as "do not
+  // auto-expire" (used for simulated/test rows where someone deliberately
+  // pushed the date far out). Real trials are ≤30 days max.
+  const oneYearFromNow = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
   const { data: expiredTrials } = await supabase
     .from('clients')
     .select('id, name, email, trial_ends_at, stripe_subscription_id')
     .eq('subscription_status', 'trial')
     .lt('trial_ends_at', new Date().toISOString())
+    .lt('trial_ends_at', oneYearFromNow)
 
   if (!expiredTrials?.length) {
     return NextResponse.json({ expired: 0, skipped_with_sub: 0 })

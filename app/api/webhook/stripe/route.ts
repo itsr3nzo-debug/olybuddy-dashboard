@@ -246,7 +246,7 @@ export async function POST(req: NextRequest) {
                 to: customerEmail,
                 subject: 'Payment confirmed — Your AI Employee is being built',
                 html: `<p>Hi ${metadata.business_name || 'there'},</p>
-                  <p>Your £20 onboarding fee has been received. Your AI Employee's dedicated server is being built right now — it'll be ready in about 15 minutes.</p>
+                  <p>Your £19.99 onboarding fee has been received. Your AI Employee's dedicated server is being built right now — it'll be ready in about 15 minutes.</p>
                   <p><strong>Your 5-day trial ends ${trialEndPretty}.</strong> On that date, your card will be auto-billed £599 for your first month. You can cancel anytime before then from your dashboard.</p>
                   <p><a href="${process.env.NEXT_PUBLIC_SITE_URL!}/login" style="background:#2563EB;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Sign in to your dashboard</a></p>
                   <p>Forgot your password? <a href="${process.env.NEXT_PUBLIC_SITE_URL!}/forgot-password">Reset it here</a>.</p>

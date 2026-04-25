@@ -81,30 +81,62 @@ export async function proxy(request: NextRequest) {
     // from the JWT's app_metadata (zero DB round-trip). Slow path: fall back
     // to a clients-table lookup for users whose metadata claim is missing
     // (e.g. signed up before the claim was rolled out).
+    //
+    // Round-3 fix: pending_payment users bypass /onboarding entirely and
+    // land on /settings/billing — they can't legitimately complete onboarding
+    // (or accept Terms) before paying. Without this, a user who abandoned the
+    // Stripe Checkout could fill in the onboarding flow + accept terms
+    // without ever paying. /settings/billing now shows a "Resume payment"
+    // button for these users.
     if (role !== 'super_admin' && !isApi && !isPublic) {
       const meta = user.app_metadata as { client_id?: string; onboarding_completed?: boolean } | undefined
       const clientId = meta?.client_id
 
       if (clientId) {
         let done: boolean
+        let subscriptionStatus: string | null = null
+
         if (meta?.onboarding_completed === true) {
           // Fast path: JWT says done → trust. Covers ~99% of production traffic
           // since every request from an onboarded user skips the DB entirely.
+          // We don't fetch subscription_status here — onboarded users already
+          // paid; if subscription_status is stale, /settings/billing handles it.
           done = true
         } else {
           // JWT says false OR claim missing. Verify against the DB: the user
           // might have JUST finished onboarding and their JWT is still the old
           // one that predates the app_metadata update. Trusting the JWT here
           // would cause an infinite /dashboard ↔ /onboarding redirect loop.
+          //
+          // Also fetch subscription_status while we're at it — pending_payment
+          // users get redirected to /settings/billing instead of /onboarding.
           const { data: client } = await supabase
             .from('clients')
-            .select('onboarding_completed')
+            .select('onboarding_completed, subscription_status')
             .eq('id', clientId)
             .maybeSingle()
           done = client?.onboarding_completed ?? false
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          subscriptionStatus = ((client as any)?.subscription_status as string | undefined) ?? null
         }
 
         const onOnboarding = pathname === '/onboarding' || pathname.startsWith('/onboarding/')
+        const onBilling = pathname === '/settings/billing' || pathname.startsWith('/settings/billing/')
+
+        // pending_payment override: don't let users wander into /onboarding
+        // before they've paid. Send them to billing where they can complete
+        // payment or hit "Resume payment". Allowed on /settings/billing
+        // itself (or they'd be in a redirect loop).
+        if (!done && subscriptionStatus === 'pending_payment') {
+          if (!onBilling) {
+            const url = request.nextUrl.clone()
+            url.pathname = '/settings/billing'
+            return NextResponse.redirect(url)
+          }
+          // Already on billing — let them stay.
+          return supabaseResponse
+        }
+
         if (!done && !onOnboarding) {
           const url = request.nextUrl.clone()
           url.pathname = '/onboarding'

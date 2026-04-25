@@ -164,9 +164,45 @@ export async function GET(req: NextRequest) {
 
   // Reuse the existing Stripe customer if we already have one on file. This
   // avoids creating duplicate customer records when someone reactivates.
+  //
+  // Round-3+ fix: for users without a saved stripe_customer_id (typical for
+  // pending_payment + ?resume=true), search Stripe for an existing customer
+  // matching their email before creating a new one. Without this, repeated
+  // resume attempts create a new Stripe customer on every retry —
+  // accumulating orphan records that pollute the Stripe dashboard.
+  let resolvedStripeCustomerId: string | null = client.stripe_customer_id ?? null
+  if (!resolvedStripeCustomerId) {
+    const lookupEmail = client.email ?? user.email
+    if (lookupEmail) {
+      try {
+        // Stripe's customer.search supports `email:"..."`. Fall back gracefully
+        // if the search index hasn't caught up to a brand-new customer.
+        const found = await stripe.customers.search({
+          query: `email:"${lookupEmail.replace(/"/g, '\\"')}"`,
+          limit: 1,
+        })
+        if (found.data.length > 0) {
+          resolvedStripeCustomerId = found.data[0].id
+          // Persist the resolved customer to clients row so future calls hit
+          // the fast path (this is what the webhook would do post-payment).
+          const { getSupabase } = await import('@/lib/supabase')
+          await getSupabase()
+            .from('clients')
+            .update({ stripe_customer_id: resolvedStripeCustomerId })
+            .eq('id', session.clientId)
+            .then(() => {}, () => {})
+        }
+      } catch (e) {
+        // Search failure is non-fatal — fall through to creating a new
+        // customer. Worst case: one duplicate. Better than 401/500 the user.
+        console.warn('[stripe upgrade] customer search failed:', e instanceof Error ? e.message : e)
+      }
+    }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const customerParam: any = client.stripe_customer_id
-    ? { customer: client.stripe_customer_id }
+  const customerParam: any = resolvedStripeCustomerId
+    ? { customer: resolvedStripeCustomerId }
     : { customer_email: client.email ?? user.email, customer_creation: 'always' }
 
   try {

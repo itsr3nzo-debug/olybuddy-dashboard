@@ -66,7 +66,7 @@ export default function PlanCards({ selected, onSelect }: PlanCardsProps) {
             Your AI Employee
           </p>
           <div className="flex items-baseline justify-center gap-2 mb-2">
-            <span className="text-6xl font-bold text-white tabular-nums">£20</span>
+            <span className="text-6xl font-bold text-white tabular-nums">£19.99</span>
             <span className="text-lg text-white/60">today</span>
           </div>
           <p className="text-sm text-white/60">
@@ -89,7 +89,7 @@ export default function PlanCards({ selected, onSelect }: PlanCardsProps) {
         {/* Divider + footnote (the Continue button lives in the parent form) */}
         <div className="relative h-px bg-white/10 mb-5" />
         <p className="relative text-center text-xs text-white/50">
-          £20 charged securely by Stripe. You&apos;ll get a full 5-day trial on a dedicated server.
+          £19.99 charged securely by Stripe. You&apos;ll get a full 5-day trial on a dedicated server.
           On Day 6 your card is auto-billed £599 unless you cancel first.
         </p>
       </motion.div>

@@ -110,7 +110,7 @@ export default function SignupSuccessPage() {
             Payment received — welcome aboard
           </h1>
           <p className="text-sm text-slate-400 mb-8">
-            £20 charged · 5-day trial active · £599/mo auto-bills on Day 6 unless you cancel
+            £19.99 charged · 5-day trial active · £599/mo auto-bills on Day 6 unless you cancel
           </p>
 
           {/* Next steps timeline */}

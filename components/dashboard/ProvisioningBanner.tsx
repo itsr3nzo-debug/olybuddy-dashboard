@@ -12,7 +12,7 @@ import Link from 'next/link'
 import { Loader2, Server, CheckCircle2, AlertCircle, Smartphone, ArrowRight } from 'lucide-react'
 import { motion, AnimatePresence } from 'motion/react'
 
-type State = 'awaiting_vps' | 'provisioning' | 'needs_pairing' | 'live' | 'attention' | 'unknown'
+type State = 'awaiting_payment' | 'awaiting_vps' | 'provisioning' | 'needs_pairing' | 'live' | 'attention' | 'unknown'
 
 type StatusResponse = {
   state: State
@@ -58,6 +58,12 @@ export default function ProvisioningBanner() {
   if (!status || status.state === 'live' || dismissed) return null
 
   const style: Record<State, { bg: string; border: string; icon: React.ReactNode; accent: string }> = {
+    awaiting_payment: {
+      bg: 'bg-amber-500/5',
+      border: 'border-amber-500/30',
+      icon: <AlertCircle size={18} className="text-amber-400" />,
+      accent: 'text-amber-300',
+    },
     awaiting_vps: {
       bg: 'bg-indigo-500/5',
       border: 'border-indigo-500/30',
@@ -109,6 +115,7 @@ export default function ProvisioningBanner() {
         <div className="flex-shrink-0">{s.icon}</div>
         <div className="flex-1 text-sm text-foreground">
           <span className={`font-medium ${s.accent}`}>
+            {status.state === 'awaiting_payment' && 'Complete payment to start your trial'}
             {status.state === 'awaiting_vps' && 'Setting up your AI Employee'}
             {status.state === 'provisioning' && 'Applying changes'}
             {status.state === 'needs_pairing' && 'Link your WhatsApp'}
@@ -117,6 +124,14 @@ export default function ProvisioningBanner() {
           </span>
           <span className="text-muted-foreground ml-2">{status.message}</span>
         </div>
+        {status.state === 'awaiting_payment' && (
+          <Link
+            href="/settings/billing"
+            className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 text-black px-3 py-1.5 text-xs font-semibold hover:bg-amber-400 transition-colors flex-shrink-0"
+          >
+            Pay now <ArrowRight size={12} />
+          </Link>
+        )}
         {status.state === 'needs_pairing' && (
           <Link
             href="/onboarding/whatsapp"
