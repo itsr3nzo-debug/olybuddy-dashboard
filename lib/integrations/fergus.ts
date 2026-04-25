@@ -474,13 +474,20 @@ export class FergusClient {
    * Create a phase on a job. Maps to `POST /jobs/{jobId}/phases`.
    * Phases hold line items (stockOnHand) — typically named after the
    * work breakdown ("Labour", "Materials", "Site visit 1", etc.).
+   *
+   * `description` is always sent (defaulting to empty string) — the
+   * pre-existing auto-create path explicitly did this and we don't
+   * have docs proving Fergus accepts the field omitted, so match the
+   * known-working shape rather than risk a silent 400.
    */
   async createJobPhase(jobId: number, args: {
     title: string
     description?: string
   }): Promise<Record<string, unknown>> {
-    const body: Record<string, unknown> = { title: args.title }
-    if (args.description) body.description = args.description
+    const body: Record<string, unknown> = {
+      title: args.title,
+      description: args.description ?? '',
+    }
     const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>(
       'POST', `/jobs/${jobId}/phases`, body,
     )
