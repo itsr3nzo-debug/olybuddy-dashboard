@@ -856,6 +856,21 @@ export class FergusClient {
     }
   }
 
+  /**
+   * Delete a calendar event. Maps to `DELETE /calendarEvents/{id}` (verified
+   * present in api.fergus.com/docs/json). Used to remove a scheduled job
+   * from the diary — e.g. customer reschedules, event was created in error,
+   * test-event cleanup.
+   *
+   * Returns true on 204 / success, false if Fergus returned a non-2xx that
+   * `req` swallowed via 204 handling. Throws on transport / 4xx / 5xx so
+   * the caller can surface the upstream detail.
+   */
+  async deleteCalendarEvent(eventId: number): Promise<boolean> {
+    await this.req('DELETE', `/calendarEvents/${eventId}`)
+    return true
+  }
+
   // ─── Site archive / restore ─────────────────────────────
   async archiveSite(siteId: number): Promise<Record<string, unknown> | null> {
     const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('POST', `/sites/${siteId}/archive`, {})
