@@ -39,12 +39,12 @@ export default function MobileNav({ role = 'owner' }: { role?: UserRole }) {
               key={href}
               href={href}
               aria-label={label}
-              className={`flex flex-col items-center gap-0.5 py-2 px-3 touch-target transition-colors ${
+              className={`flex flex-col items-center gap-0.5 py-3 px-3 min-h-[48px] touch-target transition-colors ${
                 active ? 'text-brand-primary' : 'text-muted-foreground'
               }`}
             >
               <Icon size={20} strokeWidth={active ? 2.5 : 1.5} />
-              <span className="text-[10px] font-medium">{label}</span>
+              <span className="text-[11px] font-medium leading-tight">{label}</span>
             </Link>
           )
         })}

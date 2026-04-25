@@ -135,7 +135,7 @@ function LoginForm() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="rounded-2xl p-8 shadow-2xl border border-white/[0.08] backdrop-blur-xl"
+          className="rounded-2xl p-5 sm:p-8 shadow-2xl border border-white/[0.08] backdrop-blur-xl"
           style={{ background: 'rgba(30, 41, 59, 0.7)' }}
         >
           <h1 className="text-xl font-semibold mb-1 text-white">Sign in</h1>

@@ -16,6 +16,7 @@ import type { CallLog, AgentStatus } from '@/lib/types'
 import { MessageSquare, Calendar, UserPlus, TrendingUp } from 'lucide-react'
 import GettingStarted from '@/components/dashboard/GettingStarted'
 import PlanUpgradePanel from '@/components/dashboard/PlanUpgradePanel'
+import OnboardingWalkthrough from '@/components/dashboard/OnboardingWalkthrough'
 import { TimePeriodSelector } from '@/components/ui/time-period-selector'
 /* Pruned imports (WeeklyROIWidget, WeeklyChallengeCard, OpportunityDonut,
  * PoundSterling/Zap/Link2/Activity icons, AI_PHONE_DISPLAY) — their
@@ -130,6 +131,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   let agentIsActive = true
   let agentLastCallAt: string | null = null
   let subscriptionPlan = 'trial'
+  // Walkthrough state (item #19) — populated below if we have a client row.
+  let clientCreatedAt: string | null = null
+  let ownerFirstName: string | null = null
   let oppOpen = 0
   let oppWon = 0
   let oppLost = 0
@@ -182,10 +186,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         .select('id', { count: 'exact', head: true })
         .eq('client_id', clientId)
         .eq('status', 'connected'),
-      // Client subscription plan (for voice plan gating)
+      // Client subscription plan (for voice plan gating) + created_at +
+      // contact_name (for first-run onboarding walkthrough — item #19).
       supabase
         .from('clients')
-        .select('subscription_plan')
+        .select('subscription_plan, created_at, contact_name')
         .eq('id', clientId)
         .single(),
       // WhatsApp/SMS messages this period
@@ -232,6 +237,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     bookingsThisWeek = bookingsRes.count ?? 0
     prevBookings = prevBookingsRes.count ?? 0
     subscriptionPlan = (clientRes.data as { subscription_plan: string } | null)?.subscription_plan ?? 'trial'
+    // Walkthrough props for item #19 — first-run modal triggers when:
+    //   - account is <72h old AND
+    //   - no conversations or calls yet (gated below at render time).
+    clientCreatedAt = (clientRes.data as { created_at?: string } | null)?.created_at ?? null
+    const contactName = (clientRes.data as { contact_name?: string } | null)?.contact_name ?? null
+    ownerFirstName = contactName ? contactName.split(' ')[0] : null
 
     // Agent config (gracefully handle missing columns from migration)
     const ac = agentRes.data as Record<string, unknown> | null
@@ -290,8 +301,26 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // layout below (lint suppressed via void).
   void answered; void missed; void streak
 
+  // Item #19 — first-run walkthrough. Devil's-advocate fix P1 #19: ALSO
+  // gate on the Loom URL existing. Showing a "video coming this week"
+  // placeholder modal to a brand-new £20 customer feels half-baked AND
+  // duplicates the 3-step timeline they already saw on /signup/success.
+  // GettingStarted carries the empty-state load on its own until the
+  // video is recorded.
+  const walkthroughLoomUrl = process.env.NEXT_PUBLIC_WALKTHROUGH_LOOM_URL || null
+  const isFirstRun = !!walkthroughLoomUrl
+    && !!clientCreatedAt
+    && (Date.now() - new Date(clientCreatedAt).getTime() < 72 * 60 * 60 * 1000)
+    && totalConversations === 0
+
   return (
     <div>
+      <OnboardingWalkthrough
+        showFirstRun={isFirstRun}
+        loomUrl={walkthroughLoomUrl}
+        ownerName={ownerFirstName}
+      />
+
       {/* Header — minimal: title + heartbeat dot + period picker.
           Streak badge removed (gamification for trade owners was noise). */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-6">
@@ -356,11 +385,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           HeroRoi. Replaced with Pipeline value so each card covers a
           distinct axis (volume / bookings / value / leads). */}
       <Suspense fallback={
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
           {[0,1,2,3].map(i => <KpiCardSkeleton key={i} />)}
         </div>
       }>
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
           <KpiCard
             label="Conversations"
             value={totalConversations}

@@ -48,7 +48,7 @@ export default function WhatsAppPreview({ industry, personality, agentName }: Wh
   const businessName = getBusinessName(industry)
 
   return (
-    <div className="mx-auto w-full max-w-[320px]">
+    <div className="mx-auto w-full max-w-[280px] sm:max-w-[320px]">
       {/* iPhone frame */}
       <div className="overflow-hidden rounded-[2.5rem] border-4 border-gray-700 bg-[#0b141a] shadow-2xl shadow-black/50">
         {/* Status bar (tiny) */}
