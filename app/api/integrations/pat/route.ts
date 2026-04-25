@@ -118,6 +118,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // When a client connects Fergus (or Xero — though Xero is OAuth, not PAT),
+  // enqueue a push of the integration skill files to that client's VPS so
+  // their AI Employee picks up the latest fergus.md / xero.md playbook on
+  // the next service restart. Idempotent — re-running just rewrites identical
+  // files. Best-effort: if the queue insert fails, the connect still succeeds;
+  // the operator can run push-integration-skills-to-fleet.sh manually.
+  if (providerId === 'fergus' || providerId === 'xero') {
+    try {
+      await supabase.from('provisioning_queue').insert({
+        client_id: clientId,
+        action: 'push_integration_skills',
+        triggered_by: `dashboard:pat-connect:${providerId}`,
+        meta: { provider: providerId, validated },
+      })
+    } catch (e) {
+      console.error('[pat-connect] failed to enqueue skill push:', e)
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     provider: providerId,

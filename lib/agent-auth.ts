@@ -11,6 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import crypto from 'crypto'
 
 function svc() {
   return createClient(
@@ -18,6 +19,12 @@ function svc() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { persistSession: false } },
   )
+}
+
+/** SHA-256 hex of an agent API key. Used for at-rest hash lookup so a DB
+ *  leak doesn't yield a working credential. */
+export function hashAgentKey(rawKey: string): string {
+  return crypto.createHash('sha256').update(rawKey).digest('hex')
 }
 
 export interface AgentContext {
@@ -42,12 +49,68 @@ export async function authenticateAgent(req: NextRequest): Promise<AgentContext 
   }
 
   const apiKey = match[1]
+  const apiKeyHash = hashAgentKey(apiKey)
   const supabase = svc()
-  const { data, error } = await supabase
+  // Primary lookup: SHA-256 hash. This is the post-migration hot path.
+  let { data, error } = await supabase
     .from('agent_config')
     .select('client_id, business_name, agent_name, trust_level')
-    .eq('agent_api_key', apiKey)
+    .eq('agent_api_key_hash', apiKeyHash)
     .maybeSingle()
+
+  // Devil's-advocate fix P1 #4: previous_api_key_hash with TTL window.
+  // During key rotation the worker takes ~30-60s to push the new key to
+  // the VPS .env. During that window the VPS still calls with the OLD
+  // key. We accept it via previous_api_key_hash (with previous_api_key_
+  // expires_at not yet past) so there's no service interruption.
+  if (!data && !error) {
+    const prev = await supabase
+      .from('agent_config')
+      .select('client_id, business_name, agent_name, trust_level, previous_api_key_expires_at')
+      .eq('previous_api_key_hash', apiKeyHash)
+      .maybeSingle()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const row = prev.data as any
+    if (row && row.previous_api_key_expires_at && new Date(row.previous_api_key_expires_at).getTime() > Date.now()) {
+      data = row
+    }
+    if (prev.error) error = prev.error
+  }
+
+  // Fallback: legacy plaintext column. If a VPS is calling with a key that
+  // was rotated before backfill ran, fall back to the old column once and
+  // self-heal the hash on success. Remove this fallback once the legacy
+  // column is dropped (tracked in #5 secret-rotation runbook).
+  if (!data && !error) {
+    const legacy = await supabase
+      .from('agent_config')
+      .select('client_id, business_name, agent_name, trust_level')
+      .eq('agent_api_key', apiKey)
+      .maybeSingle()
+    if (legacy.data) {
+      data = legacy.data
+      // Round-3 fix #9: telemetry on legacy fallback hits. Without this
+      // we couldn't tell whether the legacy column is still in active
+      // use — and the runbook's "drop after 7 clean days" verification
+      // step had no data to look at. Now: write to integration_signals
+      // every time a legacy lookup succeeds, so SLO dashboard can show
+      // the trend going to zero before we drop the column.
+      void supabase.from('integration_signals').insert({
+        source: 'agent-auth',
+        kind: 'legacy_key_fallback_hit',
+        external_id: legacy.data.client_id,
+        raw: { client_id: legacy.data.client_id, agent: legacy.data.agent_name },
+        occurred_at: new Date().toISOString(),
+      }).then(() => {}, () => {})
+      // Backfill the hash for next time. Fire-and-forget.
+      void supabase
+        .from('agent_config')
+        .update({ agent_api_key_hash: apiKeyHash })
+        .eq('client_id', legacy.data.client_id)
+        .then(() => {}, () => {})
+    }
+    if (legacy.error) error = legacy.error
+  }
 
   if (error) {
     return NextResponse.json({ error: `Auth lookup failed: ${error.message}` }, { status: 500 })

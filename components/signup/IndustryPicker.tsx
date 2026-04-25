@@ -67,7 +67,7 @@ export default function IndustryPicker({ selected, onSelect }: IndustryPickerPro
 
   return (
     <LayoutGroup>
-      <motion.div layout className="grid grid-cols-2 gap-3">
+      <motion.div layout className="grid grid-cols-2 gap-2 sm:gap-3">
         {TOP_INDUSTRIES.map((industry) => (
           <IndustryCard
             key={industry.value}
@@ -140,7 +140,7 @@ function IndustryCard({
       onClick={() => onSelect(industry.value)}
       whileTap={{ scale: 0.97 }}
       className={`
-        relative flex w-full min-h-[72px] items-center gap-3 rounded-xl border px-4 py-3
+        relative flex w-full min-h-[64px] sm:min-h-[72px] items-center gap-3 rounded-xl border px-3 sm:px-4 py-3
         backdrop-blur transition-all duration-200
         ${
           isSelected

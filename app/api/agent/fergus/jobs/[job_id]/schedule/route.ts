@@ -113,6 +113,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
   try {
     const client = await FergusClient.forClient(auth.clientId)
 
+    // Fergus REQUIRES `jobPhaseId` when `eventType` is `JOB_PHASE` (verified
+    // by live 400 response: "jobPhaseId is required when eventType is jobPhase").
+    // Auto-resolve when the agent didn't pass one — uses the first phase, or
+    // creates "Default" if none exist (same logic as /line-items via the
+    // shared resolvePhase helper). Skip the auto-resolve when eventType is
+    // QUOTE/ESTIMATE/OTHER, where Fergus accepts no phase.
+    let resolvedJobPhaseId: number | undefined = d.job_phase_id
+    if (eventType === 'JOB_PHASE' && resolvedJobPhaseId === undefined) {
+      resolvedJobPhaseId = await client.ensurePhaseId(jobId)
+    }
+
     // Default event title from the job's jobNo + title (best-effort; if the
     // lookup fails we fall back to a generic label so the schedule still
     // succeeds — the customer-facing bit is the time slot, not the label).
@@ -136,7 +147,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
       userId: primaryUserId,
       linkedUserIds: linkedUserIds.length > 0 ? linkedUserIds : undefined,
       jobId,
-      jobPhaseId: d.job_phase_id,
+      jobPhaseId: resolvedJobPhaseId,
       description: d.description,
     })
 
@@ -146,6 +157,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
       // without having to re-parse the Fergus event payload.
       schedule: {
         job_id: jobId,
+        job_phase_id: resolvedJobPhaseId ?? null,
         date: d.date,
         start_time_local: d.start_time,
         end_time_local: d.end_time,

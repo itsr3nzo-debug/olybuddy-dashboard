@@ -42,7 +42,7 @@ export default function PlanCards({ selected, onSelect }: PlanCardsProps) {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="relative rounded-3xl border border-indigo-500/30 p-8 sm:p-10 overflow-hidden"
+        className="relative rounded-3xl border border-indigo-500/30 p-5 sm:p-8 lg:p-10 overflow-hidden"
         style={{
           background:
             'linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(139,92,246,0.08) 100%)',

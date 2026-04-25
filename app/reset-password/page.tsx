@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Lock, Check } from 'lucide-react'
 import Link from 'next/link'
+import { validatePassword, PASSWORD_MIN_LENGTH } from '@/lib/password-policy'
 
 export default function ResetPasswordPage() {
   return (
@@ -80,15 +81,17 @@ function ResetPasswordForm() {
     return () => { isMounted = false }
   }, [search])
 
+  // Devil's-advocate fix P2 #2: reset flow was running its own legacy
+  // 10-char/digit-only validation, bypassing the strengthened policy in
+  // /api/signup. Use the shared validatePassword so reset-password,
+  // signup, and any future password-set flow enforce identical rules.
+  const passwordCheck = validatePassword(password)
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (password.length < 10) {
-      setError('Password must be at least 10 characters.')
-      return
-    }
-    if (!/\d/.test(password)) {
-      setError('Password must contain at least one number.')
+    if (passwordCheck.error) {
+      setError(passwordCheck.error)
       return
     }
     if (password !== confirm) {
@@ -136,7 +139,7 @@ function ResetPasswordForm() {
           ) : (
             <>
               <h1 className="text-xl font-semibold text-white mb-1">Set a new password</h1>
-              <p className="text-sm text-slate-400 mb-6">Minimum 10 characters, must include a number.</p>
+              <p className="text-sm text-slate-400 mb-6">At least {PASSWORD_MIN_LENGTH} characters with upper, lower, number, and a symbol.</p>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="relative">
                   <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -148,9 +151,14 @@ function ResetPasswordForm() {
                     required
                     autoFocus
                     autoComplete="new-password"
+                    minLength={PASSWORD_MIN_LENGTH}
                     className="w-full pl-10 pr-4 py-3 rounded-xl border border-white/10 text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 bg-white/5 text-white placeholder:text-slate-500"
                   />
                 </div>
+                {/* Live policy feedback — same rules the validator enforces. */}
+                {password && passwordCheck.error && (
+                  <p className="text-xs text-amber-400 -mt-2">{passwordCheck.error}</p>
+                )}
                 <div className="relative">
                   <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
                   <input

@@ -1,41 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import crypto from 'crypto';
+import { verifyStripeSignature } from '@/lib/webhooks/stripe-signature';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-
-function verifyStripeSignature(payload: string, signature: string, secret: string): boolean {
-  try {
-    const elements = signature.split(',');
-    const timestamp = elements.find(e => e.startsWith('t='))?.split('=')[1];
-    const v1Sig = elements.find(e => e.startsWith('v1='))?.split('=')[1];
-
-    if (!timestamp || !v1Sig) return false;
-
-    // Reject if timestamp is older than 5 minutes (replay protection)
-    const age = Math.floor(Date.now() / 1000) - parseInt(timestamp);
-    if (Number.isNaN(age) || age > 300) return false;
-
-    const signedPayload = `${timestamp}.${payload}`;
-    const expectedSig = crypto
-      .createHmac('sha256', secret)
-      .update(signedPayload)
-      .digest('hex');
-
-    // crypto.timingSafeEqual throws if buffers have different lengths — short-
-    // circuit on length mismatch so a malformed/truncated v1 value yields a
-    // clean 401 instead of a 500 error log spam.
-    const actual = Buffer.from(v1Sig, 'utf8');
-    const expected = Buffer.from(expectedSig, 'utf8');
-    if (actual.length !== expected.length) return false;
-    return crypto.timingSafeEqual(actual, expected);
-  } catch {
-    return false;
-  }
-}
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
@@ -370,7 +340,7 @@ export async function POST(req: NextRequest) {
           try {
             const { data: client } = await supabase
               .from('clients')
-              .select('name, email')
+              .select('id, name, email, referred_by_client_id')
               .eq('stripe_customer_id', invoice.customer)
               .maybeSingle();
             const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -387,7 +357,24 @@ export async function POST(req: NextRequest) {
                 body: JSON.stringify({ chat_id: chatId, text: msg }),
               });
             }
-          } catch { /* non-fatal */ }
+
+            // Item #14 — referral credit. If this client was referred by
+            // someone, the referrer earns £150 off their next invoice.
+            // Idempotent (creditReferralForReferee checks existing status).
+            if (client?.id && client.referred_by_client_id) {
+              const { creditReferralForReferee } = await import('@/lib/referrals');
+              const { getStripe: _getStripe } = await import('@/lib/stripe');
+              const result = await creditReferralForReferee({
+                refereeClientId: client.id,
+                stripe: _getStripe(),
+              });
+              if (result.credited) {
+                console.log('[stripe-webhook] Referral credited for referee', client.id);
+              } else if (!result.ok) {
+                console.warn('[stripe-webhook] Referral credit skipped:', result.reason);
+              }
+            }
+          } catch (e) { console.error('[stripe-webhook] post-paid hooks failed:', e); }
         }
 
         await supabase
@@ -459,6 +446,19 @@ export async function POST(req: NextRequest) {
               .update(update)
               .eq('id', client.id);
 
+            // Item #15 — if they came back to active/trial after a previous
+            // cancellation, stop the winback drip. Idempotent — sets
+            // reactivated_at on any pending winback rows for this client.
+            if (status === 'active' || status === 'trial') {
+              try {
+                await supabase
+                  .from('winback_sequence')
+                  .update({ reactivated_at: new Date().toISOString() })
+                  .eq('client_id', client.id)
+                  .is('reactivated_at', null)
+              } catch { /* non-fatal */ }
+            }
+
             // Agent lifecycle: deactivate on cancel/pause, activate on
             // active/trial (customer is paying or in a paid-for trial).
             if (status === 'cancelled' || status === 'paused') {
@@ -473,30 +473,69 @@ export async function POST(req: NextRequest) {
                 .eq('client_id', client.id);
             }
 
-            // OPS Telegram alert on cancellation — gives a chance to chase
-            // the reason / offer save-offer before the billing period ends
-            // and the VPS cleanup cron nukes them 14 days later.
+            // Item #15 — cancellation winback. Two parallel actions:
+            //   (a) Light gets a P1 alert with whatever Stripe gave us as
+            //       cancellation reason — he reaches out for a save-attempt
+            //       within the period-end window.
+            //   (b) Enrol in winback_sequence so the daily cron sends
+            //       T+14/30/60 emails if the human chase doesn't pull
+            //       them back.
             if (status === 'cancelled') {
               try {
-                const botToken = process.env.TELEGRAM_BOT_TOKEN;
-                const chatId = process.env.TELEGRAM_CHAT_ID;
-                if (botToken && chatId) {
-                  const { data: c } = await supabase
-                    .from('clients')
-                    .select('name, email')
-                    .eq('id', client.id)
-                    .single();
-                  const msg = `❌ Subscription cancelled: ${c?.name || client.id}\n` +
-                              `Email: ${c?.email || 'unknown'}\n` +
-                              `Data retained for 30 days · VPS deleted in 14 days by cleanup cron.\n` +
-                              `Reach out now if you want to save the deal.`;
-                  await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chat_id: chatId, text: msg }),
-                  });
+                const { data: c } = await supabase
+                  .from('clients')
+                  .select('name, email, subscription_plan')
+                  .eq('id', client.id)
+                  .single();
+
+                // Stripe puts the structured cancellation reason on the
+                // subscription itself when collected via Customer Portal.
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const cancelDetails = (subscription as any).cancellation_details;
+                const reasonCode = cancelDetails?.reason || cancelDetails?.feedback;
+                const reasonText = cancelDetails?.comment || null;
+
+                // Enrol in winback drip.
+                if (c?.email) {
+                  await supabase.from('winback_sequence').insert({
+                    client_id: client.id,
+                    email: c.email,
+                    cancellation_reason: reasonText || reasonCode || null,
+                    meta: {
+                      stripe_subscription_id: subscription.id,
+                      cancel_details: cancelDetails || null,
+                    },
+                  }).then(() => {}, (e) => console.warn('[winback] enrol failed:', e));
                 }
-              } catch { /* non-fatal */ }
+
+                // Route to Light for human-touch save-attempt.
+                const { dispatchAgentAlert } = await import('@/lib/agent-alerts');
+                await dispatchAgentAlert({
+                  target: 'light',
+                  priority: 'P1',
+                  category: 'churn',
+                  subject: `Subscription cancelled: ${c?.name || 'unknown'}`,
+                  body: [
+                    `Customer just cancelled their Nexley AI subscription.`,
+                    ``,
+                    `**Customer:** ${c?.name || client.id}`,
+                    `**Email:** ${c?.email || 'unknown'}`,
+                    `**Plan:** ${c?.subscription_plan || 'employee'}`,
+                    `**Stripe reason:** ${reasonCode || 'not provided'}`,
+                    reasonText ? `**Comment:** ${reasonText}` : '',
+                    ``,
+                    `Window for save-attempt: data retained 30 days, VPS deleted in 14 days by cleanup cron. Reach out within 24h.`,
+                    ``,
+                    `Auto-actions taken:`,
+                    `- Enrolled in winback_sequence (T+14d/30d/60d emails)`,
+                    `- Subscription status flipped to 'cancelled'`,
+                    `- Agent deactivated`,
+                  ].filter(Boolean).join('\n'),
+                  source: 'stripe-webhook:subscription.deleted',
+                  clientId: client.id,
+                  meta: { reason: reasonCode, comment: reasonText, stripe_sub_id: subscription.id },
+                });
+              } catch (e) { console.error('[stripe-webhook] cancel hooks failed:', e); }
             }
           }
         }
@@ -553,6 +592,268 @@ export async function POST(req: NextRequest) {
           .eq('stripe_event_id', eventId);
 
         break;
+      }
+
+      // P1 #14 + round-2 fix: charge.refunded ONLY claws back referral
+      // credit when the refund is for the £20 onboarding fee OR the
+      // first £599 invoice (the one that triggered the credit). A month-5
+      // partial refund on a routine subscription invoice should NOT
+      // touch a long-since-issued referral credit.
+      //
+      // Detection chain:
+      //   1. PaymentIntent.metadata.purpose === 'onboarding_fee'
+      //      (set by /api/signup, fires for the £20 charge)
+      //   2. Invoice.billing_reason === 'subscription_create' OR
+      //      'subscription_cycle' AND it's the FIRST cycle invoice
+      //      (we already detect this in invoice.paid above)
+      //
+      // Anything else is a routine refund — still process the
+      // stripe_events row but don't touch referrals.
+      case 'charge.refunded': {
+        const charge = event.data.object as {
+          id: string
+          customer: string | null
+          amount_refunded: number
+          payment_intent: string | null
+          invoice: string | null
+          refunded: boolean
+          metadata?: Record<string, string>
+        }
+
+        if (!charge.customer || !charge.refunded) {
+          await supabase
+            .from('stripe_events')
+            .update({ processed: true, processed_at: new Date().toISOString() })
+            .eq('stripe_event_id', eventId)
+          break
+        }
+
+        // ─── Determine if this charge is referral-relevant ────────────
+        let isReferralRelevant = false
+        let detectionReason = 'unknown'
+
+        try {
+          const { getStripe: _getStripe } = await import('@/lib/stripe')
+          const stripeApi = _getStripe()
+
+          // (1) Check the underlying PaymentIntent for the onboarding-fee tag.
+          if (charge.payment_intent) {
+            try {
+              const pi = await stripeApi.paymentIntents.retrieve(
+                typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent
+              )
+              if (pi.metadata?.purpose === 'onboarding_fee') {
+                isReferralRelevant = true
+                detectionReason = 'onboarding_fee_refund'
+              }
+            } catch (e) {
+              console.warn('[stripe-webhook] PI retrieve for refund check failed:', e)
+            }
+          }
+
+          // (2) If not the onboarding fee, check the invoice. Only the
+          // FIRST subscription cycle's invoice is referral-relevant.
+          if (!isReferralRelevant && charge.invoice) {
+            try {
+              const inv = await stripeApi.invoices.retrieve(
+                typeof charge.invoice === 'string' ? charge.invoice : charge.invoice
+              )
+              if (inv.billing_reason === 'subscription_create') {
+                isReferralRelevant = true
+                detectionReason = 'first_invoice_refund'
+              } else if (inv.billing_reason === 'subscription_cycle') {
+                // Cycle invoices: only the FIRST cycle invoice is
+                // referral-relevant. We refine this below using the
+                // referral's credited_at timestamp — if it's within
+                // 35 days of the charge, we assume it's the cycle
+                // that triggered the credit and claw back. Otherwise
+                // it's a routine month-N refund that shouldn't touch
+                // referrals. Actual refinement happens after we look
+                // up the referral row below.
+                detectionReason = 'cycle_invoice_pending_check'
+                isReferralRelevant = true  // tentative; gated again later
+              }
+            } catch (e) {
+              console.warn('[stripe-webhook] invoice retrieve for refund check failed:', e)
+            }
+          }
+        } catch (e) {
+          console.error('[stripe-webhook] refund-relevance check failed:', e)
+        }
+
+        if (!isReferralRelevant) {
+          console.log('[stripe-webhook] charge.refunded ignored for referrals:', detectionReason, charge.id)
+          await supabase
+            .from('stripe_events')
+            .update({ processed: true, processed_at: new Date().toISOString() })
+            .eq('stripe_event_id', eventId)
+          break
+        }
+
+        try {
+          // Find the referee client by stripe_customer_id.
+          const { data: referee } = await supabase
+            .from('clients')
+            .select('id, name, referred_by_client_id')
+            .eq('stripe_customer_id', charge.customer)
+            .maybeSingle()
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const ref = referee as any
+          if (ref?.id && ref?.referred_by_client_id) {
+            // Find the referral row.
+            const { data: referral } = await supabase
+              .from('referrals')
+              .select('id, status, credit_amount_pence, referrer_client_id, stripe_balance_txn_id, credited_at')
+              .eq('referee_client_id', ref.id)
+              .maybeSingle()
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const r = referral as any
+
+            // Refinement for the cycle-invoice case: only claw back if
+            // the referral was credited recently. Round-3 fix #8: window
+            // is env-configurable for non-monthly billing plans (annual
+            // would need 365+ days). Default = 35 days = 1 monthly cycle
+            // + grace.
+            const clawbackWindowDays = Math.max(
+              1,
+              parseInt(process.env.REFERRAL_CLAWBACK_WINDOW_DAYS || '35', 10)
+            )
+            const clawbackWindowMs = clawbackWindowDays * 24 * 60 * 60 * 1000
+            if (
+              r?.status === 'credited'
+              && detectionReason === 'cycle_invoice_pending_check'
+              && r.credited_at
+              && (Date.now() - new Date(r.credited_at).getTime()) > clawbackWindowMs
+            ) {
+              console.log(`[stripe-webhook] cycle invoice refund > ${clawbackWindowDays}d after credit — skipping clawback`, r.id)
+              await supabase
+                .from('stripe_events')
+                .update({ processed: true, processed_at: new Date().toISOString() })
+                .eq('stripe_event_id', eventId)
+              break
+            }
+
+            if (r?.status === 'credited') {
+              // Find the referrer's stripe_customer_id.
+              const { data: referrer } = await supabase
+                .from('clients')
+                .select('stripe_customer_id')
+                .eq('id', r.referrer_client_id)
+                .maybeSingle()
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const refr = referrer as any
+
+              if (refr?.stripe_customer_id) {
+                // Apply a POSITIVE balance txn equal to the credit we
+                // gave them — net zero. Idempotency key per referral so
+                // a webhook retry doesn't double-clawback.
+                //
+                // Round-3 fix #4: if the Stripe API call FAILS, do NOT
+                // mark the referral 'reversed'. Previously we'd update
+                // the row regardless, leaving us in a state where we
+                // believe the credit was reversed but Stripe still has
+                // a £150 negative balance the referrer can spend. Worse
+                // than not trying. Instead: log to integration_signals
+                // + dispatch a P1 agent_alert for human follow-up.
+                const { getStripe: _getStripe } = await import('@/lib/stripe')
+                let clawbackSucceeded = false
+                let clawbackErrorMsg: string | null = null
+                try {
+                  await _getStripe().customers.createBalanceTransaction(
+                    refr.stripe_customer_id,
+                    {
+                      amount: Math.abs(r.credit_amount_pence),
+                      currency: 'gbp',
+                      description: `Nexley AI referral credit reversed \u2014 referee refunded`,
+                      metadata: {
+                        referral_id: r.id,
+                        referee_client_id: ref.id,
+                        original_balance_txn: r.stripe_balance_txn_id || '',
+                        refund_charge_id: charge.id,
+                      },
+                    },
+                    { idempotencyKey: `referral-clawback-${r.id}` }
+                  )
+                  clawbackSucceeded = true
+                } catch (e) {
+                  clawbackErrorMsg = e instanceof Error ? e.message : 'unknown stripe error'
+                  console.error('[stripe-webhook] referral clawback FAILED:', clawbackErrorMsg)
+                }
+
+                if (clawbackSucceeded) {
+                  // Mark referral reversed only when we've actually
+                  // succeeded at reversing the customer balance txn.
+                  await supabase
+                    .from('referrals')
+                    .update({
+                      status: 'reversed',
+                      reversed_at: new Date().toISOString(),
+                      stripe_refund_id: charge.id,
+                    })
+                    .eq('id', r.id)
+                  console.log('[stripe-webhook] referral clawed back for', ref.id)
+                } else {
+                  // Surface the failure: P1 alert to Light + a signal
+                  // row so the SLO dashboard can flag it. The referral
+                  // stays 'credited' so a retry (manual or via another
+                  // refund event) can re-attempt.
+                  try {
+                    await supabase.from('integration_signals').insert({
+                      source: 'stripe',
+                      kind: 'referral_clawback_failed',
+                      external_id: r.id,
+                      raw: {
+                        referral_id: r.id,
+                        referee_client_id: ref.id,
+                        referrer_client_id: r.referrer_client_id,
+                        refund_charge_id: charge.id,
+                        amount_pence: r.credit_amount_pence,
+                        error: clawbackErrorMsg,
+                      },
+                      occurred_at: new Date().toISOString(),
+                    })
+                  } catch { /* swallow — secondary failure shouldn't crash webhook */ }
+
+                  try {
+                    const { dispatchAgentAlert } = await import('@/lib/agent-alerts')
+                    await dispatchAgentAlert({
+                      target: 'light',
+                      priority: 'P1',
+                      category: 'referral_clawback_failed',
+                      subject: `Referral clawback failed for ${ref.name || ref.id}`,
+                      body: [
+                        `A refund triggered an attempted clawback of a £${(r.credit_amount_pence / 100).toFixed(0)} referral credit, but the Stripe API call FAILED.`,
+                        ``,
+                        `**Referral:** ${r.id}`,
+                        `**Referee:** ${ref.name || ref.id}`,
+                        `**Charge:** ${charge.id}`,
+                        `**Stripe error:** ${clawbackErrorMsg || 'unknown'}`,
+                        ``,
+                        `The referrer's customer balance is UNCHANGED — they still have the £${(r.credit_amount_pence / 100).toFixed(0)} credit. Investigate and either:`,
+                        `1. Manually reverse the balance via Stripe dashboard, then UPDATE referrals SET status='reversed', reversed_at=NOW(), stripe_refund_id='${charge.id}' WHERE id='${r.id}', OR`,
+                        `2. Let the referrer keep the credit (mark as goodwill).`,
+                      ].join('\n'),
+                      source: 'stripe-webhook:charge.refunded',
+                      clientId: ref.id,
+                      meta: { referral_id: r.id, error: clawbackErrorMsg },
+                    })
+                  } catch { /* swallow */ }
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error('[stripe-webhook] charge.refunded handler error:', e)
+        }
+
+        await supabase
+          .from('stripe_events')
+          .update({ processed: true, processed_at: new Date().toISOString() })
+          .eq('stripe_event_id', eventId)
+
+        break
       }
     }
 

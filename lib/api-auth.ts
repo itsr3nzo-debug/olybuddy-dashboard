@@ -1,6 +1,7 @@
 /** Shared API authentication for agent endpoints */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { hashAgentKey } from '@/lib/agent-auth'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type UntypedSupabase = SupabaseClient<any, any, any>
@@ -39,12 +40,61 @@ export async function authenticateAgentRequest(
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-  // Method 1: Per-client API key (preferred — each agent has its own key)
-  const { data: config } = await supabase
+  // Method 1: Per-client API key (preferred — each agent has its own key).
+  // Lookup chain (item #4 + P1 #4 fix):
+  //   1. agent_api_key_hash       — current key (post-rotation steady state)
+  //   2. previous_api_key_hash    — old key during rotation TTL window
+  //                                 (eliminates 30-60s VPS .env push gap)
+  //   3. agent_api_key (legacy)   — pre-migration plaintext, self-heals
+  const apiKeyHash = hashAgentKey(apiKey)
+  let config: { client_id: string } | null = null
+  const primary = await supabase
     .from('agent_config')
     .select('client_id')
-    .eq('agent_api_key', apiKey)
-    .single()
+    .eq('agent_api_key_hash', apiKeyHash)
+    .maybeSingle()
+  if (primary.data) config = primary.data
+
+  // 2. Previous key during rotation window
+  if (!config) {
+    const prev = await supabase
+      .from('agent_config')
+      .select('client_id, previous_api_key_expires_at')
+      .eq('previous_api_key_hash', apiKeyHash)
+      .maybeSingle()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const row = prev.data as any
+    if (row && row.previous_api_key_expires_at && new Date(row.previous_api_key_expires_at).getTime() > Date.now()) {
+      config = { client_id: row.client_id }
+    }
+  }
+
+  if (!config) {
+    const legacy = await supabase
+      .from('agent_config')
+      .select('client_id')
+      .eq('agent_api_key', apiKey)
+      .maybeSingle()
+    if (legacy.data) {
+      config = legacy.data
+      // Round-3 fix #9: telemetry on legacy fallback hits — same as
+      // lib/agent-auth.ts. Lets the runbook's "drop after 7 clean days"
+      // step actually verify clean.
+      void supabase.from('integration_signals').insert({
+        source: 'api-auth',
+        kind: 'legacy_key_fallback_hit',
+        external_id: legacy.data.client_id,
+        raw: { client_id: legacy.data.client_id },
+        occurred_at: new Date().toISOString(),
+      }).then(() => {}, () => {})
+      // Backfill the hash for subsequent calls. Fire-and-forget.
+      void supabase
+        .from('agent_config')
+        .update({ agent_api_key_hash: apiKeyHash })
+        .eq('client_id', legacy.data.client_id)
+        .then(() => {}, () => {})
+    }
+  }
 
   if (config) {
     const clientId = config.client_id

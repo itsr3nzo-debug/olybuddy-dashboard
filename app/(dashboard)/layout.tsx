@@ -7,6 +7,7 @@ import MobileNav from '@/components/dashboard/MobileNav'
 import CommandPalette from '@/components/shared/CommandPalette'
 import TrialBanner from '@/components/dashboard/TrialBanner'
 import ProvisioningBanner from '@/components/dashboard/ProvisioningBanner'
+import EmailVerificationBanner from '@/components/dashboard/EmailVerificationBanner'
 import { Breadcrumb } from '@/components/ui/breadcrumb'
 import ChatLauncher from '@/components/chat/ChatLauncher'
 
@@ -21,6 +22,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   let onboardingDone = true
   let subscriptionStatus = 'active'
   let trialEndsAt: string | null = null
+  let emailVerifiedAt: string | null = null
+  let clientEmail: string | null = null
 
   let launcherOwner: string | undefined;
   if (session.role === 'super_admin' && !session.clientId) {
@@ -28,7 +31,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   } else if (session.clientId) {
     const { data: client } = await supabase
       .from('clients')
-      .select('name, onboarding_completed, subscription_status, trial_ends_at, contact_name')
+      .select('name, onboarding_completed, subscription_status, trial_ends_at, contact_name, email, email_verified_at')
       .eq('id', session.clientId)
       .single()
     if (client) {
@@ -37,6 +40,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       subscriptionStatus = client.subscription_status ?? 'active'
       trialEndsAt = client.trial_ends_at ?? null
       launcherOwner = (client as { contact_name?: string }).contact_name
+      emailVerifiedAt = (client as { email_verified_at?: string | null }).email_verified_at ?? null
+      clientEmail = (client as { email?: string }).email ?? null
     }
   }
 
@@ -56,6 +61,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <main className="flex-1 lg:ml-60 min-h-screen p-4 sm:p-6 lg:p-8 overflow-auto pb-24 lg:pb-8 transition-[margin] duration-300">
           <TrialBanner trialEndsAt={trialEndsAt} subscriptionStatus={subscriptionStatus} />
           {session.role !== 'super_admin' && session.clientId && <ProvisioningBanner />}
+          {session.role !== 'super_admin' && session.clientId && !emailVerifiedAt && clientEmail && (
+            <EmailVerificationBanner email={clientEmail} />
+          )}
           <Breadcrumb />
           {children}
         </main>

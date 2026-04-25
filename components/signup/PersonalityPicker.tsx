@@ -47,7 +47,7 @@ export default function PersonalityPicker({ selected, onSelect, industry }: Pers
               animate={isSelected ? { scale: [1, 1.3, 1.1] } : { scale: 1 }}
               transition={{ type: 'spring', stiffness: 500, damping: 15 }}
             >
-              <span className="text-3xl leading-none">{p.emoji}</span>
+              <span className="text-2xl sm:text-3xl leading-none">{p.emoji}</span>
             </motion.div>
 
             <span
@@ -56,7 +56,7 @@ export default function PersonalityPicker({ selected, onSelect, industry }: Pers
               {p.label}
             </span>
 
-            <span className="text-xs leading-snug text-white/50">
+            <span className="text-[11px] sm:text-xs leading-snug text-white/50">
               {p.description}
             </span>
 

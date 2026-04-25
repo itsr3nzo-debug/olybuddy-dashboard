@@ -6,7 +6,9 @@ import { FergusClient } from '@/lib/integrations/fergus'
 /**
  * POST /api/agent/fergus/jobs/<id>/restore
  *
- * Reverse of /archive — un-archives a job. No body required.
+ * Reverse of /archive. Since /archive is implemented via Fergus's
+ * /jobs/{id}/hold (Fergus Partner API has no archive endpoint), restore
+ * is implemented via /jobs/{id}/resume. No body required.
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ job_id: string }> }) {
   const auth = await authenticateAgent(req)
@@ -19,7 +21,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
   try {
     const client = await FergusClient.forClient(auth.clientId)
     const job = await client.restoreJob(id)
-    return NextResponse.json({ job, action: 'restore' })
+    return NextResponse.json({
+      job,
+      action: 'restore',
+      implementation: 'resume',
+      note: 'Reversed archive (which was implemented via hold).',
+    })
   } catch (e) {
     return NextResponse.json(
       { error: 'fergus_restore_job_failed', detail: safeErrorDetail(e) },
