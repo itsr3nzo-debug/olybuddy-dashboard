@@ -55,6 +55,22 @@
     {
       "path": "/api/cron/pending-payment-cleanup",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/secret-audit",
+      "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/cron/winback",
+      "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/cron/vps-backup-prune",
+      "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/agent-alerts-prune",
+      "schedule": "30 3 * * *"
     }
   ],
   "alias": [
