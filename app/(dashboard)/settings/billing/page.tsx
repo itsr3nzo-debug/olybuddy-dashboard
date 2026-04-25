@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Section } from '@/components/ui/card'
 import { StatusBadge } from '@/components/ui/badge'
 import { CreditCard, Receipt, XCircle, Sparkles, AlertTriangle, RefreshCw, CheckCircle } from 'lucide-react'
+import ReferralCard from '@/components/dashboard/ReferralCard'
 
 export const metadata: Metadata = { title: 'Billing | Nexley AI' }
 
@@ -207,7 +208,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
             <>
               <Section title="Set up billing" description="Activate your paid AI Employee subscription">
                 <div className="px-1">
-                  <div className="grid gap-3 sm:grid-cols-3 mb-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
                     <Perk title="£20 onboarding fee" sub="Charged now — unlocks your 5-day trial on a dedicated VPS" />
                     <Perk title="5-day trial" sub="Full access to your AI Employee. Cancel any time with no further charge." />
                     <Perk title="£599 / month" sub="Auto-billed on Day 6 unless you cancel during the trial" />
@@ -355,6 +356,8 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
             </>
           )}
 
+          <ReferralCard />
+
           <Section title="Need help?" description="Questions about billing, refunds, or your plan">
             <a href="mailto:hello@nexley.ai" className="inline-flex items-center gap-2 text-sm font-medium text-brand-primary hover:underline">
               Email hello@nexley.ai →
@@ -370,9 +373,9 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-between py-4 gap-4">
-      <span className="text-sm font-medium w-48 flex-shrink-0 text-muted-foreground">{label}</span>
-      <span className="text-sm flex-1 text-right text-foreground">{value}</span>
+    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between py-3 sm:py-4 gap-1 sm:gap-4">
+      <span className="text-xs sm:text-sm font-medium sm:w-48 sm:flex-shrink-0 text-muted-foreground">{label}</span>
+      <span className="text-sm flex-1 sm:text-right text-foreground break-words">{value}</span>
     </div>
   )
 }
@@ -420,7 +423,7 @@ function Perk({ title, sub }: { title: string; sub: string }) {
 function ManageCards({ showCancel, resumeLabel }: { showCancel: boolean; resumeLabel?: string }) {
   return (
     <Section title="Manage subscription" description="Update your card, download invoices, or change your plan details">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <PortalCard
           href="/api/stripe/portal"
           icon={<Receipt size={18} />}

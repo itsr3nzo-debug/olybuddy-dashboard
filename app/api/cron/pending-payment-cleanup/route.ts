@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { dispatchAgentAlert } from '@/lib/agent-alerts'
 
 /**
  * GET /api/cron/pending-payment-cleanup
@@ -71,20 +72,27 @@ export async function GET(req: NextRequest) {
     } catch { /* best-effort */ }
   }
 
-  // 4. Telegram alert with the cleanup summary
-  try {
-    const botToken = process.env.TELEGRAM_BOT_TOKEN
-    const chatId = process.env.TELEGRAM_CHAT_ID
-    if (botToken && chatId) {
-      const msg = `🧹 pending-payment cleanup: removed ${stuck.length} row${stuck.length === 1 ? '' : 's'} + ${authUserIds.length} auth user${authUserIds.length === 1 ? '' : 's'}\n` +
-                  stuck.map(c => `  · ${c.name} (${c.email})`).join('\n')
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: msg }),
-      })
-    }
-  } catch { /* non-fatal */ }
+  // 4. Route the cleanup summary through Light (item #11) — he'll decide
+  // whether the abandoned-signup count is high enough to warrant looking
+  // at the funnel (e.g. >5 in one cycle = something broken upstream).
+  await dispatchAgentAlert({
+    target: 'senku',
+    priority: stuck.length >= 5 ? 'P1' : 'P3',
+    category: 'signup_funnel',
+    subject: `Pending-payment cleanup: removed ${stuck.length} stuck row${stuck.length === 1 ? '' : 's'}`,
+    body: [
+      `Daily cleanup of stuck Stripe Checkouts >24h old.`,
+      ``,
+      `**Removed:**`,
+      ...stuck.map(c => `- ${c.name} (${c.email}) \u2014 ${Math.floor((Date.now() - new Date(c.created_at).getTime()) / 3600000)}h old`),
+      ``,
+      stuck.length >= 5
+        ? `Volume is high \u2014 worth checking signup-to-paid conversion in the last 24h. Possible Stripe outage, broken webhook, or pricing-page issue.`
+        : `Normal background drop-off rate.`,
+    ].join('\n'),
+    source: 'cron:pending-payment-cleanup',
+    meta: { stuck, authUserIds },
+  })
 
   return NextResponse.json({
     cleaned: stuck.length,
