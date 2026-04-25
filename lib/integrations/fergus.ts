@@ -124,12 +124,14 @@ export class FergusClient {
   }
 
   private async req<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
-    // Fergus is strict about Content-Type: a bodyless DELETE was returning
-    // "415 Unsupported Media Type: application/x-www-form-urlencoded" because
-    // fetch's default for non-GET methods isn't application/json. Set it
-    // explicitly for ALL non-GET methods so DELETE / POST{} / PUT{} all
-    // surface as JSON requests regardless of body.
+    // Fergus's Fastify backend is strict on TWO axes for non-GET methods:
+    //   1. Content-Type must be application/json (else 415 Unsupported Media Type).
+    //   2. Body cannot be empty when Content-Type is application/json (else 400
+    //      "Body cannot be empty"). So a "bodyless DELETE" still needs `{}`.
+    // We therefore send `{}` when the caller didn't provide a body, on every
+    // non-GET method. Fergus accepts `{}` as a no-op write payload.
     const isWrite = method !== 'GET' && method !== 'HEAD'
+    const requestBody = isWrite ? JSON.stringify(body ?? {}) : undefined
     const res = await fetch(`${FERGUS_BASE}${path}`, {
       method,
       headers: {
@@ -137,7 +139,7 @@ export class FergusClient {
         Accept: 'application/json',
         ...(isWrite ? { 'Content-Type': 'application/json' } : {}),
       },
-      body: body ? JSON.stringify(body) : undefined,
+      body: requestBody,
     })
     if (!res.ok) {
       const txt = await res.text().catch(() => '')
