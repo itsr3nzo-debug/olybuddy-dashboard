@@ -87,9 +87,16 @@ export async function GET(req: NextRequest) {
 
   // PAYMENT IN FLIGHT — they just completed Checkout but webhook hasn't
   // fired yet. Creating a second Checkout here risks charging them twice.
-  // Redirect back to billing where the "Finalising your payment" UI waits
-  // (the page derives that state from Supabase; no query param needed).
-  if (client.subscription_status === 'pending_payment') {
+  // Redirect back to billing where the "Finalising your payment" UI waits.
+  //
+  // Round-3+ fix: ?resume=true bypasses this so users who ABANDONED the
+  // first Checkout can start a new one. Without this, abandoned-checkout
+  // users were stuck in "Finalising your payment" state forever (the
+  // pending-payment-cleanup cron deletes them after 24h, which is fine
+  // for fresh signups but punishing for someone who closed the tab and
+  // came back 5 minutes later).
+  const resume = req.nextUrl.searchParams.get('resume') === 'true'
+  if (client.subscription_status === 'pending_payment' && !resume) {
     return NextResponse.redirect(new URL('/settings/billing', req.url))
   }
 
