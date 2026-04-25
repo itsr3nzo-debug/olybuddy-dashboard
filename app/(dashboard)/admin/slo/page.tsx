@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
  *
  * Reads from real columns confirmed via information_schema (devil's-advocate
  * fix P0 #10):
- *   - webhook_log         → API failure indicator (rows with response_status >=500)
+ *   - webhook_log         → API failure indicator (rows with status_code >=500)
  *   - stripe_events       → webhook ingest reliability (processed flag)
  *   - agent_heartbeats    → per-client uptime via agent_slug → clients.slug match
  *                           (NOT client_id — heartbeats don't have that column)
@@ -34,14 +34,16 @@ export default async function SloDashboardPage() {
   const oneDay = new Date(now - 24 * 60 * 60 * 1000).toISOString()
 
   // ─── KPI 1: Webhook 5xx rate (30d) ──────────────────────────────────────
-  // Use webhook_log rows with response_status >= 500 vs total. The previous
-  // version queried audit_logs.level which doesn't exist in our schema.
+  // Use webhook_log rows with status_code >= 500 vs total. The previous
+  // version queried audit_logs.level (didn't exist) — production hotfix
+  // round 4 corrected webhook_log column from `response_status` to
+  // `status_code` (verified via information_schema).
   const [webhookErr, webhookTotal] = await Promise.all([
     supabase
       .from('webhook_log')
       .select('id', { count: 'exact', head: true })
       .gte('created_at', thirtyDays)
-      .gte('response_status', 500),
+      .gte('status_code', 500),
     supabase
       .from('webhook_log')
       .select('id', { count: 'exact', head: true })
