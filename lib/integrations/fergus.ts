@@ -854,6 +854,24 @@ export class FergusClient {
     return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
   }
 
+  // ─── Job archive / restore ──────────────────────────────
+  /**
+   * Archive a job. Soft-removes from active views (does NOT delete data) —
+   * recoverable via restoreJob. Used to clean up duplicate jobs, abandoned
+   * drafts, or jobs created with the wrong jobType.
+   *
+   * Maps to `POST /jobs/{jobId}/archive`. Mirrors the Site archive shape.
+   */
+  async archiveJob(jobId: number): Promise<Record<string, unknown> | null> {
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('POST', `/jobs/${jobId}/archive`, {})
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
+  }
+  /** Restore an archived job — reverse of archiveJob. */
+  async restoreJob(jobId: number): Promise<Record<string, unknown> | null> {
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('POST', `/jobs/${jobId}/restore`, {})
+    return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
+  }
+
   /**
    * NOT SUPPORTED by Fergus Partner API.
    * `POST /jobs/{id}/attachments` does not exist in the Partner API. File
