@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
   const adminSupabase = getSupabase()
   const { data: client } = await adminSupabase
     .from('clients')
-    .select('stripe_customer_id, stripe_subscription_id, subscription_status')
+    .select('stripe_customer_id, stripe_subscription_id, subscription_status, email_verified_at')
     .eq('id', session.clientId)
     .single()
 
@@ -63,6 +63,19 @@ export async function GET(req: NextRequest) {
   // Build the portal session. flow_data lets us deep-link into specific actions
   // (e.g. "Cancel" button goes straight to the cancellation flow).
   const flow = req.nextUrl.searchParams.get('flow')
+
+  // Round-3 fix #3: gate the cancel flow on email verification. A
+  // stolen-cookie attacker shouldn't be able to cancel the customer's
+  // subscription if they can't access the customer's email. Other
+  // portal actions (view invoices, update payment method) stay open
+  // because they're recoverable.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const c = client as any
+  if (flow === 'cancel' && !c.email_verified_at) {
+    return NextResponse.redirect(
+      new URL('/settings/billing?error=verify_email_first', req.url)
+    )
+  }
   const returnUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/settings/billing?portal_return=1`
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

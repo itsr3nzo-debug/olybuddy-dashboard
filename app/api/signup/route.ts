@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { validatePassword } from '@/lib/password-policy'
+import { sendVerificationEmail } from '@/lib/auth/email-verification'
+import { hashAgentKey } from '@/lib/agent-auth'
+import { attributeReferral } from '@/lib/referrals'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -54,6 +58,8 @@ export async function POST(req: NextRequest) {
   const {
     business_name, contact_name, email, password, phone, industry, services, location, plan, personality,
     business_whatsapp, owner_phone, owner_name, agent_name,
+    // Item #14 — referral code from ?ref= URL param, forwarded by signup wizard.
+    referral_code,
   } = body
 
   // AI employee display name. Trim + cap at 30 chars (UI also caps at 30).
@@ -84,14 +90,15 @@ export async function POST(req: NextRequest) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: 'Invalid email format' }, { status: 400 })
   }
-  if (typeof password !== 'string' || password.length < 10) {
-    return NextResponse.json({ error: 'Password must be at least 10 characters' }, { status: 400 })
+  if (typeof password !== 'string') {
+    return NextResponse.json({ error: 'Password must be a string' }, { status: 400 })
   }
-  if (!/\d/.test(password)) {
-    return NextResponse.json({ error: 'Password must contain at least one number' }, { status: 400 })
-  }
-  if (password.length > 200) {
-    return NextResponse.json({ error: 'Password too long' }, { status: 400 })
+  // Shared policy — same rules the live UI checklist enforces. Keeps the
+  // server as the source of truth so a hand-crafted POST can't bypass the
+  // strength rules by skipping the wizard.
+  const pwCheck = validatePassword(password, { email, businessName: business_name })
+  if (pwCheck.error) {
+    return NextResponse.json({ error: pwCheck.error }, { status: 400 })
   }
   if (!VALID_PLANS.includes(plan)) {
     return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
@@ -126,6 +133,17 @@ export async function POST(req: NextRequest) {
   // page is pre-populated instead of showing a blank placeholder.
   const resolvedPhone = (phone && String(phone).trim()) || normalizedBusinessWa || normalizedOwnerPhone || null
 
+  // Item #14 — generate a referral code now so the new client can share
+  // immediately. Format mirrors the migration backfill: <6 of slug>-<4 hex>.
+  // 16^4 = 65k random suffix per slug-prefix is plenty for collision avoidance
+  // and keeps the URL short.
+  const buildReferralCode = (slugStr: string) => {
+    const prefix = slugStr.slice(0, 6).replace(/[^a-z0-9]/g, '')
+    const suffix = Array.from(crypto.getRandomValues(new Uint8Array(2)))
+      .map(b => b.toString(16).padStart(2, '0')).join('')
+    return `${prefix}-${suffix}`
+  }
+
   // Helper — we may need to retry with a different slug on collision, so keep
   // the insert payload in a reusable closure.
   const insertClient = async (slugToUse: string) =>
@@ -138,6 +156,7 @@ export async function POST(req: NextRequest) {
       contact_name: contact_name || null,
       location: location || null,
       services_text: services || null,
+      referral_code: buildReferralCode(slugToUse),
       // Every signup now goes through Stripe Checkout BEFORE becoming a real
       // 'trial'. Until the checkout.session.completed webhook fires and sets
       // stripe_customer_id + stripe_subscription_id, the client row stays in
@@ -204,8 +223,13 @@ export async function POST(req: NextRequest) {
 
   const clientId = client.id
 
-  // Create agent_config with sensible defaults
+  // Create agent_config with sensible defaults. The raw key is generated
+  // once here, never stored in plaintext on the dashboard side — only the
+  // SHA-256 hash goes into agent_config (item #4). The raw key is forwarded
+  // to provisioning_queue.meta so the worker can push it to the VPS .env
+  // file; the worker deletes the row after applying.
   const agentApiKey = `oak_${Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2, '0')).join('')}`
+  const agentApiKeyHash = hashAgentKey(agentApiKey)
 
   const { error: configErr } = await supabase.from('agent_config').insert({
     client_id: clientId,
@@ -224,7 +248,8 @@ export async function POST(req: NextRequest) {
     sms_enabled: true,
     whatsapp_enabled: true,
     model_preference: 'auto',
-    agent_api_key: agentApiKey,
+    // Hash-only — raw key goes to provisioning_queue.meta below.
+    agent_api_key_hash: agentApiKeyHash,
     agent_name: sanitizedAgentName,
     agent_status: 'offline',
     is_active: false,
@@ -276,6 +301,10 @@ export async function POST(req: NextRequest) {
         owner_phone: normalizedOwnerPhone,
         business_whatsapp: normalizedBusinessWa,
         plan,
+        // Raw oak_ key for the worker to write to /opt/clients/{slug}/.env.
+        // Worker deletes this row after applying so the raw key isn't
+        // retained on the dashboard side. Item #4 (hash-at-rest).
+        agent_api_key: agentApiKey,
       },
     })
   } catch (e) {
@@ -293,6 +322,37 @@ export async function POST(req: NextRequest) {
       })
     } catch (e) {
       console.warn('[signup] trial_sequence enrol failed', e)
+    }
+  }
+
+  // Send the email-verification link. Best-effort — a bounce or SMTP outage
+  // shouldn't fail signup, the dashboard banner gives them a "Resend" CTA
+  // (POST /api/auth/resend-verification, rate-limited to 3/hr/account).
+  // We DELIBERATELY don't await rate-limiting on the first send — every
+  // signup gets exactly one welcome verification regardless.
+  try {
+    await sendVerificationEmail({ clientId, email, businessName: business_name })
+  } catch (e) {
+    console.warn('[signup] verification email failed (non-fatal):', e)
+  }
+
+  // Item #14 — attribute referral if ?ref= came through. Silently swallows
+  // invalid codes / self-referrals — the user shouldn't see an error if
+  // someone gave them a malformed URL. The referral stays 'pending' until
+  // their first £599 invoice clears, then the Stripe webhook flips it to
+  // 'credited' and applies the £150 credit to the referrer's balance.
+  if (referral_code) {
+    try {
+      const result = await attributeReferral({
+        refereeClientId: clientId,
+        refereeEmail: email,
+        referrerCode: String(referral_code),
+      })
+      if (!result.ok) {
+        console.log('[signup] referral attribution skipped:', result.reason, 'code:', referral_code)
+      }
+    } catch (e) {
+      console.warn('[signup] referral attribution failed (non-fatal):', e)
     }
   }
 

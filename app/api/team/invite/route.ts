@@ -38,6 +38,36 @@ export async function POST(req: NextRequest) {
 
   const adminSupabase = getSupabase();
 
+  // Devil's-advocate fix #1 round 2/3: gate invites on the inviter's
+  // email being verified. Two-stage check so an orphan super_admin
+  // (no clients row) gets a clear "no client linked" error instead
+  // of a confusing "verify your email" message.
+  const { data: inviterRow } = await adminSupabase
+    .from("clients")
+    .select("email_verified_at")
+    .eq("id", session.clientId)
+    .maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const inviter = inviterRow as any;
+  if (!inviter) {
+    // Should be impossible if session.clientId was non-null, but defends
+    // against orphan super_admin sessions whose stamped client_id was
+    // deleted out from under them.
+    return NextResponse.json(
+      { error: "Account not linked to a business — contact support.", code: "orphan_client" },
+      { status: 400 }
+    );
+  }
+  if (!inviter.email_verified_at) {
+    return NextResponse.json(
+      {
+        error: "Verify your email before inviting team members. Check your inbox for the verification link, or click 'Resend' on the dashboard banner.",
+        code: "email_not_verified",
+      },
+      { status: 403 }
+    );
+  }
+
   // ── Per-plan invite cap ─────────────────────────────────────────────
   // Count current team size (every user stamped with this client_id —
   // owner, members, and any super_admin who's linked here). Reject the
