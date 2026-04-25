@@ -33,6 +33,18 @@ function svc() {
 }
 
 /**
+ * "Far future" hold-until date used by archiveJob — Fergus Partner API
+ * doesn't expose archive on jobs, so we hold-with-far-future-date as the
+ * effective equivalent. 5 years is far enough to be unambiguously archive-
+ * intent, near enough not to look like a typo. Returns YYYY-MM-DD.
+ */
+function defaultHoldUntilFarFuture(): string {
+  const d = new Date()
+  d.setUTCFullYear(d.getUTCFullYear() + 5)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
  * Canonical Fergus job types (trade-specific). These match what Fergus uses in
  * their UI. If the user's Fergus account is configured with custom types, use
  * `listJobTypes()` (future) to fetch theirs.
@@ -854,22 +866,55 @@ export class FergusClient {
     return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
   }
 
-  // ─── Job archive / restore ──────────────────────────────
+  // ─── Job archive / restore (via hold/resume) ────────────
   /**
-   * Archive a job. Soft-removes from active views (does NOT delete data) —
-   * recoverable via restoreJob. Used to clean up duplicate jobs, abandoned
-   * drafts, or jobs created with the wrong jobType.
+   * "Archive" a job. Fergus Partner API has NO archive endpoint for jobs —
+   * verified against /docs/json (only `/sites/{id}/archive` exists). The
+   * effective equivalent is `POST /jobs/{id}/hold` with a far-future
+   * `hold_until` date and an explanatory note: the job is removed from
+   * active views, surfaces in "On Hold" filters, and is recoverable via
+   * `resume`.
    *
-   * Maps to `POST /jobs/{jobId}/archive`. Mirrors the Site archive shape.
+   * Note + hold-until are configurable. Default note signals this is an
+   * archive intent (so an owner browsing the on-hold list can tell
+   * archive-style holds from genuine "wait two weeks" holds).
    */
-  async archiveJob(jobId: number): Promise<Record<string, unknown> | null> {
-    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('POST', `/jobs/${jobId}/archive`, {})
+  async archiveJob(jobId: number, opts?: { note?: string; holdUntil?: string }): Promise<Record<string, unknown> | null> {
+    const note = (opts?.note ?? 'Archived (no archive endpoint in Fergus Partner API; held until far future).').slice(0, 2000)
+    const holdUntil = opts?.holdUntil ?? defaultHoldUntilFarFuture()
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(holdUntil)) {
+      throw new Error(`archiveJob: holdUntil must be YYYY-MM-DD, got "${holdUntil}"`)
+    }
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>(
+      'POST',
+      `/jobs/${jobId}/hold`,
+      { holdUntil, notes: note },
+    )
     return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
   }
-  /** Restore an archived job — reverse of archiveJob. */
+
+  /** Reverse of archiveJob — calls Fergus `POST /jobs/{id}/resume`. */
   async restoreJob(jobId: number): Promise<Record<string, unknown> | null> {
-    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>('POST', `/jobs/${jobId}/restore`, {})
+    const res = await this.req<{ data: Record<string, unknown> } | Record<string, unknown>>(
+      'POST',
+      `/jobs/${jobId}/resume`,
+      {},
+    )
     return (res as { data?: Record<string, unknown> })?.data ?? (res as Record<string, unknown>) ?? null
+  }
+
+  /**
+   * Public wrapper around the private resolvePhase logic — used by routes
+   * that need "find the first phase, create Default if none exist" semantics
+   * outside of addJobLineItems. Returns the resolved phaseId (number).
+   *
+   * Pass `phaseId` to skip the lookup entirely (trust the caller).
+   * Pass `phaseName` to find by case-insensitive title match, auto-create on miss.
+   * Pass nothing to use the first existing phase (or create "Default").
+   */
+  async ensurePhaseId(jobId: number, target?: { phaseId?: number; phaseName?: string }): Promise<number> {
+    const r = await this.resolvePhase(jobId, target)
+    return r.phaseId
   }
 
   /**
