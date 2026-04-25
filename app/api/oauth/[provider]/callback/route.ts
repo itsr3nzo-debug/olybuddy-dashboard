@@ -130,6 +130,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
           console.error(`[composio-callback] upsert failed for ${p}:`, error);
           return NextResponse.redirect(`${origin}/integrations?error=storage_failed&provider=${p}`);
         }
+
+        // When a client connects Xero (or any future fergus-like via OAuth),
+        // enqueue a push of the integration skill files to that client's VPS
+        // so their AI Employee picks up the latest fergus.md / xero.md playbook
+        // on the next service restart. Idempotent. Best-effort.
+        if (status === "ACTIVE" && (p === "xero" || p === "fergus")) {
+          try {
+            await admin.from("provisioning_queue").insert({
+              client_id: clientId,
+              action: "push_integration_skills",
+              triggered_by: `oauth-callback:${p}`,
+              meta: { provider: p },
+            });
+          } catch (e) {
+            console.error(`[composio-callback] failed to enqueue skill push for ${p}:`, e);
+          }
+        }
       }
 
       // Auto-subscribe to Composio triggers so events flow to /api/webhooks/composio
