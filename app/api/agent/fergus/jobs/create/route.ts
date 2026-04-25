@@ -24,6 +24,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authenticateAgent, logAgentAction } from '@/lib/agent-auth'
 import { enforceTrust, safeErrorDetail } from '@/lib/agent-trust-gate'
 import { FergusClient } from '@/lib/integrations/fergus'
+import { toFergusAddress } from '@/lib/integrations/fergus-input'
 
 export async function POST(req: NextRequest) {
   const auth = await authenticateAgent(req)
@@ -39,11 +40,13 @@ export async function POST(req: NextRequest) {
     customer_email,
     customer_id,
     site_id,                              // explicit site reference (preferred)
-    site_address,                         // used during customer create (NOT on the job body)
     use_customer_address_as_site = true,  // default: auto-derive site from customer — matches Fergus UI's "same as customer" button
     customer_reference,
     is_draft = true,
   } = body
+  // Accept site_address or siteAddress, with either snake_case or camelCase
+  // inner field names. The normaliser flattens to the canonical Fergus shape.
+  const site_address = toFergusAddress(body.site_address ?? body.siteAddress)
 
   if (!title) {
     return NextResponse.json({ error: 'title required' }, { status: 400 })

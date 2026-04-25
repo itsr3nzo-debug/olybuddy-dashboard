@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authenticateAgent } from '@/lib/agent-auth'
 import { safeErrorDetail } from '@/lib/agent-trust-gate'
 import { FergusClient } from '@/lib/integrations/fergus'
+import { toFergusAddress, toFergusContact } from '@/lib/integrations/fergus-input'
 
 function parseId(s: string): number | null {
   const n = parseInt(s, 10)
@@ -39,26 +40,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ jo
   try {
     const client = await FergusClient.forClient(auth.clientId)
 
-    // Convenience: if caller passes `site_address` instead of `site_id`, auto-
-    // create a site first and link by id (Fergus doesn't accept inline addresses).
-    let siteIdToSet: number | undefined = body.site_id
-    if (!siteIdToSet && body.site_address && body.default_contact?.first_name) {
+    // Convenience: if caller passes `site_address` (or `siteAddress`)
+    // instead of `site_id`, auto-create a site first and link by id
+    // (Fergus doesn't accept inline addresses on jobs). Accepts both
+    // camelCase (Fergus-native) and snake_case via toFergusAddress.
+    let siteIdToSet: number | undefined = body.site_id ?? body.siteId
+    const inlineSiteAddress = toFergusAddress(body.site_address ?? body.siteAddress)
+    const inlineDefaultContact = toFergusContact(body.default_contact ?? body.defaultContact)
+    if (!siteIdToSet && inlineSiteAddress?.address1 && inlineDefaultContact?.firstName) {
       const site = await client.createSite({
-        defaultContact: {
-          firstName: body.default_contact.first_name,
-          lastName: body.default_contact.last_name,
-          email: body.default_contact.email,
-          mobile: body.default_contact.mobile,
-          phone: body.default_contact.phone,
-        },
-        siteAddress: {
-          address1: body.site_address.address_line1,
-          address2: body.site_address.address_line2,
-          addressSuburb: body.site_address.address_suburb,
-          addressCity: body.site_address.address_city,
-          addressPostcode: body.site_address.address_postcode,
-          addressCountry: body.site_address.address_country,
-        },
+        defaultContact: inlineDefaultContact,
+        siteAddress: inlineSiteAddress,
       })
       siteIdToSet = (site as { id?: number })?.id
     }
@@ -67,8 +59,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ jo
       title: body.title,
       description: body.description,
       status: body.status,
-      jobType: body.job_type,
-      customerId: body.customer_id,
+      jobType: body.job_type ?? body.jobType,
+      customerId: body.customer_id ?? body.customerId,
       siteId: siteIdToSet,
     })
     return NextResponse.json({ job })
