@@ -143,63 +143,157 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
     fileInputRef.current?.click();
   };
 
-  // Voice input via browser SpeechRecognition (webkit-prefixed on Safari/
-  // Chromium). Runs on-device in modern Chrome; falls back to Google's
-  // cloud in older browsers. Firefox has no implementation — we hide the
-  // button in that case. Appends interim+final transcripts to the
-  // composer as the user speaks.
-  type SpeechRec = {
-    continuous: boolean;
-    interimResults: boolean;
-    lang: string;
-    onstart: () => void;
-    onresult: (e: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string; isFinal: boolean }>> }) => void;
-    onerror: (e: unknown) => void;
-    onend: () => void;
-    start: () => void;
-    stop: () => void;
-  };
-  const speechCtorRef = useRef<(new () => SpeechRec) | null>(null);
-  const recRef = useRef<SpeechRec | null>(null);
+  // Voice input via MediaRecorder → POST /api/transcribe (ElevenLabs Scribe).
+  // We deliberately do NOT use the browser's SpeechRecognition API — it
+  // only works in Chrome/Edge, fails silently on Safari, doesn't exist
+  // on Firefox, and requires Google's cloud anyway in older versions.
+  // MediaRecorder + server-side STT works in every modern browser, gives
+  // us better accuracy (Scribe v1), and surfaces real errors to the user.
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingStartRef = useRef<number>(0);
+  const valueRef = useRef(value);
+  useEffect(() => { valueRef.current = value; }, [value]);
   const [recording, setRecording] = useState(false);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const w = window as unknown as { SpeechRecognition?: new () => SpeechRec; webkitSpeechRecognition?: new () => SpeechRec };
-    speechCtorRef.current = w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
-  }, []);
-  const voiceSupported = speechCtorRef.current !== null;
+  const [transcribing, setTranscribing] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  // MediaRecorder is supported in every modern browser (incl. Safari 14+)
+  // and on every device that has a microphone. We render the button
+  // unconditionally so users on niche browsers still see it; if it fails
+  // we surface a clear error in-line.
+  const voiceSupported = true;
 
-  const toggleRecording = () => {
-    if (!speechCtorRef.current) return;
-    if (recording) {
-      recRef.current?.stop();
+  // Pick a MIME type the current browser actually supports. Chrome/Firefox
+  // → opus/webm; Safari → mp4. ElevenLabs Scribe accepts all three.
+  function pickRecorderMime(): string {
+    if (typeof MediaRecorder === 'undefined') return '';
+    const candidates = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/mp4',
+      'audio/mpeg',
+      'audio/ogg;codecs=opus',
+    ];
+    for (const m of candidates) {
+      try { if (MediaRecorder.isTypeSupported(m)) return m; } catch {}
+    }
+    return '';
+  }
+
+  async function startRecording() {
+    setVoiceError(null);
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setVoiceError('Microphone not available in this browser.');
       return;
     }
-    const rec = new speechCtorRef.current();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = typeof navigator !== 'undefined' ? (navigator.language || 'en-GB') : 'en-GB';
-    let base = value; // anchor new transcripts after existing text
-    let finalAccum = '';
-    rec.onstart = () => setRecording(true);
-    rec.onresult = (e) => {
-      let interim = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const r = e.results[i]![0]!;
-        if (e.results[i]![0]!.isFinal) finalAccum += r.transcript;
-        else interim += r.transcript;
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      const msg = (e as Error)?.message || '';
+      if (/denied|NotAllowed/i.test(msg) || (e as { name?: string })?.name === 'NotAllowedError') {
+        setVoiceError('Microphone permission denied. Allow it in your browser address bar, then try again.');
+      } else if ((e as { name?: string })?.name === 'NotFoundError') {
+        setVoiceError('No microphone found.');
+      } else {
+        setVoiceError('Could not access the microphone.');
       }
-      const prefix = base.length > 0 && !/\s$/.test(base) ? base + ' ' : base;
-      const next = prefix + finalAccum + interim;
-      setValue(next);
+      return;
+    }
+    const mime = pickRecorderMime();
+    let recorder: MediaRecorder;
+    try {
+      recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    } catch {
+      stream.getTracks().forEach(t => t.stop());
+      setVoiceError('This browser cannot record audio.');
+      return;
+    }
+    audioChunksRef.current = [];
+    recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data); };
+    recorder.onstop = () => {
+      // Tear down mic right away so the browser indicator clears.
+      mediaStreamRef.current?.getTracks().forEach(t => t.stop());
+      mediaStreamRef.current = null;
+      const blob = new Blob(audioChunksRef.current, { type: mime || 'audio/webm' });
+      audioChunksRef.current = [];
+      void uploadForTranscription(blob);
     };
-    rec.onerror = () => setRecording(false);
-    rec.onend = () => { setRecording(false); base = value; };
-    recRef.current = rec;
-    rec.start();
+    recorder.onerror = () => {
+      setRecording(false);
+      setVoiceError('Recording failed. Try again.');
+      stream.getTracks().forEach(t => t.stop());
+    };
+    mediaStreamRef.current = stream;
+    mediaRecorderRef.current = recorder;
+    recordingStartRef.current = Date.now();
+    recorder.start();
+    setRecording(true);
+  }
+
+  function stopRecording() {
+    const r = mediaRecorderRef.current;
+    if (!r) return;
+    if (r.state !== 'inactive') r.stop();
+    mediaRecorderRef.current = null;
+    setRecording(false);
+  }
+
+  async function uploadForTranscription(blob: Blob) {
+    if (Date.now() - recordingStartRef.current < 400) {
+      // User tapped the button — didn't actually record anything.
+      setVoiceError('Hold the mic button longer to record.');
+      return;
+    }
+    setTranscribing(true);
+    try {
+      const fd = new FormData();
+      const ext = (blob.type.includes('mp4') ? 'mp4' : blob.type.includes('mpeg') ? 'mp3' : 'webm');
+      fd.append('audio', new File([blob], `voice.${ext}`, { type: blob.type }));
+      const res = await fetch('/api/transcribe', { method: 'POST', body: fd });
+      const json = await res.json().catch(() => ({ ok: false, error: 'invalid_response' }));
+      if (!res.ok || !json.ok) {
+        const errMap: Record<string, string> = {
+          unauthorized: 'Sign in to use voice input.',
+          transcription_not_configured: 'Voice input not configured.',
+          recording_too_short: 'Recording was too short.',
+          no_speech_detected: 'No speech detected.',
+          audio_too_large: 'Recording was too long.',
+        };
+        setVoiceError(errMap[json.error] || 'Transcription failed. Try again.');
+        return;
+      }
+      const text = String(json.text || '').trim();
+      if (!text) { setVoiceError('No speech detected.'); return; }
+      const base = valueRef.current;
+      const prefix = base.length > 0 && !/\s$/.test(base) ? base + ' ' : base;
+      setValue(prefix + text);
+    } catch {
+      setVoiceError('Network error. Try again.');
+    } finally {
+      setTranscribing(false);
+    }
+  }
+
+  const toggleRecording = () => {
+    setVoiceError(null);
+    if (transcribing) return;
+    if (recording) stopRecording(); else void startRecording();
   };
+
   // Stop recording if the Composer unmounts mid-session
-  useEffect(() => () => { recRef.current?.stop(); }, []);
+  useEffect(() => () => {
+    try { mediaRecorderRef.current?.stop(); } catch {}
+    mediaStreamRef.current?.getTracks().forEach(t => t.stop());
+  }, []);
+
+  // Auto-clear voice error after 6s so it doesn't linger.
+  useEffect(() => {
+    if (!voiceError) return;
+    const t = setTimeout(() => setVoiceError(null), 6000);
+    return () => clearTimeout(t);
+  }, [voiceError]);
 
   const uploadFiles = async (files: File[]) => {
     if (files.length === 0) return;
@@ -451,6 +545,28 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
           }}
         />
 
+        {voiceError && (
+          <div
+            role="alert"
+            className="mx-3 mb-1 mt-1 px-2.5 py-1.5 rounded-md flex items-center gap-2 text-[11.5px]"
+            style={{
+              background: 'rgb(var(--hy-danger) / 0.10)',
+              color: 'rgb(var(--hy-danger))',
+              border: '1px solid rgb(var(--hy-danger) / 0.25)',
+            }}
+          >
+            <AlertCircle size={12} className="flex-shrink-0" />
+            <span className="flex-1">{voiceError}</span>
+            <button
+              type="button"
+              onClick={() => setVoiceError(null)}
+              aria-label="Dismiss"
+              className="opacity-70 hover:opacity-100 flex-shrink-0"
+            >
+              <X size={11} />
+            </button>
+          </div>
+        )}
         <div className={cx(
           'flex items-center gap-1 pb-2 pt-1',
           variant === 'hero' ? 'px-3' : 'px-2'
@@ -458,10 +574,11 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
           <ComposerChip icon={Plus} label={variant === 'hero' ? 'Files and sources' : 'Files'} onClick={pickFiles} />
           {voiceSupported && (
             <ComposerChip
-              icon={recording ? MicOff : Mic}
-              label={recording ? 'Stop' : 'Voice'}
+              icon={transcribing ? Loader2 : (recording ? MicOff : Mic)}
+              label={transcribing ? 'Transcribing…' : (recording ? 'Stop' : 'Voice')}
               onClick={toggleRecording}
               active={recording}
+              spinning={transcribing}
             />
           )}
           <ComposerChip icon={CommandIcon} label="Prompts" onClick={onOpenPalette} />
@@ -517,15 +634,17 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
 }
 
 interface ComposerChipProps {
-  icon: React.ComponentType<{ size?: number }>;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
   label: string;
   onClick?: () => void;
   disabled?: boolean;
   /** Active = highlighted pill (currently recording, etc.) */
   active?: boolean;
+  /** Spin the icon (used while transcribing). */
+  spinning?: boolean;
 }
 
-function ComposerChip({ icon: IconC, label, onClick, disabled, active }: ComposerChipProps) {
+function ComposerChip({ icon: IconC, label, onClick, disabled, active, spinning }: ComposerChipProps) {
   return (
     <button
       type="button"
@@ -540,7 +659,7 @@ function ComposerChip({ icon: IconC, label, onClick, disabled, active }: Compose
       )}
       style={active ? { background: 'rgb(var(--hy-danger) / 0.12)', color: 'rgb(var(--hy-danger))' } : undefined}
     >
-      <IconC size={13} />
+      <IconC size={13} className={spinning ? 'animate-spin' : undefined} />
       {label}
       {active && (
         <span
