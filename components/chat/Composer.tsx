@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useSmoothedContent } from '@/lib/chat/useSmoothedContent';
 import {
-  Sparkles, Plus, Command as CommandIcon, Settings, ArrowUp, Loader2,
+  Wand2, Plus, Command as CommandIcon, Settings, ArrowUp, Loader2,
   Clock, Brain, PencilLine, AlertCircle, User, PhoneCall, FileText,
   Briefcase, Receipt, Copy, RefreshCw, ThumbsUp, ThumbsDown, X,
   ImageIcon, Film, FileAudio, File as FileIconLucide, Mic, MicOff,
@@ -462,7 +462,7 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
           {refining
             ? (
               <div className="flex items-center gap-2 text-[13px] fg-subtle">
-                <Sparkles size={14} className="fg-accent" />
+                <Wand2 size={14} strokeWidth={1.5} className="fg-accent" />
                 Refining your prompt
                 <span className="flex gap-1 ml-1">
                   <span className="status-dot" style={{ animationDelay: '0ms' }} />
@@ -474,7 +474,7 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
             : (
               <div>
                 <div className="flex items-center gap-2 mb-1.5">
-                  <Sparkles size={13} className="fg-accent" />
+                  <Wand2 size={13} strokeWidth={1.5} className="fg-accent" />
                   <span className="text-[11px] fg-muted uppercase tracking-wider font-medium">A clearer version</span>
                 </div>
                 <p className="text-[13px] fg-base mb-2 leading-snug">{refinedText}</p>
@@ -585,8 +585,28 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
           {/* "Customize" button removed — it was wired to the same onOpenPalette
               handler as "Prompts" above, so two visible buttons triggered the
               exact same overlay. Kept the single Prompts entry. */}
-          <ComposerChip icon={Sparkles} label="Improve" onClick={doRefine} disabled={isEmpty} />
-          <div className="flex-1" />
+          <ComposerChip icon={Wand2} label="Improve" onClick={doRefine} disabled={isEmpty} />
+          <div className="flex-1 min-w-2" />
+          {/* Subtle keyboard-shortcut hint — only on the hero composer where
+              there's room. Disappears once the user starts typing so it
+              doesn't compete with the Send CTA's affordance. Fills what
+              was previously a dead empty void in the toolbar middle. */}
+          {variant === 'hero' && isEmpty && (
+            <span
+              aria-hidden="true"
+              className="hidden md:inline-flex items-center gap-1 text-[11px] fg-muted mr-1 select-none"
+            >
+              <kbd
+                className="px-1.5 py-0.5 rounded text-[10px] font-mono"
+                style={{
+                  background: 'rgb(var(--hy-bg-subtle))',
+                  border: '1px solid rgb(var(--hy-border))',
+                  color: 'rgb(var(--hy-fg-muted))',
+                }}
+              >⏎</kbd>
+              <span>to send</span>
+            </span>
+          )}
           {busy && onCancel ? (
             // During an in-flight reply, replace Send with Stop — clicking
             // marks the reply as cancelled locally (bridge still completes

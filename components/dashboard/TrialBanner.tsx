@@ -1,13 +1,26 @@
 'use client'
 
 import { useState } from 'react'
-import { Clock, Zap, X } from 'lucide-react'
+import { Clock } from 'lucide-react'
+import { BannerShell, BannerAction } from '@/components/ui/banner'
 
 interface TrialBannerProps {
   trialEndsAt: string | null
   subscriptionStatus: string
 }
 
+/**
+ * TrialBanner — v2.
+ *
+ * Visual: BannerShell with intent driven by urgency. State / dismiss /
+ * bad-data sanity logic preserved from v1 — only the chrome moved into
+ * the shared shell.
+ *
+ * Three intents:
+ *   info     — > 2 days left
+ *   warning  — 1-2 days left ("urgent")
+ *   danger   — expired (also: action no longer dismissable)
+ */
 export default function TrialBanner({ trialEndsAt, subscriptionStatus }: TrialBannerProps) {
   const [dismissed, setDismissed] = useState(false)
 
@@ -21,44 +34,26 @@ export default function TrialBanner({ trialEndsAt, subscriptionStatus }: TrialBa
 
   // Sanity cap — a "trial" with > 90 days left is almost certainly bad
   // data (saw a row with trial_ends_at = year 2099 → 26913 days left).
-  // Render a soft "Trial active" message instead of a misleading number.
-  const looksLikeBadData = daysLeft > 90
+  // Hide the banner entirely rather than nag the user with a meaningless
+  // "Trial active" message that reserves vertical space for nothing.
+  if (daysLeft > 90) return null
 
-  let message: string
-  if (isExpired) message = 'Your trial has expired. Upgrade to keep your AI Employee active.'
-  else if (looksLikeBadData) message = 'Trial active — upgrade any time.'
-  else message = `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left on your trial.`
+  const message = isExpired
+    ? 'Your trial has expired. Upgrade to keep your AI Employee active.'
+    : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left on your trial.`
+
+  const intent = isExpired ? 'danger' : isUrgent ? 'warning' : 'info'
 
   return (
-    <div className={`relative rounded-xl border px-4 py-3 mb-6 flex items-center justify-between ${
-      isExpired
-        ? 'bg-red-500/10 border-red-500/30 text-red-400'
-        : isUrgent
-        ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-        : 'bg-blue-500/10 border-blue-500/30 text-blue-400'
-    }`}>
-      <div className="flex items-center gap-3 min-w-0">
-        <Clock size={16} className="flex-shrink-0" />
-        <span className="text-sm font-medium truncate">{message}</span>
-      </div>
-
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <a
-          href="/api/stripe/upgrade"
-          // Solid indigo background + explicit white text so the label is always
-          // readable (was: bg-brand-primary which can render as transparent on
-          // some Tailwind v4 / theme combos, leaving an empty pill).
-          className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-semibold shadow-sm transition-colors"
-        >
-          <Zap size={14} className="flex-shrink-0" />
-          <span>Upgrade Now</span>
-        </a>
-        {!isExpired && (
-          <button onClick={() => setDismissed(true)} className="p-1 hover:opacity-70 transition-opacity" aria-label="Dismiss banner">
-            <X size={14} />
-          </button>
-        )}
-      </div>
-    </div>
+    <BannerShell
+      intent={intent}
+      icon={Clock}
+      onDismiss={isExpired ? undefined : () => setDismissed(true)}
+    >
+      <span className="font-medium">{message}</span>
+      <BannerAction href="/api/stripe/upgrade" intent={intent}>
+        Upgrade now
+      </BannerAction>
+    </BannerShell>
   )
 }

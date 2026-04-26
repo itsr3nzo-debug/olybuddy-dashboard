@@ -407,8 +407,17 @@ export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows, pen
             onMentionConsumed={onMentionConsumed}
           />
 
-          {/* One unified control row: sources + voice on one line */}
-          <div className="mt-3 flex items-center justify-between gap-3 px-1">
+          {/* One unified control row: sources + voice on one line.
+              Visually anchored to the composer above with a soft top
+              border + matching surface tint, so the controls read as
+              part of the composer rather than floating below it. */}
+          <div
+            className="mt-2 rounded-md px-3 py-2 flex items-center justify-between gap-3 flex-wrap"
+            style={{
+              background: 'rgb(var(--hy-bg-subtle) / 0.4)',
+              border: '1px solid rgb(var(--hy-border) / 0.6)',
+            }}
+          >
             <SourceChipRow selected={selected} onToggle={toggle} />
             <VoicePill />
           </div>
