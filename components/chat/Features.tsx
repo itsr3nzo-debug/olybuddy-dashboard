@@ -517,9 +517,12 @@ export function SelectionMenu({ containerRef, onAction }: SelectionMenuProps) {
 export function VoicePill() {
   const [open, setOpen] = useState(false);
   const { clientName } = useClient();
+  // The full label "{ClientName} house style" appears in the OPEN dropdown
+  // (where we have room for it), but on the closed pill button we show a
+  // short, single-line label. Long client names (e.g. "Nexley AI Live Test")
+  // were wrapping the closed pill across two lines, looking broken.
   const houseStyle = `${clientName} house style`;
   const [voice, setVoice] = useState(houseStyle);
-  // keep local label in sync when clientName resolves after mount
   useEffect(() => { setVoice(houseStyle); }, [houseStyle]);
   const options = [
     { name: houseStyle, sub: "Matches your business's tone. Learned from past messages." },
@@ -527,16 +530,23 @@ export function VoicePill() {
     { name: 'Quick & casual', sub: 'Short, plain, first-name.' },
   ];
 
+  // Short label for the closed pill: drop the client-name prefix on the
+  // house-style option (which is ALWAYS the default), keep the other two
+  // verbatim. Falls back to a generic "House style" if the client name
+  // would otherwise get truncated to nothing readable.
+  const closedLabel = voice === houseStyle ? 'House style' : voice;
+
   return (
     <div className="relative" style={{ display: 'inline-block' }}>
       <button
         onClick={() => setOpen(v => !v)}
-        className="inline-flex items-center gap-1.5 rounded-md px-2 h-[26px] text-[11px] fg-subtle hover:fg-base transition-colors"
+        className="inline-flex items-center gap-1.5 rounded-md px-2.5 h-[26px] text-[11px] fg-subtle hover:fg-base transition-colors whitespace-nowrap"
         style={{ border: '1px solid rgb(var(--hy-border))', background: 'rgb(var(--hy-bg-subtle))' }}
+        title={voice}
       >
         <Type size={10} />
         <span className="fg-muted">Voice:</span>
-        {voice}
+        <span className="truncate max-w-[140px]">{closedLabel}</span>
         <ChevronDown size={9} />
       </button>
       {open && (

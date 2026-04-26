@@ -611,12 +611,18 @@ a { color: inherit; }
 }
 .heartbeat-cell:last-child { border-right: none; }
 .heartbeat-num {
-  font-family: var(--font-serif);
+  /* Source Serif's 0 is shaped almost identically to its O — at 26px,
+     "0 nudges drafted" reads as "O nudges drafted". Switch to sans for
+     digits + force tabular + lining numerals so columns line up at a
+     glance and the glyph ambiguity disappears. */
+  font-family: var(--font-sans);
   font-size: 26px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: -0.02em;
   color: rgb(var(--hy-fg-base));
   line-height: 1;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum', 'lnum', 'zero';
 }
 .heartbeat-label {
   font-size: 11px;

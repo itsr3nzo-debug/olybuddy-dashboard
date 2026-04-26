@@ -144,17 +144,17 @@ function SidebarFull({ clientInitials, groups, currentSessionId, onSelectSession
 
   return (
     <>
-      <div className="px-2.5 pt-3 pb-2 flex items-center justify-between gap-1">
+      <div className="px-2.5 pt-3 pb-2 flex items-center justify-between gap-2">
         <button
           onClick={onWorkspaceClick}
-          title={isAdminView ? 'Switch client (admin)' : 'Go to chat home'}
+          title={isAdminView ? 'Switch client (admin)' : `${clientName} — go to chat home`}
           className="flex items-center gap-1.5 min-w-0 px-1.5 py-1 rounded-md hover:bg-hover transition-colors focus-ring text-left"
         >
           <div
             className="h-[18px] w-[18px] rounded-sm flex items-center justify-center text-[9px] font-semibold flex-shrink-0"
             style={{ background: 'rgb(var(--hy-fg-base))', color: 'rgb(var(--hy-fg-inverse))', letterSpacing: '-0.01em' }}
           >{clientInitials}</div>
-          <span className="text-[12px] fg-base truncate max-w-[110px]">{clientName}</span>
+          <span className="text-[12px] fg-base truncate max-w-[96px]">{clientName}</span>
           {isAdminView && (
             <ChevronDown size={11} className="fg-muted flex-shrink-0" />
           )}

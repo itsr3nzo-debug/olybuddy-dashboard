@@ -191,7 +191,8 @@ const WORKFLOW_STEPS: Record<number, string[]> = {
   3: ['Extract quote line items', 'Check margin vs template', 'Flag anomalies', 'Summarize for approval'],
 };
 
-function WorkflowCell({ w, i, last, onRun }: { w: Workflow; i: number; last: boolean; onRun?: (prompt: string) => void }) {
+function WorkflowCell({ w, i, last: _last, onRun }: { w: Workflow; i: number; last: boolean; onRun?: (prompt: string) => void }) {
+  void _last; // kept in signature for backward compat
   const [hover, setHover] = useState(false);
   const steps = WORKFLOW_STEPS[i] || [];
   const dotColors = ['rgb(var(--dot-crm))', 'rgb(var(--dot-invoices))', 'rgb(var(--dot-calls))', 'rgb(var(--dot-calendar))'];
@@ -202,13 +203,24 @@ function WorkflowCell({ w, i, last, onRun }: { w: Workflow; i: number; last: boo
     const stepList = steps.length > 0 ? '\n- ' + steps.join('\n- ') : '';
     onRun(`Run the "${w.title}" workflow:${stepList}`);
   };
+  // Border calc for a 2x2 grid:
+  //   - Left column (i % 2 === 0): right border to separate from right column
+  //   - Right column: no right border
+  //   - Bottom row (i >= 2): top border to separate from top row
+  // Container provides borderTop for the very first row.
+  const isLeftCol = i % 2 === 0;
+  const isBottomRow = i >= 2;
+  const cellBorder: React.CSSProperties = {
+    borderRight: isLeftCol ? '1px solid rgb(var(--hy-border))' : undefined,
+    borderTop: isBottomRow ? '1px solid rgb(var(--hy-border))' : undefined,
+  };
   return (
     <button
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onClick={handleRun}
       className="text-left px-4 py-3.5 transition-colors focus-ring group relative hover:bg-hover cursor-pointer"
-      style={!last ? { borderRight: '1px solid rgb(var(--hy-border))' } : undefined}
+      style={cellBorder}
     >
       <p
         className="text-[12.5px] fg-base leading-snug pr-6"
