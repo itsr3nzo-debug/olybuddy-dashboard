@@ -451,7 +451,10 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
           }}
         />
 
-        <div className="flex items-center gap-0.5 px-2 pb-2 pt-1">
+        <div className={cx(
+          'flex items-center gap-1 pb-2 pt-1',
+          variant === 'hero' ? 'px-3' : 'px-2'
+        )}>
           <ComposerChip icon={Plus} label={variant === 'hero' ? 'Files and sources' : 'Files'} onClick={pickFiles} />
           {voiceSupported && (
             <ComposerChip
@@ -475,7 +478,10 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
               type="button"
               onClick={onCancel}
               aria-label="Stop generating"
-              className="inline-flex items-center gap-1.5 rounded-md px-2.5 h-7 text-[12px] font-medium transition-opacity focus-ring hover:opacity-90"
+              className={cx(
+                'inline-flex items-center gap-1.5 rounded-md font-medium transition-opacity focus-ring hover:opacity-90',
+                variant === 'hero' ? 'px-3.5 h-8 text-[12.5px]' : 'px-2.5 h-7 text-[12px]'
+              )}
               style={{ background: 'rgb(var(--hy-fg-base))', color: 'rgb(var(--hy-fg-inverse))' }}
             >
               <span
@@ -491,8 +497,9 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
               onClick={send}
               disabled={isEmpty || busy}
               className={cx(
-                'inline-flex items-center gap-1.5 rounded-md px-2.5 h-7 text-[12px] font-medium transition-opacity focus-ring',
-                (isEmpty || busy) ? 'bg-subtle fg-muted cursor-not-allowed' : 'hover:opacity-90'
+                'inline-flex items-center gap-1.5 rounded-md font-medium transition-opacity focus-ring',
+                variant === 'hero' ? 'px-3.5 h-8 text-[12.5px]' : 'px-2.5 h-7 text-[12px]',
+                (isEmpty || busy) ? 'bg-subtle fg-muted cursor-not-allowed' : 'hover:opacity-90 shadow-sm'
               )}
               style={(isEmpty || busy) ? undefined : { background: 'rgb(var(--hy-fg-base))', color: 'rgb(var(--hy-fg-inverse))' }}
             >
@@ -500,6 +507,7 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
                 ? <Loader2 size={12} className="animate-spin" />
                 : variant === 'hero' ? 'Ask Nexley' : 'Send'}
               {!busy && variant !== 'hero' && <ArrowUp size={12} />}
+              {!busy && variant === 'hero' && <ArrowUp size={13} />}
             </button>
           )}
         </div>
