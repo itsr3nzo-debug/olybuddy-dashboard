@@ -519,8 +519,8 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
 
       <div
         className={cx(
-          'rounded-md bg-surface',
-          variant === 'hero' && 'composer-hero',
+          'rounded-md bg-surface composer-focus',
+          variant === 'panel' && 'composer-panel',
         )}
         style={{
           border: variant === 'hero' ? '1px solid rgb(var(--hy-border) / 0.7)' : '1px solid rgb(var(--hy-border))',
@@ -664,9 +664,7 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
                 variant === 'hero' ? 'px-3.5 h-8 text-[12.5px]' : 'px-2.5 h-7 text-[12px]',
                 (isEmpty || busy)
                   ? 'bg-subtle fg-muted cursor-not-allowed'
-                  : variant === 'hero'
-                    ? 'cta-ready'
-                    : 'hover:opacity-90 shadow-sm',
+                  : 'cta-ready',
               )}
               style={(isEmpty || busy) ? undefined : { background: 'rgb(var(--hy-fg-base))', color: 'rgb(var(--hy-fg-inverse))' }}
             >

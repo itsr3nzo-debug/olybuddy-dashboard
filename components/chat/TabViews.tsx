@@ -111,8 +111,12 @@ function SearchRow({ placeholder, value, onChange }: { placeholder: string; valu
 }
 
 function ViewShell({ children }: { children: React.ReactNode }) {
+  // Every tab view (Customers, Workflows, History, Knowledge) gets the
+  // ambient surface glow + relative position context for free via
+  // .nexley-surface — keeps the dashboard chrome consistent across all
+  // dashboards and any future ones that drop into ViewShell.
   return (
-    <div className="h-full overflow-y-auto scroll-thin">
+    <div className="h-full overflow-y-auto scroll-thin nexley-surface">
       <div className="mx-auto px-8 pt-10 pb-12" style={{ maxWidth: 1100 }}>
         {children}
       </div>
@@ -279,7 +283,7 @@ export function WorkflowsView({ workflows, onStart }: WorkflowsViewProps) {
             <button
               key={i}
               onClick={() => onStart(w.title)}
-              className="text-left rounded-lg p-4 transition-colors hover:bg-hover focus-ring"
+              className="card-hover-lift text-left rounded-lg p-4 hover:bg-hover focus-ring"
               style={{ border: '1px solid rgb(var(--hy-border))' }}
             >
               <div className="flex items-start justify-between gap-2 mb-2">
@@ -366,7 +370,7 @@ export function HistoryView({ sessions, onSelectSession, onPinSession }: History
                   return (
                     <div
                       key={s.id}
-                      className="group relative flex items-start gap-3 py-3 px-1 rounded-md hover:bg-hover transition-colors"
+                      className="list-row-lift group relative flex items-start gap-3 py-3 px-1 rounded-md hover:bg-hover"
                     >
                       <button
                         type="button"
@@ -471,7 +475,7 @@ export function KnowledgeView() {
         {filtered.map(({ icon: IconC, title, count, hint }) => (
           <button
             key={title}
-            className="text-left rounded-lg p-4 transition-colors hover:bg-hover focus-ring"
+            className="card-hover-lift text-left rounded-lg p-4 hover:bg-hover focus-ring"
             style={{ border: '1px solid rgb(var(--hy-border))' }}
           >
             <div className="flex items-start justify-between gap-2 mb-3">

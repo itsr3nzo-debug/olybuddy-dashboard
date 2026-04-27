@@ -777,7 +777,7 @@ export function AssistPanel({ session, onSend, onOpenSource, streamingText, busy
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="flex-1 min-h-0 overflow-y-auto scroll-thin relative"
+        className="flex-1 min-h-0 overflow-y-auto scroll-thin relative nexley-surface"
       >
         <div className="mx-auto w-full max-w-[780px] px-6 py-8 space-y-6">
           {/* Skeleton while the initial message list is loading. Shimmer

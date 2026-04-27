@@ -713,14 +713,42 @@ a { color: inherit; }
    COSMETIC LAYER v4 — pure visual polish, zero behaviour change.
    Everything here is opt-in via class names so we don't disturb
    existing components that don't reference these new classes.
+
+   ── HOW TO POLISH A NEW DASHBOARD / VIEW ──
+   When you build a new chat surface (a new tab, a new modal, a
+   new full-bleed view), inherit the dashboard chrome by adding
+   these classes — no JS changes, no component rewrites:
+
+     .nexley-surface       → soft ambient radial glow background
+                             (apply to the outermost scroll/full-
+                             bleed container)
+     .card-hover-lift      → 1 px lift + soft shadow on hover
+                             (apply to any clickable card-shaped
+                             element — workflow cards, project
+                             cards, knowledge tiles, etc.)
+     .list-row-lift        → quieter shadow-only hover
+                             (apply to dense list rows — sessions,
+                             files, etc. so they don't bounce)
+     .composer-focus       → primary-input focus ring
+                             (auto-applied to <Composer> already)
+
+   Heartbeat-style numbers: wrap big stat digits in
+   `.heartbeat-num` for the etched gradient + tabular-nums.
+   Workflow/data dot: wrap the colour pip in `.workflow-dot` and
+   set `--dot-color` inline for the glowing halo.
+
+   All classes respect prefers-reduced-motion and have light-mode
+   fallbacks where contrast matters.
    ============================================================ */
 
-/* ------- Ambient hero background ------- */
-/* Soft radial glow behind the hero. Strength tuned to be actually
-   visible against the warm-charcoal app bg (22 22 24) — subtle in
-   spec is invisible in practice at lower alphas. */
-.hero-ambient { position: relative; }
-.hero-ambient::before {
+/* ------- Ambient surface background (formerly .hero-ambient) ------- */
+/* Soft radial glow that gives any full-bleed chat surface ambient
+   depth. Originally only used on the empty-state hero, now applied
+   universally across AssistPanel, TabViews, VaultView etc. so every
+   surface in the dashboard reads with the same warm depth.
+   `.hero-ambient` kept as an alias for the original Dashboard usage. */
+.nexley-surface, .hero-ambient { position: relative; }
+.nexley-surface::before, .hero-ambient::before {
   content: '';
   position: absolute;
   top: -8%;
@@ -741,6 +769,7 @@ a { color: inherit; }
     );
   filter: blur(60px);
 }
+.nexley-chat-root.light .nexley-surface::before,
 .nexley-chat-root.light .hero-ambient::before {
   background:
     radial-gradient(
@@ -750,7 +779,7 @@ a { color: inherit; }
       transparent 65%
     );
 }
-.hero-ambient > * { position: relative; z-index: 1; }
+.nexley-surface > *, .hero-ambient > * { position: relative; z-index: 1; }
 
 /* ------- Hero entrance animation ------- */
 /* Greeting + composer fade up with a subtle stagger when the
@@ -801,18 +830,35 @@ a { color: inherit; }
   opacity: 0.85;
 }
 
-/* ------- Workflow card hover ------- */
-.workflow-card-cosmetic {
+/* ------- Universal card hover lift (formerly .workflow-card-cosmetic) ------- */
+/* Applies to any clickable card-like surface in the chat — workflow
+   cards, project cards in Vault, knowledge category cards, etc.
+   .workflow-card-cosmetic kept as alias for the original Dashboard
+   usage; new code should use .card-hover-lift. */
+.card-hover-lift, .workflow-card-cosmetic {
   transition:
     background-color 0.18s ease,
     transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
     box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.workflow-card-cosmetic:hover {
+.card-hover-lift:hover, .workflow-card-cosmetic:hover {
   transform: translateY(-1px);
   box-shadow:
     0 1px 2px rgb(0 0 0 / 0.04),
     0 8px 24px rgb(0 0 0 / 0.06);
+}
+
+/* ------- List row subtle lift ------- */
+/* For session rows, file rows, etc. — same easing as card lift but
+   less aggressive (no Y translate, just shadow + hover bg) so dense
+   lists don't bounce. */
+.list-row-lift {
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.18s ease;
+}
+.list-row-lift:hover {
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.06);
 }
 
 /* ------- CTA glow when ready (Ask Nexley) ------- */
@@ -862,20 +908,31 @@ a { color: inherit; }
 }
 
 /* ------- Composer focus refinement ------- */
-/* When the hero composer is focused, lift its border colour and
-   add a wider ambient ring. Alpha bumped 0.05 → 0.12 so the focus
-   state is actually visible against the warm-charcoal canvas. */
-.composer-hero {
+/* When ANY composer (hero or in-session panel) is focused, lift its
+   border colour and add an ambient ring. Originally hero-only via
+   .composer-hero, now applies universally so the active-session
+   composer at the bottom of AssistPanel feels equally premium.
+   .composer-hero kept as alias for back-compat. */
+.composer-focus, .composer-hero {
   transition:
     border-color 0.2s ease,
     box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.composer-hero:focus-within {
+.composer-focus:focus-within, .composer-hero:focus-within {
   border-color: rgb(var(--hy-border-strong)) !important;
   box-shadow:
     0 0 0 4px rgb(var(--hy-fg-base) / 0.12),
     0 1px 3px rgb(0 0 0 / 0.06),
     0 12px 40px rgb(0 0 0 / 0.10) !important;
+}
+/* Panel variant gets a softer ring (smaller composer = smaller halo)
+   so the in-session focus doesn't overpower the message stream. */
+.composer-focus.composer-panel:focus-within,
+.composer-hero.composer-panel:focus-within {
+  box-shadow:
+    0 0 0 3px rgb(var(--hy-fg-base) / 0.08),
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 6px 18px rgb(0 0 0 / 0.06) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
