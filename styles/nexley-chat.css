@@ -37,9 +37,13 @@
   --dot-calendar: 186 140 220;
   --dot-web: 146 156 172;
 
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-serif: 'Source Serif 4', 'Source Serif Pro', Georgia, serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* Sans only — matches the platform's Geist-via-next/font cascade.
+     `--font-serif` token retained as an alias to sans so any legacy
+     consumer that still requests it falls back gracefully without
+     introducing a serif into the chat. */
+  --font-sans: var(--font-geist-sans, 'Inter'), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-serif: var(--font-sans);
+  --font-mono: var(--font-geist-mono, 'JetBrains Mono'), ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
 .nexley-chat-root.light {
@@ -128,10 +132,13 @@ input, textarea { font-family: inherit; }
 .focus-ring:focus-visible { outline: 2px solid rgb(var(--hy-fg-base) / 0.35); outline-offset: 2px; }
 
 /* ------- Prose reading canvas ------- */
-.prose-hy { font-family: var(--font-serif); font-size: 17px; line-height: 1.72; color: rgb(var(--hy-fg-base)); }
+/* Sans-only to match platform design language (Linear/Vercel
+   stack — see app/globals.css philosophy block). Source Serif used
+   to be the chat's accent font but it visually fragmented the
+   product because the rest of the dashboard is Geist sans. */
+.prose-hy { font-size: 15px; line-height: 1.65; color: rgb(var(--hy-fg-base)); }
 .prose-hy h1, .prose-hy h2, .prose-hy h3 {
-  font-family: var(--font-serif);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: -0.015em;
   margin: 1.6em 0 0.5em;
   line-height: 1.25;
@@ -710,240 +717,137 @@ a { color: inherit; }
  * decorative — hide them rather than flash-static them, so reduced-
  * motion users don't get a jarring solid block. */
 /* ============================================================
-   COSMETIC LAYER v4 — pure visual polish, zero behaviour change.
-   Everything here is opt-in via class names so we don't disturb
-   existing components that don't reference these new classes.
+   COSMETIC LAYER v5 — platform-native.
+
+   Replaces the v4 editorial layer (Source Serif headings, ambient
+   radial glow, drop shadows on cards/CTAs, gradient-clipped digits,
+   breathing pulses) which conflicted with the platform's design
+   philosophy documented at the top of `app/globals.css`:
+
+     "Linear/Vercel stack — 1 px hairline borders, zero shadow.
+      Monochrome + ONE accent. NO drop shadows on product chrome.
+      NO gradients on actionable elements."
+
+   The chat now reads natively against the rest of the dashboard:
+   sans-only typography, hairline-border surfaces, hover state
+   carried by background-color change alone, no glows, no gradient
+   typography, no entrance animations longer than a fade.
 
    ── HOW TO POLISH A NEW DASHBOARD / VIEW ──
-   When you build a new chat surface (a new tab, a new modal, a
-   new full-bleed view), inherit the dashboard chrome by adding
-   these classes — no JS changes, no component rewrites:
+     .nexley-surface       → identity (used for back-compat, no
+                             ambient glow anymore — flat surface)
+     .card-hover-lift      → bg-color hover only (no Y translate,
+                             no shadow), border darkens slightly
+     .list-row-lift        → bg-color hover only (matches platform
+                             list rows)
+     .composer-focus       → border-color change on focus-within
+                             (no ring, no glow — Linear pattern)
 
-     .nexley-surface       → soft ambient radial glow background
-                             (apply to the outermost scroll/full-
-                             bleed container)
-     .card-hover-lift      → 1 px lift + soft shadow on hover
-                             (apply to any clickable card-shaped
-                             element — workflow cards, project
-                             cards, knowledge tiles, etc.)
-     .list-row-lift        → quieter shadow-only hover
-                             (apply to dense list rows — sessions,
-                             files, etc. so they don't bounce)
-     .composer-focus       → primary-input focus ring
-                             (auto-applied to <Composer> already)
-
-   Heartbeat-style numbers: wrap big stat digits in
-   `.heartbeat-num` for the etched gradient + tabular-nums.
-   Workflow/data dot: wrap the colour pip in `.workflow-dot` and
-   set `--dot-color` inline for the glowing halo.
-
-   All classes respect prefers-reduced-motion and have light-mode
-   fallbacks where contrast matters.
+   All classes respect prefers-reduced-motion.
    ============================================================ */
 
-/* ------- Ambient surface background (formerly .hero-ambient) ------- */
-/* Soft radial glow that gives any full-bleed chat surface ambient
-   depth. Originally only used on the empty-state hero, now applied
-   universally across AssistPanel, TabViews, VaultView etc. so every
-   surface in the dashboard reads with the same warm depth.
-   `.hero-ambient` kept as an alias for the original Dashboard usage. */
-.nexley-surface, .hero-ambient {
-  position: relative;
-  /* Clip horizontal overflow from the 110% wide ::before glow.
-     Without this, parents with `overflow-y: auto` get treated as
-     `overflow-x: auto` per CSS Overflow Level 3, surfacing a faint
-     horizontal scrollbar. `clip` is preferred over `hidden` because
-     it doesn't create a new scroll container. */
-  overflow-x: clip;
-}
-.nexley-surface::before, .hero-ambient::before {
-  content: '';
-  position: absolute;
-  top: -8%;
-  left: 50%;
-  /* Was 130%. Reduced to 110% so even when overflow-x:clip isn't
-     supported (very old browsers), the 5% overshoot per side is
-     within the typical scrollbar gutter and won't surface scroll. */
-  width: 110%;
-  height: 70vh;
-  max-height: 760px;
-  transform: translateX(-50%);
-  pointer-events: none;
-  z-index: 0;
-  background:
-    radial-gradient(
-      ellipse 55% 45% at 50% 30%,
-      rgb(var(--hy-fg-base) / 0.10) 0%,
-      rgb(var(--hy-fg-base) / 0.045) 30%,
-      rgb(var(--hy-fg-base) / 0.012) 55%,
-      transparent 75%
-    );
-  filter: blur(60px);
-}
-.nexley-chat-root.light .nexley-surface::before,
-.nexley-chat-root.light .hero-ambient::before {
-  background:
-    radial-gradient(
-      ellipse 55% 45% at 50% 30%,
-      rgb(var(--hy-fg-base) / 0.055) 0%,
-      rgb(var(--hy-fg-base) / 0.025) 30%,
-      transparent 65%
-    );
-}
-.nexley-surface > *, .hero-ambient > * { position: relative; z-index: 1; }
+/* ------- Surface — flat ------- */
+/* No-op marker class. Kept so existing call sites still compile.
+   Originally rendered an ambient radial glow; the glow conflicted
+   with the platform's "no gradients" rule and made chat feel like
+   a different product. Surface is now flat. */
+.nexley-surface, .hero-ambient { position: relative; }
 
 /* ------- Hero entrance animation ------- */
-/* Greeting + composer fade up with a subtle stagger when the
-   empty-state mounts. cubic-bezier matches macOS easing. */
+/* Plain fade-in only — the v4 staggered translateY was too
+   theatrical for the platform's quieter motion language. */
 @keyframes hero-rise {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 .anim-hero-rise {
-  animation: hero-rise 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: hero-rise 0.25s ease-out both;
 }
-.anim-hero-rise-1 { animation-delay: 0ms; }
-.anim-hero-rise-2 { animation-delay: 80ms; }
-.anim-hero-rise-3 { animation-delay: 160ms; }
-.anim-hero-rise-4 { animation-delay: 240ms; }
+.anim-hero-rise-1, .anim-hero-rise-2,
+.anim-hero-rise-3, .anim-hero-rise-4 { animation-delay: 0ms; }
 
-/* ------- Refined heartbeat numbers ------- */
-/* Vertical gradient (100 % → 60 %) clipped to the digit so the
-   typography reads as etched, not flat-painted. Bumped contrast
-   from 78 % so the effect is actually perceptible at 26 px.
-   Falls back to solid via webkit-text-fill-color on engines that
-   don't support background-clip:text. */
-.heartbeat-num {
-  background: linear-gradient(
-    180deg,
-    rgb(var(--hy-fg-base)) 0%,
-    rgb(var(--hy-fg-base) / 0.60) 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-@supports not (background-clip: text) {
-  .heartbeat-num { color: rgb(var(--hy-fg-base)); }
-}
+/* ------- Heartbeat numbers — solid ------- */
+/* Was: vertical gradient clipped to text. Removed because the
+   platform forbids gradients on product chrome. Solid digit colour
+   matches the dashboard KPI cards at /dashboard. */
+.heartbeat-num { color: rgb(var(--hy-fg-base)); }
 
-/* ------- Workflow color dot — circle with halo ------- */
+/* ------- Workflow color dot — flat ------- */
 .workflow-dot {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
-  position: relative;
   display: inline-block;
-  box-shadow:
-    0 0 0 2px rgb(var(--hy-bg-surface)),
-    0 0 12px 2px var(--dot-color, rgb(var(--hy-fg-muted)));
   background: var(--dot-color, rgb(var(--hy-fg-muted)));
-  opacity: 0.85;
 }
 
-/* ------- Universal card hover lift (formerly .workflow-card-cosmetic) ------- */
-/* Applies to any clickable card-like surface in the chat — workflow
-   cards, project cards in Vault, knowledge category cards, etc.
-   .workflow-card-cosmetic kept as alias for the original Dashboard
-   usage; new code should use .card-hover-lift. */
+/* ------- Card hover — bg color only (no lift, no shadow) ------- */
+/* Linear/Vercel pattern: hover state carried by a slightly elevated
+   background colour and a subtle border darken. No translate, no
+   shadow, no animation longer than 150 ms. */
 .card-hover-lift, .workflow-card-cosmetic {
   transition:
-    background-color 0.18s ease,
-    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    background-color 0.15s ease,
+    border-color 0.15s ease;
 }
 .card-hover-lift:hover, .workflow-card-cosmetic:hover {
-  transform: translateY(-1px);
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.04),
-    0 8px 24px rgb(0 0 0 / 0.06);
+  background-color: rgb(var(--hy-bg-hover));
+  border-color: rgb(var(--hy-border-strong));
 }
 
-/* ------- List row subtle lift ------- */
-/* For session rows, file rows, etc. — same easing as card lift but
-   less aggressive (no Y translate, just shadow + hover bg) so dense
-   lists don't bounce. */
+/* ------- List row hover — bg color only ------- */
 .list-row-lift {
-  transition:
-    background-color 0.15s ease,
-    box-shadow 0.18s ease;
+  transition: background-color 0.12s ease;
 }
 .list-row-lift:hover {
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.06);
+  background-color: rgb(var(--hy-bg-hover));
 }
 
-/* ------- CTA glow when ready (Ask Nexley) ------- */
-/* Visible static glow + lift on the primary CTA when ready, with
-   a hover that punches it up further. Replaced the breathing
-   animation — at 0.18 alpha against a 22 22 24 bg the breathe was
-   imperceptible, and a constant pulse on a CTA is distracting
-   anyway. Static glow + hover punch is the right pattern. */
+/* ------- CTA — flat fill, hover bg + opacity ------- */
+/* Was: drop shadow + breathing glow + lift on hover. Now: simple
+   background colour + opacity hover, matching the platform's
+   button pattern documented in app/globals.css ("no drop shadows
+   on product chrome"). */
 .cta-ready {
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.10),
-    0 4px 14px rgb(var(--hy-fg-base) / 0.10);
   transition:
-    box-shadow 0.18s ease,
-    transform 0.18s ease;
+    opacity 0.12s ease,
+    background-color 0.12s ease;
 }
-.cta-ready:hover {
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.12),
-    0 6px 20px rgb(var(--hy-fg-base) / 0.22);
-  transform: translateY(-0.5px);
-}
-.cta-ready:active { transform: translateY(0); }
+.cta-ready:hover { opacity: 0.92; }
+.cta-ready:active { opacity: 0.85; }
 
-/* ------- Source chip selected — soft inner glow ------- */
-/* Inner highlight + outer shadow — alpha bumped to 0.22 so the
-   raised effect is actually visible against the tinted bg. */
+/* ------- Source chip selected — flat ------- */
+/* Was: inset highlight + outer drop shadow. Now: just a slightly
+   stronger border colour — the chip's tinted bg already carries
+   the selected signal. */
 .source-chip-on {
-  box-shadow:
-    inset 0 1px 0 rgb(var(--hy-fg-base) / 0.12),
-    inset 0 0 0 1px rgb(var(--hy-fg-base) / 0.05),
-    0 1px 3px rgb(0 0 0 / 0.10);
+  /* Intentionally empty — selected state is carried by the
+     border-color + bg swap in the React component (Views.tsx
+     SourceChipRow), not by box-shadow. */
 }
 
-/* ------- Sidebar divider softening ------- */
-/* Replace hard 1 px borders inside the sidebar with a fade
-   gradient so the chrome reads as quieter at rest. */
+/* ------- Sidebar divider — solid hairline ------- */
+/* Was: fade gradient. Now: matching the platform's hairline
+   divider pattern (see app/globals.css → "1px hairline borders"). */
 .sidebar-fade-divider {
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgb(var(--hy-border)) 25%,
-    rgb(var(--hy-border)) 75%,
-    transparent 100%
-  );
+  background: rgb(var(--hy-border));
 }
 
-/* ------- Composer focus refinement ------- */
-/* When ANY composer (hero or in-session panel) is focused, lift its
-   border colour and add an ambient ring. Originally hero-only via
-   .composer-hero, now applies universally so the active-session
-   composer at the bottom of AssistPanel feels equally premium.
-   .composer-hero kept as alias for back-compat. */
+/* ------- Composer focus — border darken only ------- */
+/* Was: 4 px ambient ring + 40 px drop shadow. Now: just a stronger
+   border colour on focus-within. Platform pattern (matches
+   <Input> + <Textarea> in shadcn-tailwind globals). */
 .composer-focus, .composer-hero {
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: border-color 0.15s ease;
 }
 .composer-focus:focus-within, .composer-hero:focus-within {
   border-color: rgb(var(--hy-border-strong)) !important;
-  box-shadow:
-    0 0 0 4px rgb(var(--hy-fg-base) / 0.12),
-    0 1px 3px rgb(0 0 0 / 0.06),
-    0 12px 40px rgb(0 0 0 / 0.10) !important;
 }
-/* Panel variant gets a softer ring (smaller composer = smaller halo)
-   so the in-session focus doesn't overpower the message stream. */
+/* Panel variant — same focus pattern (no separate halo). */
 .composer-focus.composer-panel:focus-within,
 .composer-hero.composer-panel:focus-within {
-  box-shadow:
-    0 0 0 3px rgb(var(--hy-fg-base) / 0.08),
-    0 1px 2px rgb(0 0 0 / 0.04),
-    0 6px 18px rgb(0 0 0 / 0.06) !important;
+  border-color: rgb(var(--hy-border-strong)) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

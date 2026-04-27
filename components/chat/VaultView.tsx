@@ -144,7 +144,7 @@ function ProjectList({ onOpen }: { onOpen: (p: VaultProject) => void }) {
       <div className="mx-auto px-8 pt-10 pb-12" style={{ maxWidth: 1100 }}>
         <div className="flex items-start justify-between gap-6 border-b-hy pb-5 mb-6">
           <div className="min-w-0">
-            <h1 className="fg-base" style={{ fontFamily: 'var(--font-serif)', fontSize: 32, fontWeight: 400, letterSpacing: '-0.015em', lineHeight: 1 }}>
+            <h1 className="fg-base" style={{ fontSize: 24, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.1 }}>
               Vault
             </h1>
             <p className="text-[13px] fg-subtle mt-2 max-w-xl leading-relaxed">
@@ -390,7 +390,7 @@ function ProjectDetail({ project, onBack }: { project: VaultProject; onBack: () 
 
         <div className="flex items-start justify-between gap-6 border-b-hy pb-5 mb-6">
           <div className="min-w-0">
-            <h1 className="fg-base" style={{ fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 400, letterSpacing: '-0.015em', lineHeight: 1 }}>
+            <h1 className="fg-base" style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.1 }}>
               {project.name}
             </h1>
             {project.description && (

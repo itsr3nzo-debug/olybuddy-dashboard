@@ -42,11 +42,10 @@ function ViewHeader({
         <h1
           className="fg-base"
           style={{
-            fontFamily: 'var(--font-serif)',
-            fontSize: 32,
-            fontWeight: 400,
+            fontSize: 24,
+            fontWeight: 600,
             letterSpacing: '-0.015em',
-            lineHeight: 1,
+            lineHeight: 1.1,
           }}
         >
           {title}

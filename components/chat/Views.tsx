@@ -416,22 +416,22 @@ export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows, pen
 
   return (
     <BrowserChrome>
-      <div className="h-full overflow-y-auto scroll-thin relative hero-ambient">
+      <div className="h-full overflow-y-auto scroll-thin relative">
         <div className="mx-auto px-8 pt-16 pb-8 flex flex-col" style={{ maxWidth: 680 }}>
-          {/* Hero — tighter, with time-aware greeting */}
+          {/* Hero — sans-only to match platform design language
+              (Linear/Vercel: monochrome, hairline borders, no serif). */}
           <div className={cx('text-center mb-8', a(1))}>
-            <div
+            <h1
               style={{
-                fontFamily: 'var(--font-serif)',
-                fontSize: 34,
-                fontWeight: 500,
+                fontSize: 28,
+                fontWeight: 600,
                 letterSpacing: '-0.02em',
-                lineHeight: 1.0,
+                lineHeight: 1.1,
               }}
               className="fg-base mb-2.5"
             >
               {timeAwareGreeting()}
-            </div>
+            </h1>
             <div className="flex justify-center">
               <ClientPin />
             </div>

@@ -262,7 +262,7 @@ export function RedlineView({ diff, mode, onMode }: { diff: DiffChunk[]; mode: s
       </div>
       <div
         className="px-5 py-4 text-[13.5px] fg-base"
-        style={{ fontFamily: 'var(--font-serif)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}
+        style={{ lineHeight: 1.65, whiteSpace: 'pre-wrap' }}
       >
         {diff.map((chunk, i) => {
           if (mode === 'Clean') {
@@ -396,7 +396,6 @@ export function ReviewTable({ table, onOpenSource }: { table: ReviewTableData; o
               <div className="text-[12px] fg-base mb-2 font-medium">{activeCell.value}</div>
               <p
                 className="text-[11.5px] fg-subtle leading-relaxed mb-2.5"
-                style={{ fontFamily: 'var(--font-serif)' }}
               >{activeCell.reasoning || 'No reasoning recorded.'}</p>
               {activeCell.source && (
                 <button
