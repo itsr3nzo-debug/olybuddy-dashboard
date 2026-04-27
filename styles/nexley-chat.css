@@ -393,14 +393,20 @@ a { color: inherit; }
 }
 
 /* Voice pill popover */
+/* Anchors to the right of the pill (not the left) — the VoicePill
+   sits on the right side of the source/voice row, so left:0 used
+   to make the popover open across and cover the source chips on
+   its left. right:0 keeps it inside the visible canvas. */
 .voice-pop {
-  position: absolute; bottom: calc(100% + 6px); left: 0;
+  position: absolute; bottom: calc(100% + 6px); right: 0;
   width: 300px;
   background: rgb(var(--hy-bg-surface));
   border: 1px solid rgb(var(--hy-border));
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 12px;
-  box-shadow: 0 10px 30px rgb(0 0 0 / 0.18);
+  box-shadow:
+    0 12px 40px rgb(0 0 0 / 0.28),
+    0 2px 6px rgb(0 0 0 / 0.12);
   z-index: 30;
   font-size: 11.5px;
 }
@@ -704,42 +710,38 @@ a { color: inherit; }
    ============================================================ */
 
 /* ------- Ambient hero background ------- */
-/* A soft radial glow behind the hero greeting / composer that
-   gives the empty-state landing screen depth. Sits behind
-   everything (z-index 0, pointer-events none) and fades to the
-   app background so it never visually fights the content. */
-.hero-ambient {
-  position: relative;
-  isolation: isolate;
-}
+/* Soft radial glow behind the hero. Strength tuned to be actually
+   visible against the warm-charcoal app bg (22 22 24) — subtle in
+   spec is invisible in practice at lower alphas. */
+.hero-ambient { position: relative; }
 .hero-ambient::before {
   content: '';
   position: absolute;
-  top: -10%;
+  top: -8%;
   left: 50%;
-  width: 120%;
-  height: 60vh;
-  max-height: 720px;
+  width: 130%;
+  height: 70vh;
+  max-height: 760px;
   transform: translateX(-50%);
   pointer-events: none;
   z-index: 0;
   background:
     radial-gradient(
-      ellipse 60% 50% at 50% 30%,
-      rgb(var(--hy-fg-base) / 0.045) 0%,
-      rgb(var(--hy-fg-base) / 0.018) 35%,
-      transparent 70%
+      ellipse 55% 45% at 50% 30%,
+      rgb(var(--hy-fg-base) / 0.10) 0%,
+      rgb(var(--hy-fg-base) / 0.045) 30%,
+      rgb(var(--hy-fg-base) / 0.012) 55%,
+      transparent 75%
     );
-  filter: blur(40px);
-  opacity: 0.9;
+  filter: blur(60px);
 }
 .nexley-chat-root.light .hero-ambient::before {
   background:
     radial-gradient(
-      ellipse 60% 50% at 50% 30%,
-      rgb(var(--hy-fg-base) / 0.025) 0%,
-      rgb(var(--hy-fg-base) / 0.010) 35%,
-      transparent 70%
+      ellipse 55% 45% at 50% 30%,
+      rgb(var(--hy-fg-base) / 0.055) 0%,
+      rgb(var(--hy-fg-base) / 0.025) 30%,
+      transparent 65%
     );
 }
 .hero-ambient > * { position: relative; z-index: 1; }
@@ -760,19 +762,23 @@ a { color: inherit; }
 .anim-hero-rise-4 { animation-delay: 240ms; }
 
 /* ------- Refined heartbeat numbers ------- */
-/* Subtle vertical gradient on the giant digit (top → 100 % fg,
-   bottom → 78 % fg) so the typography reads as etched, not flat.
-   webkit-text-fill-color falls back gracefully on engines that
+/* Vertical gradient (100 % → 60 %) clipped to the digit so the
+   typography reads as etched, not flat-painted. Bumped contrast
+   from 78 % so the effect is actually perceptible at 26 px.
+   Falls back to solid via webkit-text-fill-color on engines that
    don't support background-clip:text. */
 .heartbeat-num {
   background: linear-gradient(
     180deg,
     rgb(var(--hy-fg-base)) 0%,
-    rgb(var(--hy-fg-base) / 0.78) 100%
+    rgb(var(--hy-fg-base) / 0.60) 100%
   );
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+@supports not (background-clip: text) {
+  .heartbeat-num { color: rgb(var(--hy-fg-base)); }
 }
 
 /* ------- Workflow color dot — circle with halo ------- */
@@ -804,22 +810,35 @@ a { color: inherit; }
 }
 
 /* ------- CTA glow when ready (Ask Nexley) ------- */
-/* Subtle ring that breathes on the primary CTA when the input is
-   non-empty so the eye is drawn to the send affordance. */
-@keyframes cta-breathe {
-  0%, 100% { box-shadow: 0 0 0 0 rgb(var(--hy-fg-base) / 0.18); }
-  50%      { box-shadow: 0 0 0 4px rgb(var(--hy-fg-base) / 0.06); }
-}
+/* Visible static glow + lift on the primary CTA when ready, with
+   a hover that punches it up further. Replaced the breathing
+   animation — at 0.18 alpha against a 22 22 24 bg the breathe was
+   imperceptible, and a constant pulse on a CTA is distracting
+   anyway. Static glow + hover punch is the right pattern. */
 .cta-ready {
-  animation: cta-breathe 2.6s ease-in-out infinite;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.10),
+    0 4px 14px rgb(var(--hy-fg-base) / 0.10);
+  transition:
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
 }
-.cta-ready:hover { animation: none; box-shadow: 0 4px 14px rgb(var(--hy-fg-base) / 0.18); }
+.cta-ready:hover {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.12),
+    0 6px 20px rgb(var(--hy-fg-base) / 0.22);
+  transform: translateY(-0.5px);
+}
+.cta-ready:active { transform: translateY(0); }
 
 /* ------- Source chip selected — soft inner glow ------- */
+/* Inner highlight + outer shadow — alpha bumped to 0.22 so the
+   raised effect is actually visible against the tinted bg. */
 .source-chip-on {
   box-shadow:
-    inset 0 0 0 1px rgb(var(--hy-fg-base) / 0.10),
-    0 1px 2px rgb(0 0 0 / 0.04);
+    inset 0 1px 0 rgb(var(--hy-fg-base) / 0.12),
+    inset 0 0 0 1px rgb(var(--hy-fg-base) / 0.05),
+    0 1px 3px rgb(0 0 0 / 0.10);
 }
 
 /* ------- Sidebar divider softening ------- */
@@ -838,8 +857,8 @@ a { color: inherit; }
 
 /* ------- Composer focus refinement ------- */
 /* When the hero composer is focused, lift its border colour and
-   add a softer, larger ambient ring (matches the hero glow tone)
-   instead of a hard solid ring. */
+   add a wider ambient ring. Alpha bumped 0.05 → 0.12 so the focus
+   state is actually visible against the warm-charcoal canvas. */
 .composer-hero {
   transition:
     border-color 0.2s ease,
@@ -848,9 +867,9 @@ a { color: inherit; }
 .composer-hero:focus-within {
   border-color: rgb(var(--hy-border-strong)) !important;
   box-shadow:
-    0 0 0 4px rgb(var(--hy-fg-base) / 0.05),
-    0 1px 3px rgb(0 0 0 / 0.04),
-    0 8px 28px rgb(0 0 0 / 0.06) !important;
+    0 0 0 4px rgb(var(--hy-fg-base) / 0.12),
+    0 1px 3px rgb(0 0 0 / 0.06),
+    0 12px 40px rgb(0 0 0 / 0.10) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

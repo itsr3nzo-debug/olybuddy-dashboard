@@ -695,7 +695,7 @@ export default function ChatApp(props: ChatAppProps) {
         // with two tabs open can't mistake tenant A for tenant B. The old
         // subtle styling faded into the page chrome.
         <div
-          className="flex items-center gap-3 px-4 py-2 text-[12px] border-b-hy flex-shrink-0"
+          className="flex items-center gap-3 px-6 py-2 text-[12px] border-b-hy flex-shrink-0"
           style={{
             background: 'rgb(251 191 36 / 0.15)',
             color: 'rgb(146 64 14)',
@@ -705,15 +705,15 @@ export default function ChatApp(props: ChatAppProps) {
           aria-label="Admin cross-tenant view"
         >
           <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+            className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold flex-shrink-0"
             style={{ background: 'rgb(251 191 36 / 0.4)', color: 'rgb(120 53 15)' }}
           >
             Admin view
           </span>
-          <span className="truncate">
+          <span className="truncate min-w-0">
             Chatting as <strong>{props.clientName}</strong>&apos;s AI Employee. Every message you send hits the live client agent.
           </span>
-          <a href="/chat" className="ml-auto underline underline-offset-2 hover:opacity-80 font-medium" style={{ color: 'rgb(120 53 15)' }}>Switch client</a>
+          <a href="/chat" className="ml-auto underline underline-offset-2 hover:opacity-80 font-medium flex-shrink-0" style={{ color: 'rgb(120 53 15)' }}>Switch client</a>
         </div>
       )}
       {showReconnectBanner && (

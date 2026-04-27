@@ -391,13 +391,27 @@ export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows, pen
     if (n.has(id)) n.delete(id); else n.add(id);
     return n;
   });
+  // Hero entrance animation should only play the FIRST time the user
+  // lands on the empty-state in this browser session. Replaying it on
+  // every back-navigation feels twitchy and unprofessional. We persist
+  // the flag in sessionStorage so a refresh re-arms it but a navigation
+  // back from a session does not.
+  const [animateEntrance] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    try {
+      if (window.sessionStorage.getItem('nexley:hero-played')) return false;
+      window.sessionStorage.setItem('nexley:hero-played', '1');
+      return true;
+    } catch { return true; }
+  });
+  const a = (n: 1 | 2 | 3 | 4) => animateEntrance ? `anim-hero-rise anim-hero-rise-${n}` : '';
 
   return (
     <BrowserChrome>
       <div className="h-full overflow-y-auto scroll-thin relative hero-ambient">
         <div className="mx-auto px-8 pt-16 pb-8 flex flex-col" style={{ maxWidth: 680 }}>
           {/* Hero — tighter, with time-aware greeting */}
-          <div className="text-center mb-8 anim-hero-rise anim-hero-rise-1">
+          <div className={cx('text-center mb-8', a(1))}>
             <div
               style={{
                 fontFamily: 'var(--font-serif)',
@@ -415,7 +429,7 @@ export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows, pen
             </div>
           </div>
 
-          <div className="anim-hero-rise anim-hero-rise-2">
+          <div className={a(2)}>
             <Composer
               variant="hero"
               autoFocus
@@ -433,7 +447,7 @@ export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows, pen
               border + matching surface tint, so the controls read as
               part of the composer rather than floating below it. */}
           <div
-            className="mt-2 rounded-md px-3 py-2 flex items-center justify-between gap-3 flex-wrap anim-hero-rise anim-hero-rise-3"
+            className={cx('mt-2 rounded-md px-3 py-2 flex items-center justify-between gap-3 flex-wrap', a(3))}
             style={{
               background: 'rgb(var(--hy-bg-subtle) / 0.4)',
               border: '1px solid rgb(var(--hy-border) / 0.6)',
@@ -451,12 +465,12 @@ export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows, pen
           )}
 
           {/* HeartbeatCard — the "what your AI did" signal, kept prominent */}
-          <div className="anim-hero-rise anim-hero-rise-4">
+          <div className={a(4)}>
             <HeartbeatCard />
           </div>
 
           {/* Workflows — now inside the main column so widths align */}
-          <div className="mt-10 anim-hero-rise anim-hero-rise-4">
+          <div className={cx('mt-10', a(4))}>
             <div className="flex items-center justify-between mb-3 px-1">
               <h3 className="text-[11.5px] fg-muted uppercase tracking-wider">Recommended workflows</h3>
               {/* Prior "Search" and "View all" buttons were decorative with no
