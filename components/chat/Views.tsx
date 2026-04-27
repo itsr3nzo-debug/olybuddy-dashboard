@@ -385,7 +385,15 @@ function timeAwareGreeting(): string {
 }
 
 export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows, pendingMention, onMentionConsumed }: DashboardProps) {
+  // Source-chip selection is per-client. Reset when the admin switches
+  // which client they're shadow-chatting as — otherwise the previous
+  // client's "Searching across CRM + Past invoices" chip state persists
+  // visually and confuses the next session.
+  const { clientId } = useClient();
   const [selected, setSelected] = useState<Set<string>>(() => new Set(['crm', 'calls']));
+  useEffect(() => {
+    setSelected(new Set(['crm', 'calls']));
+  }, [clientId]);
   const toggle = (id: string) => setSelected((s) => {
     const n = new Set(s);
     if (n.has(id)) n.delete(id); else n.add(id);

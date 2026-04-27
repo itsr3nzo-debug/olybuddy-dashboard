@@ -155,6 +155,17 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
   const recordingStartRef = useRef<number>(0);
   const valueRef = useRef(value);
   useEffect(() => { valueRef.current = value; }, [value]);
+  // Mount tracking — MediaRecorder.onstop and the /api/transcribe fetch
+  // promise can both fire AFTER the Composer has unmounted (user navigates
+  // away mid-recording, mid-transcription, or strict-mode double-mount).
+  // Guard every setState in those callbacks against this ref so we don't
+  // log "setState on unmounted component" warnings or, worse, lose a
+  // pending transcribing=true forever on a remount.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
@@ -213,17 +224,24 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
     audioChunksRef.current = [];
     recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data); };
     recorder.onstop = () => {
-      // Tear down mic right away so the browser indicator clears.
+      // Tear down mic right away so the browser indicator clears, even
+      // if we're already unmounting — this is a synchronous cleanup that
+      // doesn't touch React state.
       mediaStreamRef.current?.getTracks().forEach(t => t.stop());
       mediaStreamRef.current = null;
       const blob = new Blob(audioChunksRef.current, { type: mime || 'audio/webm' });
       audioChunksRef.current = [];
+      // Skip the upload entirely if the component has unmounted between
+      // recorder.stop() and the onstop fire. The blob is dropped — better
+      // than a zombie transcription that can't update state.
+      if (!mountedRef.current) return;
       void uploadForTranscription(blob);
     };
     recorder.onerror = () => {
+      stream.getTracks().forEach(t => t.stop());
+      if (!mountedRef.current) return;
       setRecording(false);
       setVoiceError('Recording failed. Try again.');
-      stream.getTracks().forEach(t => t.stop());
     };
     mediaStreamRef.current = stream;
     mediaRecorderRef.current = recorder;
@@ -243,16 +261,21 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
   async function uploadForTranscription(blob: Blob) {
     if (Date.now() - recordingStartRef.current < 400) {
       // User tapped the button — didn't actually record anything.
-      setVoiceError('Hold the mic button longer to record.');
+      if (mountedRef.current) setVoiceError('Hold the mic button longer to record.');
       return;
     }
-    setTranscribing(true);
+    if (mountedRef.current) setTranscribing(true);
     try {
       const fd = new FormData();
       const ext = (blob.type.includes('mp4') ? 'mp4' : blob.type.includes('mpeg') ? 'mp3' : 'webm');
       fd.append('audio', new File([blob], `voice.${ext}`, { type: blob.type }));
       const res = await fetch('/api/transcribe', { method: 'POST', body: fd });
+      // Bail before any setState if the component has been torn down
+      // between fetch start and finish — typical when the user navigates
+      // away mid-transcription on a slow connection.
+      if (!mountedRef.current) return;
       const json = await res.json().catch(() => ({ ok: false, error: 'invalid_response' }));
+      if (!mountedRef.current) return;
       if (!res.ok || !json.ok) {
         const errMap: Record<string, string> = {
           unauthorized: 'Sign in to use voice input.',
@@ -270,9 +293,9 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
       const prefix = base.length > 0 && !/\s$/.test(base) ? base + ' ' : base;
       setValue(prefix + text);
     } catch {
-      setVoiceError('Network error. Try again.');
+      if (mountedRef.current) setVoiceError('Network error. Try again.');
     } finally {
-      setTranscribing(false);
+      if (mountedRef.current) setTranscribing(false);
     }
   }
 
@@ -581,6 +604,7 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
               onClick={toggleRecording}
               active={recording}
               spinning={transcribing}
+              disabled={transcribing}
             />
           )}
           <ComposerChip icon={CommandIcon} label="Prompts" onClick={onOpenPalette} />

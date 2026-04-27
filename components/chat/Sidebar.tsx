@@ -154,7 +154,7 @@ function SidebarFull({ clientInitials, groups, currentSessionId, onSelectSession
             className="h-[18px] w-[18px] rounded-sm flex items-center justify-center text-[9px] font-semibold flex-shrink-0"
             style={{ background: 'rgb(var(--hy-fg-base))', color: 'rgb(var(--hy-fg-inverse))', letterSpacing: '-0.01em' }}
           >{clientInitials}</div>
-          <span className="text-[12px] fg-base truncate max-w-[112px]">{clientName}</span>
+          <span className="text-[12px] fg-base truncate max-w-[112px]">{clientName || 'Workspace'}</span>
           {isAdminView && (
             <ChevronDown size={11} className="fg-muted flex-shrink-0" />
           )}
