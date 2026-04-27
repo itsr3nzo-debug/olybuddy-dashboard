@@ -618,7 +618,7 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
               onClick={onCancel}
               aria-label="Stop generating"
               className={cx(
-                'inline-flex items-center gap-1.5 rounded-md font-medium transition-opacity focus-ring hover:opacity-90',
+                'inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-opacity focus-ring hover:opacity-90 leading-none',
                 variant === 'hero' ? 'px-3.5 h-8 text-[12.5px]' : 'px-2.5 h-7 text-[12px]'
               )}
               style={{ background: 'rgb(var(--hy-fg-base))', color: 'rgb(var(--hy-fg-inverse))' }}
@@ -636,7 +636,7 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
               onClick={send}
               disabled={isEmpty || busy}
               className={cx(
-                'inline-flex items-center gap-1.5 rounded-md font-medium focus-ring transition-all',
+                'inline-flex items-center justify-center gap-1.5 rounded-md font-medium focus-ring transition-all leading-none',
                 variant === 'hero' ? 'px-3.5 h-8 text-[12.5px]' : 'px-2.5 h-7 text-[12px]',
                 (isEmpty || busy)
                   ? 'bg-subtle fg-muted cursor-not-allowed'
