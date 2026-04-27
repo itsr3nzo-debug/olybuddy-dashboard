@@ -130,14 +130,18 @@ function SourceChipRow({ selected, onToggle }: { selected: Set<string>; onToggle
           <button
             key={c.id}
             onClick={() => onToggle(c.id)}
+            aria-pressed={on}
+            title={on ? `Click to remove ${c.label} from search` : `Click to include ${c.label}`}
             className={cx(
-              'inline-flex items-center gap-1.5 rounded-md px-2 h-7 text-[11.5px] transition-colors focus-ring whitespace-nowrap',
-              on ? 'fg-base' : 'fg-subtle hover:fg-base'
+              'inline-flex items-center gap-1.5 rounded-md px-2 h-7 text-[11.5px] transition-all focus-ring whitespace-nowrap',
+              on ? 'fg-base font-medium shadow-sm' : 'fg-muted hover:fg-base hover:shadow-sm',
             )}
             style={{
-              background: on ? 'rgb(var(--hy-bg-subtle))' : 'rgb(var(--hy-bg-surface))',
-              border: `1px solid rgb(var(--hy-border)${on ? '-strong' : ''})`,
-              borderColor: on ? 'rgb(var(--hy-border-strong))' : 'rgb(var(--hy-border))',
+              // Selected: solid tinted surface that clearly stands out from the
+              // anchor row's bg-subtle/0.4 wrapper. Unselected: transparent so
+              // the "available but not picked" state visually recedes.
+              background: on ? 'rgb(var(--hy-fg-base) / 0.08)' : 'transparent',
+              border: `1px solid ${on ? 'rgb(var(--hy-fg-base) / 0.35)' : 'rgb(var(--hy-border))'}`,
             }}
           >
             {c.dot
@@ -145,8 +149,8 @@ function SourceChipRow({ selected, onToggle }: { selected: Set<string>; onToggle
               : IconC ? <IconC size={11} /> : null}
             {c.label}
             {on
-              ? <Check size={11} className="fg-base ml-0.5" />
-              : <Plus size={10} className="fg-muted" />}
+              ? <Check size={11} className="fg-base ml-0.5" strokeWidth={2.5} />
+              : <Plus size={10} className="fg-muted ml-0.5" />}
           </button>
         );
       })}
@@ -155,30 +159,22 @@ function SourceChipRow({ selected, onToggle }: { selected: Set<string>; onToggle
 }
 
 function ApplyBar({ selected, onClear }: { selected: Set<string>; onClear: () => void }) {
+  // Was previously a verbose "Searching across N: CRM · Call log [Clear]"
+  // bar that just restated what the chip row above already shows with ✓
+  // checkmarks. Replaced with a quiet inline "N selected · Clear" link
+  // so the user can wipe the selection without parsing redundant chrome.
   if (selected.size === 0) return null;
-  const chips = CHIP_DEFS.filter((c) => selected.has(c.id));
   return (
-    <div
-      className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[11.5px] anim-fade-in"
-      style={{ background: 'rgb(var(--hy-bg-subtle))', border: '1px solid rgb(var(--hy-border))' }}
-    >
-      <span className="fg-muted">{`Searching across ${selected.size}:`}</span>
-      <span className="flex items-center gap-1 flex-wrap fg-subtle">
-        {chips.map((c, i) => {
-          const IconC = c.icon ? (CHIP_ICON_MAP[c.icon] || Folder) : null;
-          return (
-            <span key={c.id} className="inline-flex items-center gap-1">
-              {c.dot
-                ? <span className={'dot ' + c.dot} />
-                : IconC ? <IconC size={10} /> : null}
-              {c.label}
-              {i < chips.length - 1 && <span className="fg-muted">·</span>}
-            </span>
-          );
-        })}
-      </span>
-      <div className="flex-1" />
-      <button onClick={onClear} className="fg-muted hover:fg-base transition-colors">Clear</button>
+    <div className="flex items-center justify-end gap-2 px-1 text-[11px] fg-muted anim-fade-in">
+      <span>{`${selected.size} source${selected.size !== 1 ? 's' : ''} selected`}</span>
+      <span aria-hidden="true">·</span>
+      <button
+        type="button"
+        onClick={onClear}
+        className="fg-subtle hover:fg-base transition-colors underline-offset-2 hover:underline focus-ring rounded"
+      >
+        Clear
+      </button>
     </div>
   );
 }
@@ -250,13 +246,27 @@ function WorkflowCell({ w, i, last: _last, onRun }: { w: Workflow; i: number; la
         </ol>
       )}
       <span
-        className="absolute bottom-3 right-3"
+        className="absolute bottom-3 right-3 transition-opacity"
         style={{
           width: 12, height: 12, borderRadius: 2,
           background: dotColors[i] || 'rgb(var(--hy-fg-muted))',
-          opacity: 0.45,
+          opacity: hover ? 0 : 0.45,
         }}
       />
+      {/* Chevron arrow at top-right — fades in on hover so the
+          click-to-run affordance is unmistakable without adding
+          permanent visual noise. */}
+      <span
+        aria-hidden="true"
+        className="absolute top-3 right-3 transition-all"
+        style={{
+          opacity: hover ? 1 : 0,
+          transform: hover ? 'translateX(0)' : 'translateX(-4px)',
+          color: 'rgb(var(--hy-fg-base))',
+        }}
+      >
+        <ChevronRight size={14} />
+      </span>
     </button>
   );
 }
@@ -342,6 +352,16 @@ function HeartbeatCard() {
           <div className="heartbeat-sub">30+ days</div>
         </div>
       </div>
+      {!loading && !hasActivity && (
+        <div
+          className="mt-2 px-3 py-2 rounded-md text-[11.5px] fg-muted leading-relaxed"
+          style={{ background: 'rgb(var(--hy-bg-subtle) / 0.4)', border: '1px dashed rgb(var(--hy-border))' }}
+        >
+          Your AI Employee fills this in as it works — drafted nudges, flagged
+          overdue invoices, and silent customers it spotted in the last 7 days.
+          Connect your CRM to start seeing real numbers.
+        </div>
+      )}
     </div>
   );
 }

@@ -495,10 +495,15 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
       )}
 
       <div
-        className={cx('rounded-md bg-surface', 'focus-within:border-hy-strong')}
+        className={cx(
+          'rounded-md bg-surface focus-within:border-hy-strong',
+          // Subtle focus ring — only on hero so it reads as a primary
+          // input, not chrome. Panel variant stays minimal.
+          variant === 'hero' && 'focus-within:shadow-[0_0_0_3px_rgb(var(--hy-fg-base)/0.08)]',
+        )}
         style={{
           border: variant === 'hero' ? '1px solid rgb(var(--hy-border) / 0.7)' : '1px solid rgb(var(--hy-border))',
-          transition: 'border-color 0.12s ease',
+          transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
           boxShadow: variant === 'hero' ? '0 1px 3px rgb(0 0 0 / 0.04), 0 4px 12px rgb(0 0 0 / 0.03)' : undefined,
         }}
       >
@@ -1068,8 +1073,12 @@ function AssistantBubbleInner({ message, onOpenSource, streamingText, isActive, 
       <div
         className="flex-shrink-0 h-7 w-7 rounded-full inline-flex items-center justify-center text-[11px] font-semibold"
         style={{
-          background: 'linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)',
-          color: '#fff',
+          // Solid inverse-tone tile — matches the chat's own "no accent hue"
+          // design rule in styles/nexley-chat.css. Was a violet→indigo
+          // gradient that leaked the AI-startup aesthetic into a surface
+          // that had otherwise been deliberately monochromed.
+          background: 'rgb(var(--hy-fg-base))',
+          color: 'rgb(var(--hy-fg-inverse))',
         }}
         aria-hidden="true"
         title="Nexley AI"
