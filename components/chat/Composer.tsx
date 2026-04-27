@@ -496,14 +496,11 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
 
       <div
         className={cx(
-          'rounded-md bg-surface focus-within:border-hy-strong',
-          // Subtle focus ring — only on hero so it reads as a primary
-          // input, not chrome. Panel variant stays minimal.
-          variant === 'hero' && 'focus-within:shadow-[0_0_0_3px_rgb(var(--hy-fg-base)/0.08)]',
+          'rounded-md bg-surface',
+          variant === 'hero' && 'composer-hero',
         )}
         style={{
           border: variant === 'hero' ? '1px solid rgb(var(--hy-border) / 0.7)' : '1px solid rgb(var(--hy-border))',
-          transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
           boxShadow: variant === 'hero' ? '0 1px 3px rgb(0 0 0 / 0.04), 0 4px 12px rgb(0 0 0 / 0.03)' : undefined,
         }}
       >
@@ -639,9 +636,13 @@ function Composer({ onSend, onCancel, busy, autoFocus, variant = 'panel', onOpen
               onClick={send}
               disabled={isEmpty || busy}
               className={cx(
-                'inline-flex items-center gap-1.5 rounded-md font-medium transition-opacity focus-ring',
+                'inline-flex items-center gap-1.5 rounded-md font-medium focus-ring transition-all',
                 variant === 'hero' ? 'px-3.5 h-8 text-[12.5px]' : 'px-2.5 h-7 text-[12px]',
-                (isEmpty || busy) ? 'bg-subtle fg-muted cursor-not-allowed' : 'hover:opacity-90 shadow-sm'
+                (isEmpty || busy)
+                  ? 'bg-subtle fg-muted cursor-not-allowed'
+                  : variant === 'hero'
+                    ? 'cta-ready'
+                    : 'hover:opacity-90 shadow-sm',
               )}
               style={(isEmpty || busy) ? undefined : { background: 'rgb(var(--hy-fg-base))', color: 'rgb(var(--hy-fg-inverse))' }}
             >

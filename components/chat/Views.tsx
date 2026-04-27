@@ -134,7 +134,7 @@ function SourceChipRow({ selected, onToggle }: { selected: Set<string>; onToggle
             title={on ? `Click to remove ${c.label} from search` : `Click to include ${c.label}`}
             className={cx(
               'inline-flex items-center gap-1.5 rounded-md px-2 h-7 text-[11.5px] transition-all focus-ring whitespace-nowrap',
-              on ? 'fg-base font-medium shadow-sm' : 'fg-muted hover:fg-base hover:shadow-sm',
+              on ? 'fg-base font-medium source-chip-on' : 'fg-muted hover:fg-base hover:shadow-sm',
             )}
             style={{
               // Selected: solid tinted surface that clearly stands out from the
@@ -215,7 +215,7 @@ function WorkflowCell({ w, i, last: _last, onRun }: { w: Workflow; i: number; la
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onClick={handleRun}
-      className="text-left px-4 py-3.5 transition-colors focus-ring group relative hover:bg-hover cursor-pointer"
+      className="workflow-card-cosmetic text-left px-4 py-3.5 focus-ring group relative hover:bg-hover cursor-pointer"
       style={cellBorder}
     >
       <p
@@ -246,11 +246,10 @@ function WorkflowCell({ w, i, last: _last, onRun }: { w: Workflow; i: number; la
         </ol>
       )}
       <span
-        className="absolute bottom-3 right-3 transition-opacity"
+        className="workflow-dot absolute bottom-3.5 right-3.5 transition-opacity"
         style={{
-          width: 12, height: 12, borderRadius: 2,
-          background: dotColors[i] || 'rgb(var(--hy-fg-muted))',
-          opacity: hover ? 0 : 0.45,
+          ['--dot-color' as string]: dotColors[i] || 'rgb(var(--hy-fg-muted))',
+          opacity: hover ? 0 : 0.85,
         }}
       />
       {/* Chevron arrow at top-right — fades in on hover so the
@@ -395,10 +394,10 @@ export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows, pen
 
   return (
     <BrowserChrome>
-      <div className="h-full overflow-y-auto scroll-thin relative">
+      <div className="h-full overflow-y-auto scroll-thin relative hero-ambient">
         <div className="mx-auto px-8 pt-16 pb-8 flex flex-col" style={{ maxWidth: 680 }}>
           {/* Hero — tighter, with time-aware greeting */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-8 anim-hero-rise anim-hero-rise-1">
             <div
               style={{
                 fontFamily: 'var(--font-serif)',
@@ -416,23 +415,25 @@ export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows, pen
             </div>
           </div>
 
-          <Composer
-            variant="hero"
-            autoFocus
-            onSend={onSend}
-            onOpenPalette={onOpenPalette}
-            onOpenMention={onOpenMention}
-            busy={false}
-            pendingMention={pendingMention}
-            onMentionConsumed={onMentionConsumed}
-          />
+          <div className="anim-hero-rise anim-hero-rise-2">
+            <Composer
+              variant="hero"
+              autoFocus
+              onSend={onSend}
+              onOpenPalette={onOpenPalette}
+              onOpenMention={onOpenMention}
+              busy={false}
+              pendingMention={pendingMention}
+              onMentionConsumed={onMentionConsumed}
+            />
+          </div>
 
           {/* One unified control row: sources + voice on one line.
               Visually anchored to the composer above with a soft top
               border + matching surface tint, so the controls read as
               part of the composer rather than floating below it. */}
           <div
-            className="mt-2 rounded-md px-3 py-2 flex items-center justify-between gap-3 flex-wrap"
+            className="mt-2 rounded-md px-3 py-2 flex items-center justify-between gap-3 flex-wrap anim-hero-rise anim-hero-rise-3"
             style={{
               background: 'rgb(var(--hy-bg-subtle) / 0.4)',
               border: '1px solid rgb(var(--hy-border) / 0.6)',
@@ -450,10 +451,12 @@ export function Dashboard({ onSend, onOpenPalette, onOpenMention, workflows, pen
           )}
 
           {/* HeartbeatCard — the "what your AI did" signal, kept prominent */}
-          <HeartbeatCard />
+          <div className="anim-hero-rise anim-hero-rise-4">
+            <HeartbeatCard />
+          </div>
 
           {/* Workflows — now inside the main column so widths align */}
-          <div className="mt-10">
+          <div className="mt-10 anim-hero-rise anim-hero-rise-4">
             <div className="flex items-center justify-between mb-3 px-1">
               <h3 className="text-[11.5px] fg-muted uppercase tracking-wider">Recommended workflows</h3>
               {/* Prior "Search" and "View all" buttons were decorative with no

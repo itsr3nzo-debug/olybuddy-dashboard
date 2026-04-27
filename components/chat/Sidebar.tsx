@@ -94,10 +94,10 @@ function SidebarRail({ onNewChat, onOpenPalette, onToggleTheme, theme, onToggleC
         className="h-7 w-7 rounded flex items-center justify-center text-[10px] font-semibold focus-ring"
         style={{ background: 'rgb(var(--hy-fg-base))', color: 'rgb(var(--hy-fg-inverse))' }}
       >{initials}</button>
-      <div className="h-px w-6 my-2" style={{ background: 'rgb(var(--hy-border))' }} />
+      <div className="sidebar-fade-divider w-7 my-2" />
       <IconButton icon={Plus} label="Create" onClick={onNewChat} size={14} />
       <IconButton icon={Search} label="Search (⌘K)" onClick={onOpenPalette} size={14} />
-      <div className="h-px w-6 my-1" style={{ background: 'rgb(var(--hy-border))' }} />
+      <div className="sidebar-fade-divider w-7 my-1" />
       <IconButton icon={MessageSquare} label="Assistant" size={14} active={activeView === 'assistant'} onClick={() => onNavChange('assistant')} />
       <IconButton icon={Users} label="Customers" size={14} active={activeView === 'customers'} onClick={() => onNavChange('customers')} />
       <IconButton icon={Folder} label="Vault" size={14} active={activeView === 'vault'} onClick={() => onNavChange('vault')} />

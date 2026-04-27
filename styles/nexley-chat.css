@@ -697,6 +697,162 @@ a { color: inherit; }
  * Exception: the streaming cursor and thinking dots are purely
  * decorative — hide them rather than flash-static them, so reduced-
  * motion users don't get a jarring solid block. */
+/* ============================================================
+   COSMETIC LAYER v4 — pure visual polish, zero behaviour change.
+   Everything here is opt-in via class names so we don't disturb
+   existing components that don't reference these new classes.
+   ============================================================ */
+
+/* ------- Ambient hero background ------- */
+/* A soft radial glow behind the hero greeting / composer that
+   gives the empty-state landing screen depth. Sits behind
+   everything (z-index 0, pointer-events none) and fades to the
+   app background so it never visually fights the content. */
+.hero-ambient {
+  position: relative;
+  isolation: isolate;
+}
+.hero-ambient::before {
+  content: '';
+  position: absolute;
+  top: -10%;
+  left: 50%;
+  width: 120%;
+  height: 60vh;
+  max-height: 720px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(
+      ellipse 60% 50% at 50% 30%,
+      rgb(var(--hy-fg-base) / 0.045) 0%,
+      rgb(var(--hy-fg-base) / 0.018) 35%,
+      transparent 70%
+    );
+  filter: blur(40px);
+  opacity: 0.9;
+}
+.nexley-chat-root.light .hero-ambient::before {
+  background:
+    radial-gradient(
+      ellipse 60% 50% at 50% 30%,
+      rgb(var(--hy-fg-base) / 0.025) 0%,
+      rgb(var(--hy-fg-base) / 0.010) 35%,
+      transparent 70%
+    );
+}
+.hero-ambient > * { position: relative; z-index: 1; }
+
+/* ------- Hero entrance animation ------- */
+/* Greeting + composer fade up with a subtle stagger when the
+   empty-state mounts. cubic-bezier matches macOS easing. */
+@keyframes hero-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.anim-hero-rise {
+  animation: hero-rise 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.anim-hero-rise-1 { animation-delay: 0ms; }
+.anim-hero-rise-2 { animation-delay: 80ms; }
+.anim-hero-rise-3 { animation-delay: 160ms; }
+.anim-hero-rise-4 { animation-delay: 240ms; }
+
+/* ------- Refined heartbeat numbers ------- */
+/* Subtle vertical gradient on the giant digit (top → 100 % fg,
+   bottom → 78 % fg) so the typography reads as etched, not flat.
+   webkit-text-fill-color falls back gracefully on engines that
+   don't support background-clip:text. */
+.heartbeat-num {
+  background: linear-gradient(
+    180deg,
+    rgb(var(--hy-fg-base)) 0%,
+    rgb(var(--hy-fg-base) / 0.78) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ------- Workflow color dot — circle with halo ------- */
+.workflow-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  position: relative;
+  display: inline-block;
+  box-shadow:
+    0 0 0 2px rgb(var(--hy-bg-surface)),
+    0 0 12px 2px var(--dot-color, rgb(var(--hy-fg-muted)));
+  background: var(--dot-color, rgb(var(--hy-fg-muted)));
+  opacity: 0.85;
+}
+
+/* ------- Workflow card hover ------- */
+.workflow-card-cosmetic {
+  transition:
+    background-color 0.18s ease,
+    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.workflow-card-cosmetic:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 8px 24px rgb(0 0 0 / 0.06);
+}
+
+/* ------- CTA glow when ready (Ask Nexley) ------- */
+/* Subtle ring that breathes on the primary CTA when the input is
+   non-empty so the eye is drawn to the send affordance. */
+@keyframes cta-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(var(--hy-fg-base) / 0.18); }
+  50%      { box-shadow: 0 0 0 4px rgb(var(--hy-fg-base) / 0.06); }
+}
+.cta-ready {
+  animation: cta-breathe 2.6s ease-in-out infinite;
+}
+.cta-ready:hover { animation: none; box-shadow: 0 4px 14px rgb(var(--hy-fg-base) / 0.18); }
+
+/* ------- Source chip selected — soft inner glow ------- */
+.source-chip-on {
+  box-shadow:
+    inset 0 0 0 1px rgb(var(--hy-fg-base) / 0.10),
+    0 1px 2px rgb(0 0 0 / 0.04);
+}
+
+/* ------- Sidebar divider softening ------- */
+/* Replace hard 1 px borders inside the sidebar with a fade
+   gradient so the chrome reads as quieter at rest. */
+.sidebar-fade-divider {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(var(--hy-border)) 25%,
+    rgb(var(--hy-border)) 75%,
+    transparent 100%
+  );
+}
+
+/* ------- Composer focus refinement ------- */
+/* When the hero composer is focused, lift its border colour and
+   add a softer, larger ambient ring (matches the hero glow tone)
+   instead of a hard solid ring. */
+.composer-hero {
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.composer-hero:focus-within {
+  border-color: rgb(var(--hy-border-strong)) !important;
+  box-shadow:
+    0 0 0 4px rgb(var(--hy-fg-base) / 0.05),
+    0 1px 3px rgb(0 0 0 / 0.04),
+    0 8px 28px rgb(0 0 0 / 0.06) !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
