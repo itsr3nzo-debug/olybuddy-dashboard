@@ -747,13 +747,24 @@ a { color: inherit; }
    universally across AssistPanel, TabViews, VaultView etc. so every
    surface in the dashboard reads with the same warm depth.
    `.hero-ambient` kept as an alias for the original Dashboard usage. */
-.nexley-surface, .hero-ambient { position: relative; }
+.nexley-surface, .hero-ambient {
+  position: relative;
+  /* Clip horizontal overflow from the 110% wide ::before glow.
+     Without this, parents with `overflow-y: auto` get treated as
+     `overflow-x: auto` per CSS Overflow Level 3, surfacing a faint
+     horizontal scrollbar. `clip` is preferred over `hidden` because
+     it doesn't create a new scroll container. */
+  overflow-x: clip;
+}
 .nexley-surface::before, .hero-ambient::before {
   content: '';
   position: absolute;
   top: -8%;
   left: 50%;
-  width: 130%;
+  /* Was 130%. Reduced to 110% so even when overflow-x:clip isn't
+     supported (very old browsers), the 5% overshoot per side is
+     within the typical scrollbar gutter and won't surface scroll. */
+  width: 110%;
   height: 70vh;
   max-height: 760px;
   transform: translateX(-50%);
