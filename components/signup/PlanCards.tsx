@@ -52,7 +52,7 @@ const TRIAL_FEATURES = [
 const PRO_FEATURES = [
   'Everything in the 5-day trial',
   'Full-power AI Employee — unlimited WhatsApp + email handling',
-  'Custom voice & tone, trained on your past messages',
+  'Custom writing tone — learns your style from past messages',
   'Priority routing — replies in under 30 seconds, 24/7',
   'Unlimited integrations (Gmail, Calendar, Xero, HubSpot, Fergus)',
   'Vault: upload contracts, quotes, spec sheets, past jobs',
