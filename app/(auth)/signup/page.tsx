@@ -209,6 +209,26 @@ function SignupWizard() {
     setLoading(true)
     setError('')
 
+    // Enterprise plan — no Stripe checkout. We don't bill self-serve at this
+    // tier; route the user to a sales conversation with their captured
+    // business + contact info pre-filled in the mailto.
+    if (form.plan === 'enterprise') {
+      const subject = encodeURIComponent(`Enterprise enquiry — ${form.business_name || 'Nexley'}`)
+      const body = encodeURIComponent(
+        `Hi Nexley team,\n\nI'd like to talk about the Enterprise plan (£2,995/mo, teams of 10+).\n\n` +
+        `Business: ${form.business_name}\n` +
+        `Contact: ${form.contact_name}\n` +
+        `Email: ${form.email}\n` +
+        `Phone: ${form.phone}\n` +
+        `Industry: ${form.industry}\n` +
+        `Location: ${form.location}\n\n` +
+        `Thanks,\n${form.contact_name}`,
+      )
+      window.location.href = `mailto:hello@nexley.ai?subject=${subject}&body=${body}`
+      setLoading(false)
+      return
+    }
+
     try {
       const res = await fetch('/api/signup', {
         method: 'POST',
@@ -310,37 +330,44 @@ function SignupWizard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0e1a] relative overflow-hidden">
-      {/* Background effects */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(99,102,241,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(99,102,241,0.03)_1px,transparent_1px)] bg-[size:64px_64px]" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-indigo-500/5 rounded-full blur-[120px]" />
-
-      <div className="relative z-10 max-w-4xl mx-auto px-4 py-8 sm:py-12">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
-              <Sparkles size={20} className="text-white" />
-            </div>
-            <span className="text-xl font-bold text-white">Nexley AI</span>
-          </div>
+    <div className="min-h-screen bg-background">
+      <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
+        {/* Header — wordmark only (no separate badge) */}
+        <div className="text-center mb-10">
+          <span className="text-xl font-semibold text-foreground tracking-tight">
+            Nexley AI
+          </span>
         </div>
 
-        {/* Progress bar */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          {STEP_LABELS.map((label, i) => (
-            <div key={label} className="flex items-center gap-2">
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                i + 1 < step ? 'bg-green-500/20 text-green-400' :
-                i + 1 === step ? 'bg-indigo-500/20 text-indigo-400 ring-1 ring-indigo-500/30' :
-                'bg-white/5 text-slate-500'
-              }`}>
-                {i + 1 < step ? <Check size={12} /> : <span>{i + 1}</span>}
-                <span className="hidden sm:inline">{label}</span>
+        {/* Progress — small numbered chips, Linear/Vercel style */}
+        <div className="flex items-center justify-center gap-2 mb-10 flex-wrap">
+          {STEP_LABELS.map((label, i) => {
+            const done = i + 1 < step
+            const current = i + 1 === step
+            return (
+              <div key={label} className="flex items-center gap-2">
+                <div
+                  className={`flex items-center gap-1.5 px-2.5 h-7 rounded-sm border text-xs font-medium transition-colors ${
+                    done
+                      ? 'bg-success/10 text-success border-success/30'
+                      : current
+                      ? 'bg-primary/8 text-primary border-primary/40'
+                      : 'bg-card text-muted-foreground border-border'
+                  }`}
+                >
+                  {done ? (
+                    <Check size={12} strokeWidth={2} />
+                  ) : (
+                    <span className="font-mono tabular-nums">{i + 1}</span>
+                  )}
+                  <span className="hidden sm:inline">{label}</span>
+                </div>
+                {i < STEP_LABELS.length - 1 && (
+                  <div className={`w-6 h-px ${done ? 'bg-success/40' : 'bg-border'}`} />
+                )}
               </div>
-              {i < STEP_LABELS.length - 1 && <div className={`w-8 h-px ${i + 1 < step ? 'bg-green-500/30' : 'bg-white/10'}`} />}
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* Step content */}
@@ -575,12 +602,16 @@ function SignupWizard() {
             )}
 
             {step === 5 && (
-              <div className="max-w-3xl mx-auto">
+              <div className="max-w-6xl mx-auto">
                 <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-2">
-                  You&apos;re one click from your AI Employee
+                  Choose your plan
                 </h2>
                 <p className="text-slate-400 text-center mb-8">
-                  Review the offer below, then hit &quot;Start my 5-day trial&quot; to pay £19.99 and get started.
+                  {form.plan === 'enterprise'
+                    ? "Tell us about your team and we'll be in touch within one business day."
+                    : form.plan === 'pro'
+                      ? 'Skip the trial and start on the full-power plan today.'
+                      : 'Start with a 5-day trial — pay £19.99 today, full plan kicks in on Day 6 unless you cancel.'}
                 </p>
 
                 <PlanCards
@@ -620,7 +651,7 @@ function SignupWizard() {
             <button
               onClick={next}
               disabled={!canProceed()}
-              className="flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white text-sm font-semibold hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-500/25"
+              className="inline-flex items-center gap-2 px-5 h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               Continue
               <ArrowRight size={16} />
@@ -629,10 +660,14 @@ function SignupWizard() {
             <button
               onClick={handleSubmit}
               disabled={loading || !canProceed()}
-              className="flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white text-sm font-semibold hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-500/25"
+              className="inline-flex items-center gap-2 px-5 h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               {loading ? (
-                <>Redirecting to Stripe…</>
+                <>Redirecting…</>
+              ) : form.plan === 'enterprise' ? (
+                <>Talk to sales<ArrowRight size={16} /></>
+              ) : form.plan === 'pro' ? (
+                <>Start Full Power — £599/mo<ArrowRight size={16} /></>
               ) : (
                 <>Start my 5-day trial — £19.99<ArrowRight size={16} /></>
               )}

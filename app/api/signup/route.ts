@@ -29,7 +29,12 @@ async function recordSignupAttempt(ip: string, supabase: any) {
   await supabase.from('rate_limit_events').insert({ key: `signup:${ip}` })
 }
 
-const VALID_PLANS = ['trial', 'employee', 'voice']
+// 'trial'      — £19.99 5-day trial → £599/mo (the standard onboarding flow)
+// 'pro'        — £599/mo standalone (skips the trial; bills monthly straight away)
+// 'enterprise' — £2,995/mo for teams of 10+ (multi-seat, custom contracts)
+// 'employee', 'voice' — legacy plan IDs kept for backward compatibility with
+//                       any in-flight Stripe sessions that haven't completed.
+const VALID_PLANS = ['trial', 'pro', 'enterprise', 'employee', 'voice']
 
 // UK mobile normalization — accepts 07xxx, +447xxx, 447xxx, returns 447xxx or null.
 function normalizeUkPhone(input: string | undefined | null): string | null {
