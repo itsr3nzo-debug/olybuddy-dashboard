@@ -52,7 +52,7 @@ const TRIAL_FEATURES = [
 const PRO_FEATURES = [
   'Everything in the 5-day trial',
   'Full-power AI Employee — unlimited WhatsApp + email handling',
-  'Custom writing tone — learns your style from past messages',
+  'Custom voice & tone, trained on your past messages',
   'Priority routing — replies in under 30 seconds, 24/7',
   'Unlimited integrations (Gmail, Calendar, Xero, HubSpot, Fergus)',
   'Vault: upload contracts, quotes, spec sheets, past jobs',
@@ -75,8 +75,11 @@ const PLANS: Plan[] = [
     id: 'trial',
     eyebrow: '5-day trial · no risk',
     priceMain: '£19.99',
-    priceSub: 'today, then £599/mo from Day 6',
-    description: 'Try the full-power plan for 5 days. Cancel anytime, no questions.',
+    // Short sub-line so the price block has the same vertical rhythm
+    // as the other two cards. The "then £599/mo" detail lives in the
+    // description + footnote where it has room to breathe.
+    priceSub: 'one-time',
+    description: 'Try the full-power plan for 5 days, then £599/mo from Day 6. Cancel anytime.',
     features: TRIAL_FEATURES,
     cta: 'Start 5-day trial',
     highlight: false,
@@ -121,7 +124,12 @@ export default function PlanCards({ selected, onSelect }: PlanCardsProps) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.25, delay: idx * 0.05, ease: [0.25, 0.46, 0.45, 0.94] }}
               className={[
-                'relative rounded-lg border bg-card overflow-hidden p-5 sm:p-6 text-left transition-colors',
+                // flex column + h-full so all three cards share the
+                // tallest sibling's height (grid stretches; flex-col
+                // inside lets us push the CTA + footnote to the bottom
+                // via mt-auto so the buttons line up across cards
+                // regardless of feature-list length).
+                'group relative h-full flex flex-col rounded-lg border bg-card overflow-hidden p-5 sm:p-6 text-left transition-colors',
                 'hover:bg-accent/30 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background',
                 plan.highlight
                   ? 'border-primary shadow-[inset_2px_0_0_0_var(--primary)]'
@@ -130,11 +138,12 @@ export default function PlanCards({ selected, onSelect }: PlanCardsProps) {
                     : 'border-border',
               ].join(' ')}
             >
-              {/* Eyebrow chip */}
-              <div className="mb-4">
+              {/* Eyebrow chip — fixed-height row so all three eyebrows
+                  sit on the same baseline across cards. */}
+              <div className="mb-4 h-5 flex items-center">
                 <span
                   className={[
-                    'inline-flex items-center text-[10.5px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-sm',
+                    'inline-flex items-center h-5 text-[10.5px] font-semibold uppercase tracking-wider px-2 rounded-sm',
                     plan.highlight
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted text-muted-foreground',
@@ -144,20 +153,23 @@ export default function PlanCards({ selected, onSelect }: PlanCardsProps) {
                 </span>
               </div>
 
-              {/* Price */}
-              <div className="mb-3">
-                <div className="flex items-baseline gap-2">
+              {/* Price — fixed vertical rhythm so all three price blocks
+                  occupy the same height regardless of digit count or
+                  sub-line length. */}
+              <div className="mb-4">
+                <div className="flex items-baseline gap-2 h-10">
                   <span className="font-mono tabular-nums text-3xl sm:text-4xl font-semibold text-foreground tracking-tight leading-none">
                     {plan.priceMain}
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1.5">
+                <p className="text-xs text-muted-foreground mt-2 h-4 leading-none">
                   {plan.priceSub}
                 </p>
               </div>
 
-              {/* Description */}
-              <p className="text-[13px] text-foreground/85 leading-snug mb-4">
+              {/* Description — clamp to two lines so all cards have
+                  matching description height. */}
+              <p className="text-[13px] text-foreground/85 leading-snug mb-5 line-clamp-2 min-h-[2.5em]">
                 {plan.description}
               </p>
 
@@ -176,22 +188,26 @@ export default function PlanCards({ selected, onSelect }: PlanCardsProps) {
                 ))}
               </ul>
 
-              {/* CTA — purely visual; click handler is on the whole card */}
-              <div
-                className={[
-                  'h-9 rounded-md flex items-center justify-center text-[13px] font-medium transition-colors mb-3',
-                  plan.highlight || isSelected
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-card border border-border text-foreground',
-                ].join(' ')}
-              >
-                {isSelected ? 'Selected ✓' : plan.cta}
-              </div>
+              {/* mt-auto pushes CTA + footnote to the bottom of the card
+                  so they line up across all three regardless of how many
+                  features are in the list above. */}
+              <div className="mt-auto pt-2">
+                <div
+                  className={[
+                    'h-9 rounded-md flex items-center justify-center text-[13px] font-medium transition-colors mb-3 px-2',
+                    plan.highlight || isSelected
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-card border border-border text-foreground',
+                  ].join(' ')}
+                >
+                  {isSelected ? 'Selected ✓' : plan.cta}
+                </div>
 
-              {/* Footnote */}
-              <p className="text-[10.5px] text-muted-foreground leading-relaxed">
-                {plan.footnote}
-              </p>
+                {/* Footnote */}
+                <p className="text-[10.5px] text-muted-foreground leading-relaxed">
+                  {plan.footnote}
+                </p>
+              </div>
             </motion.button>
           )
         })}
