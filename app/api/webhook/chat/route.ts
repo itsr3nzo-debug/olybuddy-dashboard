@@ -55,13 +55,28 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (allowedOrigins.length > 0 && origin && !allowedOrigins.includes(origin)) {
-      console.warn(`[chat-widget] Origin ${origin} not in allowed list for client ${clientId}`);
-      return NextResponse.json({ error: 'Origin not allowed' }, { status: 403, headers: getCorsHeaders(null) });
-    }
-
+    // FAIL-CLOSED ORIGIN CHECK — previously this fell through to "allow all
+    // origins" if no allowlist was configured. That meant a client whose
+    // metadata.allowed_origins was missing would accept widget POSTs from
+    // any site, including attacker-controlled ones, who could then enqueue
+    // messages into that client's comms_log under a forged identity.
+    // Audit fix 2026-04-30: require a non-empty allowlist; reject otherwise.
     if (allowedOrigins.length === 0) {
-      console.warn(`[chat-widget] No allowed_origins configured for client ${clientId} — allowing all origins`);
+      console.warn(
+        `[chat-widget] Refusing — no allowed_origins configured for client ${clientId}. ` +
+          `Set agent_config.metadata.allowed_origins or agent_config.website_url before embedding.`
+      );
+      return NextResponse.json(
+        { error: 'Widget origin not configured' },
+        { status: 403, headers: getCorsHeaders(null) }
+      );
+    }
+    if (!origin || !allowedOrigins.includes(origin)) {
+      console.warn(`[chat-widget] Origin ${origin || '(none)'} not in allowed list for client ${clientId}`);
+      return NextResponse.json(
+        { error: 'Origin not allowed' },
+        { status: 403, headers: getCorsHeaders(null) }
+      );
     }
 
     const headers = getCorsHeaders(origin);
