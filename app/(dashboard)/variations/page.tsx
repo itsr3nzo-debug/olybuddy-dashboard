@@ -23,7 +23,7 @@ export default async function VariationsPage() {
   return (
     <div className="max-w-5xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Variations</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Variations</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Scope changes your AI Employee captured on live jobs. Review, send to client, mark approved.
         </p>

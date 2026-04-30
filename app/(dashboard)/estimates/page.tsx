@@ -24,7 +24,7 @@ export default async function EstimatesPage() {
     <div className="max-w-5xl">
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Estimates</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Estimates</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Upload a plan PDF. Your AI Employee drafts the take-off and pricing. You review and send.
           </p>

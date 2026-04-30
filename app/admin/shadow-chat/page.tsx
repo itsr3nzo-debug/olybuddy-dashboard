@@ -33,7 +33,7 @@ export default async function ShadowChatIndexPage() {
   return (
     <div className="max-w-3xl mx-auto p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Shadow chat</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Shadow chat</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Read-only observer of any client&apos;s AI Employee conversations. Every open is audited.
           For chatting AS a client, use the <Link className="underline" href="/chat">chat picker</Link>.

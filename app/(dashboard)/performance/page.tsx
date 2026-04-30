@@ -162,7 +162,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
     <div>
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Performance</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Performance</h1>
           <p className="text-sm mt-1 text-muted-foreground">
             {agentName} · {periodLabel}
           </p>
@@ -177,9 +177,9 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
       </div>
 
       {/* AI Employee framing */}
-      <div className="rounded-xl border p-6 mb-6 bg-card-bg">
+      <div className="rounded-xl border p-6 mb-6 bg-card">
         <p className="text-xs font-medium uppercase tracking-wider mb-2 text-muted-foreground">This month</p>
-        <p className="text-xl sm:text-2xl font-bold text-foreground">
+        <p className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
           {agentName} worked <span className="text-brand-primary">{hoursWorked} hours</span>,
           handled <span className="text-brand-success">{totalCalls} calls</span>,
           and never took a day off.
@@ -202,7 +202,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
 
       {/* Pipeline Funnel */}
       {funnelData.length > 0 && (
-        <div className="rounded-xl border p-6 bg-card-bg mb-6">
+        <div className="rounded-xl border p-6 bg-card mb-6">
           <h2 className="text-sm font-semibold mb-4 text-foreground">Pipeline Funnel</h2>
           <FunnelChart stageData={funnelData} />
         </div>
@@ -225,13 +225,13 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Sentiment donut */}
-        <div className="rounded-xl border p-6 bg-card-bg">
+        <div className="rounded-xl border p-6 bg-card">
           <h2 className="text-sm font-semibold mb-4 text-foreground">Caller Sentiment</h2>
           <SentimentDonut positive={posCount} neutral={neuCount} negative={negCount} />
         </div>
 
         {/* Top call reasons */}
-        <div className="rounded-xl border p-6 bg-card-bg">
+        <div className="rounded-xl border p-6 bg-card">
           <h2 className="text-sm font-semibold mb-4 text-foreground">Top Call Reasons</h2>
           {topReasons.length > 0 ? (
             <div className="space-y-3">
@@ -258,7 +258,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
       </div>
 
       {/* Peak hours heatmap */}
-      <div className="rounded-xl border p-6 bg-card-bg">
+      <div className="rounded-xl border p-6 bg-card">
         <h2 className="text-sm font-semibold mb-4 text-foreground">Peak Hours</h2>
         <PeakHoursHeatmap data={peakData} />
       </div>

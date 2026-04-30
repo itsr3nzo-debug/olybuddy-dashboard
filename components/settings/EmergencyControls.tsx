@@ -45,27 +45,27 @@ export default function EmergencyControls() {
         paused_reason: pause ? (reason || 'Paused by owner via dashboard') : null,
       } : null)
       setReason('')
-      setMsg(pause ? '🛑 Agent paused. No outbound messages will send.' : '✅ Agent resumed. Normal operation.')
+      setMsg(pause ? 'Agent paused. No outbound messages will send.' : 'Agent resumed. Normal operation.')
     } catch (e: unknown) {
       setMsg(e instanceof Error ? e.message : 'Failed')
     } finally { setSubmitting(false) }
   }
 
   if (loading) return <div className="skeleton h-60 rounded-xl" />
-  if (!status) return <div className="text-sm text-brand-danger">Could not load status</div>
+  if (!status) return <div className="text-sm text-destructive">Could not load status</div>
 
   return (
     <div className="space-y-4">
-      <div className={`rounded-xl border p-5 ${
+      <div className={`rounded-lg border p-5 ${
         status.paused
-          ? 'bg-red-500/5 border-red-500/40'
-          : 'bg-green-500/5 border-green-500/30'
+          ? 'border-destructive/40 bg-card shadow-[inset_2px_0_0_0_var(--brand-danger)]'
+          : 'border-success/30 bg-card shadow-[inset_2px_0_0_0_var(--brand-success)]'
       }`}>
         <div className="flex items-start gap-3 mb-3">
           <div className="flex-shrink-0">
             {status.paused
-              ? <Pause size={20} className="text-red-400" />
-              : <Play size={20} className="text-green-400" />}
+              ? <Pause size={20} strokeWidth={1.5} className="text-destructive" />
+              : <Play size={20} strokeWidth={1.5} className="text-success" />}
           </div>
           <div className="flex-1">
             <p className="text-sm font-medium text-foreground">
@@ -99,7 +99,7 @@ export default function EmergencyControls() {
             <button
               onClick={() => toggle(true)}
               disabled={submitting}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium py-2.5 text-sm transition-colors disabled:opacity-50"
+              className="w-full inline-flex items-center justify-center gap-2 h-10 rounded-md bg-destructive text-white font-medium text-sm transition-colors hover:bg-destructive/90 active:bg-destructive/95 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               {submitting ? <Loader2 size={14} className="animate-spin" /> : <Pause size={14} />}
               Pause agent now
@@ -111,7 +111,7 @@ export default function EmergencyControls() {
           <button
             onClick={() => toggle(false)}
             disabled={submitting}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium py-2.5 text-sm transition-colors disabled:opacity-50"
+            className="w-full inline-flex items-center justify-center gap-2 h-10 rounded-md bg-success text-white font-medium text-sm transition-colors hover:bg-success/90 active:bg-success/95 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-success focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
             Resume agent
@@ -120,12 +120,12 @@ export default function EmergencyControls() {
       </div>
 
       {msg && (
-        <div className="rounded-xl border bg-card-bg p-3 text-sm text-muted-foreground">{msg}</div>
+        <div className="rounded-xl border bg-card p-3 text-sm text-muted-foreground">{msg}</div>
       )}
 
-      <div className="rounded-xl border bg-card-bg p-5">
+      <div className="rounded-lg border border-border bg-card p-5">
         <div className="flex items-start gap-3 mb-3">
-          <AlertTriangle size={16} className="text-amber-400 mt-0.5" />
+          <AlertTriangle size={16} strokeWidth={1.5} className="text-warning mt-0.5" />
           <div className="flex-1 text-xs text-muted-foreground leading-relaxed space-y-2">
             <p className="font-medium text-foreground">When to use this</p>
             <ul className="space-y-1">

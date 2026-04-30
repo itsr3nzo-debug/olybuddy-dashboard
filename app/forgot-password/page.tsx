@@ -3,20 +3,24 @@
 import { useState } from 'react'
 import { Mail, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import { Field, Input } from '@/components/ui/input'
 
+/**
+ * /forgot-password — v2.
+ *
+ * Stripped of: glass card, blur, gradient bg, indigo hero ring around the
+ * Mail icon. Replaced with the same plain dark-page + 360px-column shell
+ * as /login.
+ */
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error] = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    setError('')
-    // Route through our own API so we can (a) pick the correct origin for the
-    // reset link regardless of Supabase Site URL config, and (b) deliver via
-    // Resend instead of Supabase's rate-limited default mailer.
     try {
       await fetch('/api/auth/request-reset', {
         method: 'POST',
@@ -31,55 +35,63 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0a0e1a] flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <Link href="/login" className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 mb-6">
-          <ArrowLeft size={14} /> Back to sign in
+    <main className="min-h-screen bg-background flex items-center justify-center px-6 py-12">
+      <div className="w-full max-w-[360px]">
+        <Link
+          href="/login"
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mb-8"
+        >
+          <ArrowLeft size={12} strokeWidth={1.75} /> Back to sign in
         </Link>
-        <div className="rounded-2xl p-8 shadow-2xl border border-white/[0.08] backdrop-blur-xl bg-slate-900/70">
-          {!submitted ? (
-            <>
-              <h1 className="text-xl font-semibold text-white mb-1">Reset your password</h1>
-              <p className="text-sm text-slate-400 mb-6">
-                Enter the email you signed up with. We&apos;ll send you a link to set a new password.
-              </p>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="relative">
-                  <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    required
-                    autoComplete="email"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-white/10 text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 bg-white/5 text-white placeholder:text-slate-500"
-                  />
-                </div>
-                {error && <p className="text-sm text-red-400">{error}</p>}
-                <button
-                  type="submit"
-                  disabled={loading || !email}
-                  className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50"
-                >
-                  {loading ? 'Sending…' : 'Send reset link'}
-                </button>
-              </form>
-            </>
-          ) : (
-            <div className="text-center py-4">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-indigo-500/10 border border-indigo-500/20">
-                <Mail size={28} className="text-indigo-400" />
-              </div>
-              <h2 className="text-lg font-semibold text-white mb-2">Check your inbox</h2>
-              <p className="text-sm text-slate-400">
-                If an account exists for <strong className="text-white">{email}</strong>,
-                we&apos;ve sent a link to reset your password.
-                Link expires in 1 hour.
-              </p>
-            </div>
-          )}
-        </div>
+
+        {!submitted ? (
+          <>
+            <h1 className="text-2xl font-semibold text-foreground tracking-tight">
+              Reset your password
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1.5 mb-6 leading-relaxed">
+              Enter the email you signed up with. We&apos;ll send you a link to set a new password.
+            </p>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <Field label="Email">
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  required
+                  autoComplete="email"
+                />
+              </Field>
+              {error && (
+                <p className="text-xs px-3 py-2 rounded-sm border border-destructive/30 bg-destructive/8 text-destructive" role="alert">
+                  {error}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={loading || !email}
+                className="w-full h-10 inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                {loading ? 'Sending…' : 'Send reset link'}
+              </button>
+            </form>
+          </>
+        ) : (
+          <div className="text-center">
+            <Mail size={28} strokeWidth={1.5} className="text-muted-foreground/60 mx-auto mb-4" />
+            <h2 className="text-lg font-semibold text-foreground tracking-tight">
+              Check your inbox
+            </h2>
+            <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+              If an account exists for{' '}
+              <span className="font-mono tabular-nums text-foreground">{email}</span>, we&apos;ve sent a link to reset your password.
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Link expires in 1 hour.
+            </p>
+          </div>
+        )}
       </div>
     </main>
   )

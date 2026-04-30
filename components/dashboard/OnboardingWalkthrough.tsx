@@ -1,33 +1,33 @@
 'use client'
 
 /**
- * Onboarding walkthrough (#19).
+ * OnboardingWalkthrough — v2.
  *
- * First-visit welcome modal with an embedded Loom video covering:
- *   - what the AI Employee actually does
- *   - how to pair WhatsApp (60s, one QR)
- *   - how to connect Gmail/Calendar/Xero
- *   - what to expect in the next 5 days
+ * First-visit welcome modal. Renders only when:
+ *   showFirstRun=true (server: zero conversations, zero calls, signed up
+ *   <72h ago) AND localStorage hasn't recorded a dismissal AND a
+ *   `loomUrl` is configured (env var).
  *
- * Triggers automatically when the dashboard renders with `showFirstRun=true`
- * (server decides — typically when there are zero conversations AND zero
- * calls AND user signed up <72h ago). Dismissible; choice persists in
- * localStorage so it doesn't re-appear on every visit.
+ * v2 changes:
+ * - Killed the indigo→violet header gradient + Sparkles tile + "Welcome,
+ *   Renzo — here's a 2-min tour" copy. Title is sentence-case neutral.
+ * - rounded-2xl modal → 8px (Card-aligned)
+ * - Step cards drop the bg-white/[0.02] glass treatment in favour of
+ *   plain hairline-bordered tiles
+ * - Primary "Got it" CTA uses solid navy (Button default), not gradient
+ * - Backdrop blur-sm → flat 70% black overlay (still clearly modal)
  *
- * Set `loomUrl` from server props — falls back to a placeholder if Renzo
- * hasn't recorded the video yet.
+ * Behavioural unchanged: localStorage gate, custom-event re-open hook,
+ * AnimatePresence transitions, hydration guard.
  */
 
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Play, X, Sparkles, Smartphone, Plug, MessageCircle } from 'lucide-react'
+import { Play, X, Smartphone, Plug, MessageCircle } from 'lucide-react'
 
 interface Props {
-  /** Render the modal automatically on first visit. */
   showFirstRun: boolean
-  /** Loom share URL ending in /share/{id} or null until we record it. */
   loomUrl: string | null
-  /** Owner first name for personalisation. */
   ownerName?: string | null
 }
 
@@ -44,20 +44,27 @@ export default function OnboardingWalkthrough({ showFirstRun, loomUrl, ownerName
     try {
       const seen = window.localStorage.getItem(STORAGE_KEY)
       if (!seen) setOpen(true)
-    } catch { /* corruption — ignore */ }
+    } catch {
+      /* corruption — ignore */
+    }
   }, [showFirstRun])
 
   function dismiss(remember: boolean) {
     setOpen(false)
     if (remember) {
-      try { window.localStorage.setItem(STORAGE_KEY, new Date().toISOString()) } catch { /* quota */ }
+      try {
+        window.localStorage.setItem(STORAGE_KEY, new Date().toISOString())
+      } catch {
+        /* quota */
+      }
     }
   }
 
-  // Allow re-opening manually from elsewhere via a custom event so the
-  // dashboard "Replay tour" button works even after dismissal.
+  // Custom event hook lets a "Replay tour" item elsewhere re-open this.
   useEffect(() => {
-    function open() { setOpen(true) }
+    function open() {
+      setOpen(true)
+    }
     window.addEventListener('nexley:open-walkthrough', open)
     return () => window.removeEventListener('nexley:open-walkthrough', open)
   }, [])
@@ -73,43 +80,38 @@ export default function OnboardingWalkthrough({ showFirstRun, loomUrl, ownerName
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={() => dismiss(false)}
-          className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-[200] bg-black/70 flex items-center justify-center p-4"
         >
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 12 }}
-            transition={{ type: 'spring', stiffness: 220, damping: 22 }}
-            onClick={e => e.stopPropagation()}
-            className="relative w-full max-w-3xl rounded-2xl border border-white/10 bg-[#0d1426] shadow-2xl overflow-hidden"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-2xl rounded-lg border border-border bg-popover shadow-[0_24px_80px_rgba(0,0,0,0.5)] overflow-hidden"
           >
             {/* Header */}
-            <div className="flex items-start justify-between p-5 sm:p-6 border-b border-white/5">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
-                  <Sparkles size={18} className="text-white" />
-                </div>
-                <div>
-                  <h2 className="text-lg sm:text-xl font-semibold text-white">
-                    Welcome{ownerName ? `, ${ownerName}` : ''} \u2014 here\u2019s a 2-min tour
-                  </h2>
-                  <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-                    What your AI Employee does, how to set it up, and what to expect this week.
-                  </p>
-                </div>
+            <div className="flex items-start justify-between gap-3 px-5 sm:px-6 py-4 border-b border-border">
+              <div>
+                <h2 className="text-base sm:text-lg font-semibold text-foreground tracking-tight">
+                  {ownerName ? `Welcome, ${ownerName}.` : 'Welcome.'}
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1 leading-snug">
+                  A 2-minute walkthrough of what your AI Employee does and how to get it live this week.
+                </p>
               </div>
               <button
                 type="button"
                 onClick={() => dismiss(false)}
-                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition"
+                className="-mr-1 -mt-0.5 size-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
                 aria-label="Close"
               >
-                <X size={18} />
+                <X size={16} strokeWidth={1.75} />
               </button>
             </div>
 
             {/* Video / placeholder */}
-            <div className="aspect-video bg-black border-b border-white/5">
+            <div className="aspect-video bg-black border-b border-border">
               {loomUrl ? (
                 <iframe
                   title="Nexley AI walkthrough"
@@ -120,53 +122,54 @@ export default function OnboardingWalkthrough({ showFirstRun, loomUrl, ownerName
                 />
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-center px-4">
-                  <div className="w-16 h-16 rounded-full bg-indigo-500/15 flex items-center justify-center mb-3">
-                    <Play size={28} className="text-indigo-400" />
-                  </div>
-                  <p className="text-sm text-slate-300 font-medium">Walkthrough video coming this week</p>
-                  <p className="text-xs text-slate-500 mt-1">For now \u2014 use the steps below to get live in 5 minutes.</p>
+                  <Play size={28} strokeWidth={1.5} className="text-muted-foreground/60 mb-2" />
+                  <p className="text-sm text-foreground font-medium">Walkthrough video coming this week</p>
+                  <p className="text-xs text-muted-foreground mt-1">For now, use the steps below to get live in 5 minutes.</p>
                 </div>
               )}
             </div>
 
             {/* Quick-reference steps */}
-            <div className="p-5 sm:p-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="px-5 sm:px-6 py-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Step
-                icon={<Smartphone size={16} className="text-indigo-300" />}
-                title="1. Pair WhatsApp"
-                body="Scan one QR code with WhatsApp Business. Your AI Employee starts answering immediately."
+                icon={<Smartphone size={14} strokeWidth={1.5} />}
+                index={1}
+                title="Pair WhatsApp"
+                body="Scan one QR code with WhatsApp Business. Replies start instantly."
               />
               <Step
-                icon={<Plug size={16} className="text-emerald-300" />}
-                title="2. Connect tools"
-                body="Gmail, Calendar, Xero \u2014 one click each. Settings \u2192 Integrations."
+                icon={<Plug size={14} strokeWidth={1.5} />}
+                index={2}
+                title="Connect tools"
+                body="Gmail, Calendar, Xero — one click each. Settings → Integrations."
               />
               <Step
-                icon={<MessageCircle size={16} className="text-violet-300" />}
-                title="3. Send a test"
-                body="Message your business number from another phone \u2014 watch the AI book the job."
+                icon={<MessageCircle size={14} strokeWidth={1.5} />}
+                index={3}
+                title="Send a test"
+                body="Message your business number from another phone — watch the AI book the job."
               />
             </div>
 
             {/* Footer */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-5 sm:p-6 border-t border-white/5 bg-white/[0.02]">
-              <p className="text-xs text-slate-400">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-5 sm:px-6 py-3 border-t border-border bg-muted/20">
+              <p className="text-xs text-muted-foreground">
                 You can replay this tour any time from the dashboard menu.
               </p>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => dismiss(false)}
-                  className="text-xs font-medium px-3 py-2 rounded-lg text-slate-300 hover:bg-white/5 transition"
+                  className="text-sm font-medium h-9 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
                 >
                   Skip for now
                 </button>
                 <button
                   type="button"
                   onClick={() => dismiss(true)}
-                  className="text-xs font-semibold px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-violet-600 text-white hover:opacity-90 transition"
+                  className="text-sm font-medium h-9 px-3.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
                 >
-                  Got it \u2014 don\u2019t show again
+                  Got it
                 </button>
               </div>
             </div>
@@ -177,14 +180,27 @@ export default function OnboardingWalkthrough({ showFirstRun, loomUrl, ownerName
   )
 }
 
-function Step({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
+function Step({
+  icon,
+  index,
+  title,
+  body,
+}: {
+  icon: React.ReactNode
+  index: number
+  title: string
+  body: string
+}) {
   return (
-    <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3.5">
+    <div className="rounded-md border border-border p-3">
       <div className="flex items-center gap-2 mb-1.5">
-        <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center">{icon}</div>
-        <p className="text-sm font-semibold text-white">{title}</p>
+        <span className="font-mono tabular-nums text-[11px] text-muted-foreground">
+          {index}
+        </span>
+        <span className="text-muted-foreground/60">{icon}</span>
+        <p className="text-sm font-semibold text-foreground tracking-tight">{title}</p>
       </div>
-      <p className="text-xs text-slate-400 leading-relaxed">{body}</p>
+      <p className="text-xs text-muted-foreground leading-relaxed">{body}</p>
     </div>
   )
 }

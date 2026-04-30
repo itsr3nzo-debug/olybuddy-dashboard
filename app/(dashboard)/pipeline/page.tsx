@@ -5,7 +5,12 @@ import KanbanBoard from '@/components/pipeline/KanbanBoard'
 import EmptyState from '@/components/shared/EmptyState'
 import { Kanban } from 'lucide-react'
 
-export const metadata: Metadata = { title: 'Pipeline | Nexley AI' }
+// "Pipeline" / "deals" / "opportunities" is CRM jargon. The customer
+// (a plumber, electrician, accountant) calls them "jobs". The DA pass
+// flagged this — renaming the page heading to plumber-language costs
+// nothing and removes a barrier. URL stays `/pipeline` for backwards
+// compatibility with bookmarks; only the visible label changes.
+export const metadata: Metadata = { title: 'Jobs | Nexley AI' }
 
 export default async function PipelinePage() {
   const supabase = await createClient()
@@ -29,9 +34,9 @@ export default async function PipelinePage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Pipeline</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Jobs</h1>
         <p className="text-sm mt-1 text-muted-foreground">
-          Drag deals between stages to update their status
+          Drag jobs between stages to update where they are
         </p>
       </div>
 

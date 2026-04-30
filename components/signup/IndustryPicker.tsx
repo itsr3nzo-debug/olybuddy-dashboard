@@ -8,7 +8,7 @@ import {
   Hammer,
   Trees,
   Home,
-  Sparkles,
+  Brush,
   Scissors,
   Scale,
   Flower2,
@@ -46,7 +46,7 @@ const TOP_INDUSTRIES: IndustryItem[] = [
   { value: 'builder', label: 'Builder', icon: Hammer },
   { value: 'landscaper', label: 'Landscaper', icon: Trees },
   { value: 'roofer', label: 'Roofer', icon: Home },
-  { value: 'cleaner', label: 'Cleaner', icon: Sparkles },
+  { value: 'cleaner', label: 'Cleaner', icon: Brush },
 ]
 
 const MORE_INDUSTRIES: IndustryItem[] = [
@@ -105,16 +105,17 @@ export default function IndustryPicker({ selected, onSelect }: IndustryPickerPro
         {/* More trades button — spans full width */}
         <motion.button
           layout
+          type="button"
           onClick={() => setShowMore(!showMore)}
-          className="col-span-2 flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/60 backdrop-blur transition-colors hover:border-white/20 hover:text-white/80"
+          className="col-span-2 flex items-center justify-center gap-2 rounded-md border border-border bg-card px-4 h-10 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {showMore ? (
             <>
-              Show less <ChevronUp className="h-4 w-4" />
+              Show less <ChevronUp size={14} strokeWidth={1.5} />
             </>
           ) : (
             <>
-              More industries... <ChevronDown className="h-4 w-4" />
+              More industries <ChevronDown size={14} strokeWidth={1.5} />
             </>
           )}
         </motion.button>
@@ -137,47 +138,40 @@ function IndustryCard({
   return (
     <motion.button
       layout
+      type="button"
       onClick={() => onSelect(industry.value)}
-      whileTap={{ scale: 0.97 }}
+      aria-pressed={isSelected}
       className={`
-        relative flex w-full min-h-[64px] sm:min-h-[72px] items-center gap-3 rounded-xl border px-3 sm:px-4 py-3
-        backdrop-blur transition-all duration-200
+        relative flex w-full min-h-[56px] items-center gap-3 rounded-md border px-3 py-2.5
+        transition-colors text-left
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
         ${
           isSelected
-            ? 'border-blue-500 bg-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.15)]'
-            : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/[0.07]'
+            ? 'border-primary bg-primary/8 shadow-[inset_2px_0_0_0_var(--primary)]'
+            : 'border-border bg-card hover:bg-muted/40'
         }
       `}
     >
-      {/* Checkmark overlay */}
-      <AnimatePresence>
-        {isSelected && (
-          <motion.div
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-            className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 shadow-lg"
-          >
-            <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <motion.div
-        animate={isSelected ? { scale: 1.1 } : { scale: 1 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-      >
-        <Icon
-          className={`h-6 w-6 flex-shrink-0 ${isSelected ? 'text-blue-400' : 'text-white/40'}`}
-        />
-      </motion.div>
-
+      <Icon
+        size={18}
+        strokeWidth={1.5}
+        className={`shrink-0 ${isSelected ? 'text-primary' : 'text-muted-foreground/60'}`}
+      />
       <span
-        className={`text-sm font-medium ${isSelected ? 'text-white' : 'text-white/70'}`}
+        className={`text-sm font-medium tracking-tight ${
+          isSelected ? 'text-foreground' : 'text-foreground/85'
+        }`}
       >
         {industry.label}
       </span>
+      {isSelected && (
+        <Check
+          size={14}
+          strokeWidth={2}
+          className="ml-auto text-primary shrink-0"
+          aria-hidden
+        />
+      )}
     </motion.button>
   )
 }

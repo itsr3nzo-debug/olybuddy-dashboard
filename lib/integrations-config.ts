@@ -96,7 +96,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Gmail',
     description: 'Read and send emails on behalf of the client',
     category: 'communication',
-    iconColor: 'bg-red-900/20 text-red-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: true,
     recommendedForTrades: true,
   },
@@ -105,7 +105,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Outlook',
     description: 'Microsoft 365 email — read, send, and manage emails',
     category: 'communication',
-    iconColor: 'bg-blue-900/20 text-blue-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: true,
   },
   {
@@ -113,7 +113,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Slack',
     description: 'Send updates and alerts to Slack channels',
     category: 'communication',
-    iconColor: 'bg-purple-900/20 text-purple-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: true,
     oauth: {
       authUrl: 'https://slack.com/oauth/v2/authorize',
@@ -130,7 +130,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Microsoft Teams',
     description: 'Team messaging, channels, and collaboration',
     category: 'communication',
-    iconColor: 'bg-indigo-900/20 text-indigo-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: true,
   },
 
@@ -140,7 +140,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Google Calendar',
     description: 'Sync appointments and book jobs automatically',
     category: 'scheduling',
-    iconColor: 'bg-blue-900/20 text-blue-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: true,
     recommendedForTrades: true,
   },
@@ -149,7 +149,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Calendly',
     description: 'Client booking and appointment scheduling',
     category: 'scheduling',
-    iconColor: 'bg-blue-900/20 text-blue-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: true,
     oauth: {
       authUrl: 'https://auth.calendly.com/oauth/authorize',
@@ -165,7 +165,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Outlook Calendar',
     description: 'Microsoft 365 calendar — sync appointments automatically',
     category: 'scheduling',
-    iconColor: 'bg-blue-900/20 text-blue-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: true,
     oauthProvider: 'outlook',
   },
@@ -176,7 +176,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Xero',
     description: 'Invoices, contacts, bank reconciliation, VAT/CIS — Nexley drafts, you approve',
     category: 'accounting',
-    iconColor: 'bg-cyan-900/20 text-cyan-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: true,
     recommendedForTrades: true,
     oauth: {
@@ -218,7 +218,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Fergus',
     description: 'Trade job management — push captured jobs from WhatsApp straight to your Fergus board',
     category: 'practice',
-    iconColor: 'bg-orange-900/20 text-orange-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: true,
     recommendedForTrades: true,
     pat: {
@@ -239,7 +239,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Dext (via Xero)',
     description: 'Supplier receipts + spend analysis. Connect Xero → Dext already syncs to it → Nexley reads your bills.',
     category: 'accounting',
-    iconColor: 'bg-violet-900/20 text-violet-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: false, // rendered as info-only tile, not clickable for connection
   },
   {
@@ -247,7 +247,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'QuickBooks',
     description: 'Accounting, invoicing, and expense tracking',
     category: 'accounting',
-    iconColor: 'bg-green-900/20 text-green-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: true,
     oauth: {
       authUrl: 'https://appcenter.intuit.com/connect/oauth2',
@@ -264,7 +264,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Sage',
     description: 'Business accounting and financial management',
     category: 'accounting',
-    iconColor: 'bg-green-900/20 text-green-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: true,
     oauth: {
       authUrl: 'https://www.sageone.com/oauth2/auth/central?filter=apiv3.1',
@@ -280,7 +280,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'FreeAgent',
     description: 'Freelancer accounting, invoicing, and expenses',
     category: 'accounting',
-    iconColor: 'bg-teal-900/20 text-teal-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: true,
     oauth: {
       authUrl: 'https://api.freeagent.com/v2/approve_app',
@@ -298,7 +298,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Google Drive',
     description: 'Access and manage files in Google Drive',
     category: 'documents',
-    iconColor: 'bg-green-900/20 text-green-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: true,
   },
   {
@@ -306,7 +306,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'OneDrive',
     description: 'Microsoft 365 cloud storage — access and manage files',
     category: 'storage',
-    iconColor: 'bg-blue-900/20 text-blue-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: true,
   },
   {
@@ -314,7 +314,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'SharePoint',
     description: 'Microsoft 365 team sites and document libraries',
     category: 'documents',
-    iconColor: 'bg-teal-900/20 text-teal-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: true,
   },
   {
@@ -322,7 +322,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Dext',
     description: 'Receipt and invoice data extraction',
     category: 'documents',
-    iconColor: 'bg-orange-900/20 text-orange-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: false,
   },
   {
@@ -330,7 +330,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'HubDoc',
     description: 'Automated document collection for Xero',
     category: 'documents',
-    iconColor: 'bg-emerald-900/20 text-emerald-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: false,
   },
 
@@ -340,7 +340,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Ignition',
     description: 'Client proposals, engagement letters, and billing',
     category: 'practice',
-    iconColor: 'bg-orange-900/20 text-orange-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: false,
   },
   {
@@ -348,7 +348,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'BrightManager',
     description: 'Practice management and workflow',
     category: 'practice',
-    iconColor: 'bg-yellow-900/20 text-yellow-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: false,
   },
   {
@@ -356,7 +356,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Pixie',
     description: 'Simple workflow management for smaller firms',
     category: 'practice',
-    iconColor: 'bg-pink-900/20 text-pink-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: false,
   },
 
@@ -366,7 +366,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'TaxCalc',
     description: 'Tax return preparation and filing',
     category: 'tax',
-    iconColor: 'bg-red-900/20 text-red-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: false,
   },
   {
@@ -374,7 +374,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Iris',
     description: 'Statutory accounts and tax compliance',
     category: 'tax',
-    iconColor: 'bg-blue-900/20 text-blue-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: false,
   },
 
@@ -384,7 +384,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Fathom',
     description: 'Visual financial reporting and analysis',
     category: 'reporting',
-    iconColor: 'bg-violet-900/20 text-violet-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: true,
   },
   {
@@ -392,7 +392,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Spotlight Reporting',
     description: 'Forecasting and management reporting',
     category: 'reporting',
-    iconColor: 'bg-amber-900/20 text-amber-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: false,
   },
 
@@ -402,7 +402,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'HubSpot',
     description: 'Marketing, sales CRM, and service desk',
     category: 'crm',
-    iconColor: 'bg-orange-900/20 text-orange-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: true,
     oauth: {
       authUrl: 'https://app.hubspot.com/oauth/authorize',
@@ -421,7 +421,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     name: 'Stripe',
     description: 'Payment processing and subscription billing',
     category: 'payments',
-    iconColor: 'bg-violet-900/20 text-violet-400',
+    iconColor: 'bg-muted text-muted-foreground',
     available: true,
     recommendedForTrades: true,
   },
@@ -469,25 +469,35 @@ function categorizeFromComposio(rawCats: string[]): ProviderCategory {
   return 'other'
 }
 
+// All categories collapse to a single muted neutral fallback tile. The
+// previous 18-colour rainbow was visible most strongly in the Add
+// Integration modal where it lit up like a fruit machine. Logos do the
+// brand-recognition work; the fallback letter tile only renders when the
+// SVG fails to load — and at that point a subtle gray is what's wanted.
+// Fallback letter-tile for any provider without a brand SVG. The square
+// stays muted so it doesn't fight the icon row, but the LETTER inside
+// uses `text-foreground` for real contrast — earlier `text-muted-foreground`
+// + `bg-muted` left the letter virtually invisible (DA flagged).
+const CATEGORY_NEUTRAL = 'bg-muted text-foreground'
 const CATEGORY_COLORS: Record<ProviderCategory, string> = {
-  communication: 'bg-blue-900/20 text-blue-400',
-  scheduling: 'bg-sky-900/20 text-sky-400',
-  accounting: 'bg-emerald-900/20 text-emerald-400',
-  documents: 'bg-amber-900/20 text-amber-400',
-  storage: 'bg-yellow-900/20 text-yellow-400',
-  meetings: 'bg-cyan-900/20 text-cyan-400',
-  social: 'bg-pink-900/20 text-pink-400',
-  marketing: 'bg-rose-900/20 text-rose-400',
-  support: 'bg-orange-900/20 text-orange-400',
-  crm: 'bg-violet-900/20 text-violet-400',
-  productivity: 'bg-indigo-900/20 text-indigo-400',
-  payments: 'bg-violet-900/20 text-violet-400',
-  practice: 'bg-purple-900/20 text-purple-400',
-  tax: 'bg-red-900/20 text-red-400',
-  reporting: 'bg-amber-900/20 text-amber-400',
-  devtools: 'bg-slate-700/30 text-slate-300',
-  data: 'bg-teal-900/20 text-teal-400',
-  other: 'bg-slate-700/30 text-slate-300',
+  communication: CATEGORY_NEUTRAL,
+  scheduling:    CATEGORY_NEUTRAL,
+  accounting:    CATEGORY_NEUTRAL,
+  documents:     CATEGORY_NEUTRAL,
+  storage:       CATEGORY_NEUTRAL,
+  meetings:      CATEGORY_NEUTRAL,
+  social:        CATEGORY_NEUTRAL,
+  marketing:     CATEGORY_NEUTRAL,
+  support:       CATEGORY_NEUTRAL,
+  crm:           CATEGORY_NEUTRAL,
+  productivity:  CATEGORY_NEUTRAL,
+  payments:      CATEGORY_NEUTRAL,
+  practice:      CATEGORY_NEUTRAL,
+  tax:           CATEGORY_NEUTRAL,
+  reporting:     CATEGORY_NEUTRAL,
+  devtools:      CATEGORY_NEUTRAL,
+  data:          CATEGORY_NEUTRAL,
+  other:         CATEGORY_NEUTRAL,
 }
 
 const AUTO_PROVIDERS: ProviderConfig[] = []

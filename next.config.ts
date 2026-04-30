@@ -59,6 +59,10 @@ const cspDirectives: Record<string, string[]> = {
     'https://m.stripe.network',
     'https://va.vercel-scripts.com',
     'https://vercel.live',
+    // The Nexley Mobile prototype at /preview/mobile loads React + Babel
+    // Standalone via unpkg. Allowed only in script-src; not in connect-src
+    // so it can't be used as a data exfil channel.
+    'https://unpkg.com',
   ],
   'style-src': [
     "'self'",
@@ -177,6 +181,21 @@ const nextConfig: NextConfig = {
         // CSP (no browser involved) so this is safe.
         source: '/:path*',
         headers: securityHeaders,
+      },
+    ]
+  },
+  async rewrites() {
+    return [
+      // Mobile prototype — preserves all relative-path requires inside the
+      // bundled HTML. /preview/mobile + /preview/mobile/* both serve from
+      // /public/preview-mobile/.
+      {
+        source: '/preview/mobile',
+        destination: '/preview-mobile/index.html',
+      },
+      {
+        source: '/preview/mobile/:file*',
+        destination: '/preview-mobile/:file*',
       },
     ]
   },

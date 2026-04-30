@@ -148,7 +148,7 @@ export default function WhatsAppLinkPage() {
         <Link href="/onboarding" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
           ← Back
         </Link>
-        <h1 className="text-2xl font-bold mt-2">Link your WhatsApp</h1>
+        <h1 className="text-2xl font-semibold tracking-tight mt-2">Link your WhatsApp</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Your AI Employee lives on its own WhatsApp line. Scan the QR once — your business number
           stays linked after that.
@@ -162,10 +162,10 @@ export default function WhatsAppLinkPage() {
             className={
               'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ' +
               (paired
-                ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
+                ? 'bg-success/10 text-success border border-success/30'
                 : state?.wa_connection_status === 'qr_ready' || state?.wa_connection_status === 'code_ready'
-                ? 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20'
-                : 'bg-amber-500/10 text-amber-600 border border-amber-500/20')
+                ? 'bg-primary/10 text-primary border border-primary/30'
+                : 'bg-warning/10 text-warning border border-warning/30')
             }
           >
             {paired
@@ -185,8 +185,8 @@ export default function WhatsAppLinkPage() {
         {/* Body */}
         {paired ? (
           <div className="flex flex-col items-center text-center py-8">
-            <div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center mb-3">
-              <CheckCircle2 className="w-7 h-7 text-emerald-500" />
+            <div className="w-14 h-14 rounded-full bg-success/10 flex items-center justify-center mb-3">
+              <CheckCircle2 strokeWidth={1.5} className="w-7 h-7 text-success" />
             </div>
             <h2 className="text-lg font-semibold">You're linked</h2>
             <p className="text-sm text-muted-foreground mt-1">
@@ -258,7 +258,7 @@ export default function WhatsAppLinkPage() {
               15–30&nbsp;seconds.
             </p>
             {state?.wa_connection_status === 'disconnected' && (
-              <div className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-amber-500/10 text-amber-600 border border-amber-500/20 px-2 py-1 text-xs">
+              <div className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-warning/10 text-warning border border-warning/30 px-2 py-1 text-xs">
                 <AlertTriangle className="w-3 h-3" />
                 Agent disconnected — regenerating…
               </div>

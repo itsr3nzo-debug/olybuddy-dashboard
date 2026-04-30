@@ -53,7 +53,6 @@ export default function BenchmarkCard({ answerRate, avgDuration, bookingRate, in
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.1 }}
       className="rounded-xl border p-6 bg-card"
-      style={{ borderColor: 'var(--border)' }}
     >
       <div className="flex items-center gap-2 mb-4">
         <Trophy size={16} className="text-brand-warning" />

@@ -75,7 +75,7 @@ export default function AgentLogsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Agent Logs</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Agent Logs</h1>
         <p className="text-sm mt-1 text-muted-foreground">Every action your AI Employee has taken</p>
       </div>
 
@@ -106,7 +106,7 @@ export default function AgentLogsPage() {
       </div>
 
       {/* Log feed */}
-      <div className="rounded-xl border bg-card" style={{ borderColor: 'var(--border)' }}>
+      <div className="rounded-xl border bg-card">
         {loading ? (
           <div className="divide-y divide-border">
             {[0,1,2,3,4,5].map(i => (

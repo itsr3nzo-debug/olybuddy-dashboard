@@ -3,9 +3,10 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Lock, Check } from 'lucide-react'
+import { Check } from 'lucide-react'
 import Link from 'next/link'
 import { validatePassword, PASSWORD_MIN_LENGTH } from '@/lib/password-policy'
+import { Input } from '@/components/ui/input'
 
 export default function ResetPasswordPage() {
   return (
@@ -116,73 +117,75 @@ function ResetPasswordForm() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0a0e1a] flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="rounded-2xl p-8 shadow-2xl border border-white/[0.08] backdrop-blur-xl bg-slate-900/70">
-          {done ? (
-            <div className="text-center py-4">
-              <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-emerald-500/10 border border-emerald-500/20">
-                <Check size={28} className="text-emerald-400" />
-              </div>
-              <h2 className="text-lg font-semibold text-white mb-2">Password updated</h2>
-              <p className="text-sm text-slate-400">Signing you in…</p>
-            </div>
-          ) : !ready ? (
-            <div className="text-center py-6">
-              <p className="text-sm text-slate-400">{error || 'Checking reset link…'}</p>
-              {error && (
-                <Link href="/forgot-password" className="inline-block mt-4 text-sm text-indigo-400 hover:text-indigo-300">
-                  Request a new reset link →
-                </Link>
-              )}
-            </div>
-          ) : (
-            <>
-              <h1 className="text-xl font-semibold text-white mb-1">Set a new password</h1>
-              <p className="text-sm text-slate-400 mb-6">At least {PASSWORD_MIN_LENGTH} characters with upper, lower, number, and a symbol.</p>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="relative">
-                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="New password"
-                    required
-                    autoFocus
-                    autoComplete="new-password"
-                    minLength={PASSWORD_MIN_LENGTH}
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-white/10 text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 bg-white/5 text-white placeholder:text-slate-500"
-                  />
-                </div>
-                {/* Live policy feedback — same rules the validator enforces. */}
+    <main className="min-h-screen bg-background flex items-center justify-center px-6 py-12">
+      <div className="w-full max-w-[360px]">
+        {done ? (
+          <div className="text-center">
+            <Check size={28} strokeWidth={1.75} className="text-success mx-auto mb-4" />
+            <h2 className="text-lg font-semibold text-foreground tracking-tight">
+              Password updated
+            </h2>
+            <p className="text-sm text-muted-foreground mt-2">Signing you in…</p>
+          </div>
+        ) : !ready ? (
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground">{error || 'Checking reset link…'}</p>
+            {error && (
+              <Link
+                href="/forgot-password"
+                className="inline-block mt-4 text-sm text-foreground hover:underline"
+              >
+                Request a new reset link →
+              </Link>
+            )}
+          </div>
+        ) : (
+          <>
+            <h1 className="text-2xl font-semibold text-foreground tracking-tight">
+              Set a new password
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1.5 mb-6 leading-relaxed">
+              At least {PASSWORD_MIN_LENGTH} characters with upper, lower, number, and a symbol.
+            </p>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="New password"
+                  required
+                  autoFocus
+                  autoComplete="new-password"
+                  minLength={PASSWORD_MIN_LENGTH}
+                />
                 {password && passwordCheck.error && (
-                  <p className="text-xs text-amber-400 -mt-2">{passwordCheck.error}</p>
+                  <p className="text-xs text-warning mt-1.5">{passwordCheck.error}</p>
                 )}
-                <div className="relative">
-                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-                  <input
-                    type="password"
-                    value={confirm}
-                    onChange={e => setConfirm(e.target.value)}
-                    placeholder="Confirm password"
-                    required
-                    autoComplete="new-password"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-white/10 text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 bg-white/5 text-white placeholder:text-slate-500"
-                  />
-                </div>
-                {error && <p className="text-sm text-red-400">{error}</p>}
-                <button
-                  type="submit"
-                  disabled={loading || !password || !confirm}
-                  className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50"
-                >
-                  {loading ? 'Updating…' : 'Update password'}
-                </button>
-              </form>
-            </>
-          )}
-        </div>
+              </div>
+              <Input
+                type="password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                placeholder="Confirm password"
+                required
+                autoComplete="new-password"
+              />
+              {error && (
+                <p className="text-xs px-3 py-2 rounded-sm border border-destructive/30 bg-destructive/8 text-destructive" role="alert">
+                  {error}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={loading || !password || !confirm}
+                className="w-full h-10 inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                {loading ? 'Updating…' : 'Update password'}
+              </button>
+            </form>
+          </>
+        )}
       </div>
     </main>
   )

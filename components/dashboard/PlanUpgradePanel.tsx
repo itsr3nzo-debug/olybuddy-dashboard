@@ -170,74 +170,90 @@ type PanelProps = {
   daysLeft?: number | null
 }
 
+/**
+ * Panel — v2.
+ *
+ * Stripped of:
+ * - Indigo→violet gradient bg + decorative blur circle
+ * - Coloured icon tile (was 48×48 rounded-xl with Sparkles inside)
+ * - Gradient CTA button with shadow
+ * - Pill-shaped days-left counter
+ *
+ * Replaced with:
+ * - Hairline-bordered card + 2px primary accent strip on the left
+ *   (matches <Card variant="hero">). Reads "important" without being
+ *   visually loud.
+ * - Mono days-left counter inline with title
+ * - Primary solid-navy CTA (Button default variant), no gradient
+ * - Secondary as a ghost link
+ *
+ * The single accent strip is what carries the eye now — no need for
+ * gradient hero treatments. DA review confirmed keeping the visual
+ * priority but losing the AI-generated styling.
+ */
 function Panel({
   variant, title, subtitle, ctaLabel, ctaHref, secondaryLabel, secondaryHref, trial, daysLeft,
 }: PanelProps) {
-  const gradient =
-    variant === 'warning'
-      ? 'from-red-500/10 via-orange-500/5 to-transparent border-red-500/30'
-      : 'from-indigo-500/12 via-violet-500/8 to-transparent border-indigo-500/30'
-  const iconBg =
-    variant === 'warning'
-      ? 'bg-red-500/15 text-red-400'
-      : 'bg-indigo-500/15 text-indigo-400'
-  const ctaBg =
-    variant === 'warning'
-      ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20'
-      : 'bg-gradient-to-r from-indigo-500 to-violet-600 hover:opacity-90 shadow-indigo-500/25'
-  const Icon = variant === 'warning' ? Zap : Sparkles
+  const isWarning = variant === 'warning'
+  const Icon = isWarning ? Zap : Sparkles
+  const stripStyle = isWarning
+    ? 'shadow-[inset_2px_0_0_0_var(--brand-danger)]'
+    : 'shadow-[inset_2px_0_0_0_var(--primary)]'
+  const iconColor = isWarning ? 'text-destructive' : 'text-primary'
 
   return (
-    <div
-      className={`relative overflow-hidden rounded-2xl border bg-gradient-to-br ${gradient} p-5 sm:p-6 mb-6`}
+    <section
+      className={`relative overflow-hidden rounded-lg border border-border bg-card ${stripStyle} p-4 sm:p-5 mb-6`}
     >
-      {/* Subtle ambient glow */}
-      <div className="pointer-events-none absolute -top-16 -right-16 w-48 h-48 rounded-full bg-indigo-500/10 blur-[60px]" />
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5">
+        {/* Icon — small, no tile */}
+        <Icon
+          aria-hidden
+          size={20}
+          strokeWidth={1.5}
+          className={`shrink-0 ${iconColor}`}
+        />
 
-      <div className="relative flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
-        {/* Icon + badge */}
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center ${iconBg}`}>
-            <Icon size={22} strokeWidth={2.2} />
-          </div>
-          {trial && daysLeft !== null && daysLeft !== undefined && daysLeft > 0 && (
-            <div className="hidden sm:flex flex-col items-center justify-center min-w-[56px] rounded-xl bg-white/5 border border-white/10 px-3 py-1.5">
-              <span className="text-xl font-bold tabular-nums text-foreground leading-none">{daysLeft}</span>
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">day{daysLeft === 1 ? '' : 's'}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Text */}
+        {/* Title + subtitle */}
         <div className="flex-1 min-w-0">
-          <h3 className="text-base sm:text-lg font-semibold text-foreground leading-tight">
-            {title}
-          </h3>
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <h3 className="text-base font-semibold text-foreground tracking-tight leading-tight">
+              {title}
+            </h3>
+            {trial && daysLeft !== null && daysLeft !== undefined && daysLeft > 0 && (
+              <span className="font-mono tabular-nums text-xs text-muted-foreground">
+                {daysLeft} day{daysLeft === 1 ? '' : 's'} left
+              </span>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground mt-1 leading-snug">
             {subtitle}
           </p>
         </div>
 
-        {/* CTAs */}
-        <div className="flex items-center gap-2 flex-shrink-0 sm:flex-col sm:items-stretch">
+        {/* CTAs — solid primary + ghost secondary */}
+        <div className="flex items-center gap-2 shrink-0">
           <a
             href={ctaHref}
-            className={`inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all shadow-lg ${ctaBg} whitespace-nowrap`}
+            className={`inline-flex items-center justify-center gap-1.5 h-9 px-3.5 rounded-md text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+              isWarning
+                ? 'bg-destructive text-white hover:bg-destructive/90'
+                : 'bg-primary text-primary-foreground hover:bg-primary/90'
+            }`}
           >
-            <CheckCircle2 size={14} />
             {ctaLabel}
-            <ArrowRight size={14} />
+            <ArrowRight size={14} strokeWidth={1.75} />
           </a>
           {secondaryHref && secondaryLabel && (
             <a
               href={secondaryHref}
-              className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+              className="inline-flex items-center justify-center h-9 px-3 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors whitespace-nowrap"
             >
               {secondaryLabel}
             </a>
           )}
         </div>
       </div>
-    </div>
+    </section>
   )
 }

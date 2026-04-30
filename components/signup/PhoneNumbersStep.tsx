@@ -120,7 +120,7 @@ export default function PhoneNumbersStep({ businessWhatsapp, ownerPhone, ownerNa
             onChange={(e) => onChange('business_whatsapp', e.target.value)}
             placeholder="07xxx xxx xxx"
             autoComplete="off"
-            className={`w-full rounded-lg border bg-card-bg px-3 py-3 sm:py-2 pr-9 text-base sm:text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 transition-colors ${
+            className={`w-full rounded-lg border bg-card px-3 py-3 sm:py-2 pr-9 text-base sm:text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 transition-colors ${
               bizValid === false
                 ? 'border-brand-danger/40 focus:ring-brand-danger/30'
                 : bizValid
@@ -158,7 +158,7 @@ export default function PhoneNumbersStep({ businessWhatsapp, ownerPhone, ownerNa
             onChange={(e) => onChange('owner_phone', e.target.value)}
             placeholder="07xxx xxx xxx"
             autoComplete="off"
-            className={`w-full rounded-lg border bg-card-bg px-3 py-3 sm:py-2 pr-9 text-base sm:text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 transition-colors ${
+            className={`w-full rounded-lg border bg-card px-3 py-3 sm:py-2 pr-9 text-base sm:text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 transition-colors ${
               ownerValid === false || sameNumber
                 ? 'border-brand-danger/40 focus:ring-brand-danger/30'
                 : ownerValid
@@ -198,7 +198,7 @@ export default function PhoneNumbersStep({ businessWhatsapp, ownerPhone, ownerNa
           onChange={(e) => onChange('owner_name', e.target.value)}
           placeholder="Kade"
           autoComplete="given-name"
-          className="w-full rounded-lg border border-border bg-card-bg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
+          className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
         />
       </div>
 

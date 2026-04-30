@@ -8,7 +8,7 @@ export default function ReviewsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Reviews</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Reviews</h1>
         <p className="text-sm mt-1 text-muted-foreground">Track and manage your business reviews</p>
       </div>
 

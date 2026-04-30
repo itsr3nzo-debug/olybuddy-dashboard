@@ -79,7 +79,7 @@ export default function WeeklyROIWidget() {
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-xl border bg-card-bg p-5 mb-6"
+      className="rounded-xl border bg-card p-5 mb-6"
     >
       <div className="flex items-start justify-between mb-4">
         <div>

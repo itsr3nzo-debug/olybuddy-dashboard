@@ -81,7 +81,7 @@ export default function EstimateDetail({ initial }: { initial: Estimate }) {
         <Link href="/estimates" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-2">
           <ArrowLeft size={12} /> All estimates
         </Link>
-        <h1 className="text-2xl font-bold text-foreground">{est.title}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{est.title}</h1>
         <p className="text-xs text-muted-foreground mt-1">
           Uploaded {new Date(est.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
           {est.source_pages && ` · ${est.source_pages} pages`}
@@ -89,23 +89,23 @@ export default function EstimateDetail({ initial }: { initial: Estimate }) {
         </p>
       </div>
 
-      {/* Disclaimer banner */}
-      <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-amber-200">
+      {/* Disclaimer banner — semantic warning tokens. */}
+      <div className="rounded-lg border border-warning/30 bg-card shadow-[inset_2px_0_0_0_var(--brand-warning)] p-4 text-sm text-foreground">
         <p className="font-medium mb-1">Draft take-off — review every line</p>
-        <p className="text-xs text-amber-200/80 leading-relaxed">
+        <p className="text-xs text-muted-foreground leading-relaxed">
           AI-generated from the uploaded plan. ~90–95% accurate on clean sheets, lower on dense/renovation drawings.
           Cable-run metres are NOT measured. Confirm loadings (access/OOH/rushed) and apply manually before sending to a client.
         </p>
         {est.takeoff_review_notes && (
-          <p className="text-xs text-amber-200/80 leading-relaxed mt-2 border-t border-amber-500/20 pt-2">
-            <strong>AI notes:</strong> {est.takeoff_review_notes}
+          <p className="text-xs text-muted-foreground leading-relaxed mt-2 border-t border-warning/20 pt-2">
+            <strong className="text-foreground">AI notes:</strong> {est.takeoff_review_notes}
           </p>
         )}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Take-off editor */}
-        <div className="rounded-xl border bg-card-bg p-5">
+        <div className="rounded-xl border bg-card p-5">
           <h2 className="text-sm font-medium text-foreground mb-3">Take-off</h2>
           <div className="space-y-2">
             {Object.keys(takeoff).length === 0 ? (
@@ -138,7 +138,7 @@ export default function EstimateDetail({ initial }: { initial: Estimate }) {
         </div>
 
         {/* Pricing summary */}
-        <div className="rounded-xl border bg-card-bg p-5">
+        <div className="rounded-xl border bg-card p-5">
           <h2 className="text-sm font-medium text-foreground mb-3">Pricing</h2>
           {est.pricing_json?.totals ? (
             <div className="space-y-1.5 text-sm">
@@ -172,7 +172,7 @@ export default function EstimateDetail({ initial }: { initial: Estimate }) {
 
       {/* Line items */}
       {est.pricing_json?.by_item && est.pricing_json.by_item.length > 0 && (
-        <div className="rounded-xl border bg-card-bg p-5">
+        <div className="rounded-xl border bg-card p-5">
           <h2 className="text-sm font-medium text-foreground mb-3">Line items</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -202,7 +202,7 @@ export default function EstimateDetail({ initial }: { initial: Estimate }) {
       )}
 
       {/* Actions */}
-      <div className="rounded-xl border bg-card-bg p-5 flex items-center justify-between">
+      <div className="rounded-xl border bg-card p-5 flex items-center justify-between">
         <div className="text-xs text-muted-foreground">
           Status: <span className="text-foreground font-medium capitalize">{est.status.replace(/_/g, ' ')}</span>
         </div>
@@ -230,7 +230,7 @@ export default function EstimateDetail({ initial }: { initial: Estimate }) {
             <>
               <button
                 onClick={() => changeStatus('won')}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-green-500/10 border border-green-500/40 text-green-400 px-3 py-1.5 text-xs font-medium hover:bg-green-500/20"
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-success/40 bg-success/10 text-success text-xs font-medium hover:bg-success/15 active:bg-success/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Won
               </button>

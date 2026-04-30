@@ -71,8 +71,53 @@
     {
       "path": "/api/cron/agent-alerts-prune",
       "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/sync-jwt-denylist",
+      "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/cron/purge-expired-idempotency",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/process-gdpr-requests",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/purge-deleted-accounts",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/send-daily-digest",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/build-digest",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/rotate-build-token",
+      "schedule": "0 9 * * 1"
     }
   ],
+  "functions": {
+    "app/api/chat/stream/[id]/route.ts": {
+      "maxDuration": 800
+    },
+    "app/api/agent/handle-message/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/cron/process-gdpr-requests/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/cron/purge-deleted-accounts/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/cron/send-daily-digest/route.ts": {
+      "maxDuration": 300
+    }
+  },
   "alias": [
     "nexley.vercel.app"
   ]

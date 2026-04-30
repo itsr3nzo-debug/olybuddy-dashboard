@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Check, Send, X, PoundSterling, Wrench, Clock, FileText, ChevronDown, ChevronUp } from 'lucide-react'
+import { StatusBadge } from '@/components/ui/badge'
 
 type Variation = {
   id: string
@@ -27,12 +28,15 @@ const STATUS_LABEL = {
   invoiced: 'Invoiced',
 }
 
-const STATUS_COLOR: Record<Variation['status'], string> = {
-  draft: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-  sent_to_client: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
-  approved: 'bg-green-500/10 text-green-400 border-green-500/30',
-  rejected: 'bg-red-500/10 text-red-400 border-red-500/30',
-  invoiced: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+// Replaced with <StatusBadge> primitive. `invoiced` and `approved` collapse
+// onto `success` (no need to differentiate visually — the column already
+// labels which is which).
+const STATUS_TO_BADGE: Record<Variation['status'], string> = {
+  draft:          'draft',
+  sent_to_client: 'sent',
+  approved:       'approved',
+  rejected:       'rejected',
+  invoiced:       'invoiced',
 }
 
 export default function VariationsList({ initial }: { initial: Variation[] }) {
@@ -63,7 +67,7 @@ export default function VariationsList({ initial }: { initial: Variation[] }) {
 
   if (rows.length === 0) {
     return (
-      <div className="rounded-xl border bg-card-bg p-10 text-center">
+      <div className="rounded-xl border bg-card p-10 text-center">
         <FileText size={28} className="mx-auto text-muted-foreground mb-3" />
         <p className="text-sm font-medium text-foreground">No variations logged</p>
         <p className="text-xs text-muted-foreground mt-1">
@@ -75,7 +79,7 @@ export default function VariationsList({ initial }: { initial: Variation[] }) {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-xl border bg-card-bg p-4 flex items-center justify-between text-sm">
+      <div className="rounded-xl border bg-card p-4 flex items-center justify-between text-sm">
         <div>
           <span className="text-muted-foreground">Open variation value</span>
           <span className="ml-3 text-foreground font-medium text-lg">£{totalOpenValue.toLocaleString()}</span>
@@ -88,13 +92,11 @@ export default function VariationsList({ initial }: { initial: Variation[] }) {
       {rows.map(v => {
         const isOpen = expandedId === v.id
         return (
-          <div key={v.id} className="rounded-xl border bg-card-bg overflow-hidden">
+          <div key={v.id} className="rounded-xl border bg-card overflow-hidden">
             <div className="p-4 flex items-start gap-3">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <span className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_COLOR[v.status]}`}>
-                    {STATUS_LABEL[v.status]}
-                  </span>
+                  <StatusBadge status={STATUS_TO_BADGE[v.status]} />
                   {v.job_external_id && (
                     <span className="text-xs font-mono text-muted-foreground">Job {v.job_external_id}</span>
                   )}
@@ -160,9 +162,9 @@ export default function VariationsList({ initial }: { initial: Variation[] }) {
                       <button
                         onClick={() => update(v.id, { status: 'approved' })}
                         disabled={busy[v.id]}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-green-500/10 border border-green-500/40 text-green-400 px-3 py-1.5 text-xs font-medium hover:bg-green-500/20 disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-success/40 bg-success/10 text-success text-xs font-medium hover:bg-success/15 active:bg-success/20 transition-colors disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-success/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
-                        <Check size={12} />
+                        <Check size={12} strokeWidth={2} />
                         Client approved
                       </button>
                       <button

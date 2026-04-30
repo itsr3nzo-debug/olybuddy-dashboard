@@ -39,7 +39,7 @@ export default async function ConversationsPage() {
   return (
     <div className="h-[calc(100vh-120px)] lg:h-[calc(100vh-80px)]">
       <div className="mb-4">
-        <h1 className="text-2xl font-bold text-foreground">Inbox</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Inbox</h1>
         <p className="text-sm mt-1 text-muted-foreground">All conversations in one place</p>
       </div>
 

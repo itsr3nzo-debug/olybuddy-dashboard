@@ -154,7 +154,7 @@ export default function SenderRolesEditor() {
       </div>
 
       {/* Business WhatsApp */}
-      <div className="rounded-xl border bg-card-bg p-5">
+      <div className="rounded-xl border bg-card p-5">
         <label className="block text-sm font-medium text-foreground mb-1.5">
           <span className="inline-flex items-center gap-1.5">
             <Phone size={14} className="text-muted-foreground" />
@@ -184,7 +184,7 @@ export default function SenderRolesEditor() {
       </div>
 
       {/* Owner personal */}
-      <div className="rounded-xl border bg-card-bg p-5 space-y-4">
+      <div className="rounded-xl border bg-card p-5 space-y-4">
         <div>
           <label className="block text-sm font-medium text-foreground mb-1.5">
             <span className="inline-flex items-center gap-1.5">
@@ -230,7 +230,7 @@ export default function SenderRolesEditor() {
       </div>
 
       {/* Aliases */}
-      <div className="rounded-xl border bg-card-bg p-5">
+      <div className="rounded-xl border bg-card p-5">
         <div className="mb-3">
           <h3 className="text-sm font-medium text-foreground">Additional owner-level numbers</h3>
           <p className="text-xs text-muted-foreground mt-1">
@@ -296,7 +296,7 @@ export default function SenderRolesEditor() {
       )}
 
       {/* Save bar */}
-      <div className="flex items-center justify-between rounded-xl border bg-card-bg p-4">
+      <div className="flex items-center justify-between rounded-xl border bg-card p-4">
         <div className="text-xs text-muted-foreground">
           {dirty ? 'You have unsaved changes.' : 'All changes saved.'}
         </div>

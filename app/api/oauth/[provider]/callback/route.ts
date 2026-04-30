@@ -198,13 +198,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
         console.warn(`[composio-callback] trigger auto-subscribe failed:`, e);
       }
 
-      const response = NextResponse.redirect(`${origin}/integrations?connected=${provider}`);
+      // Audit fix: if the connect was initiated from mobile (?from=mobile),
+      // land on a mobile-friendly confirmation page that tells the user to
+      // return to the app, instead of dropping them on the desktop /integrations
+      // page which would require a separate login.
+      const fromMobile = searchParams.get("from") === "mobile";
+      const successUrl = fromMobile
+        ? `${origin}/oauth/mobile-success?provider=${provider}&status=connected`
+        : `${origin}/integrations?connected=${provider}`;
+      const response = NextResponse.redirect(successUrl);
       response.cookies.delete("composio_connection_id");
       response.cookies.delete("composio_provider");
       return response;
     } catch (e) {
       console.error(`[composio-callback] failed for ${provider}:`, e);
-      return NextResponse.redirect(`${origin}/integrations?error=composio_callback_failed&provider=${provider}`);
+      const fromMobile = searchParams.get("from") === "mobile";
+      const errUrl = fromMobile
+        ? `${origin}/oauth/mobile-success?provider=${provider}&status=failed`
+        : `${origin}/integrations?error=composio_callback_failed&provider=${provider}`;
+      return NextResponse.redirect(errUrl);
     }
   }
 

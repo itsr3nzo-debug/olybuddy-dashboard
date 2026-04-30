@@ -60,7 +60,7 @@ export default function SentimentDonut({ positive, neutral, negative }: Sentimen
           </PieChart>
         </ResponsiveContainer>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-bold text-foreground">{total}</span>
+          <span className="text-2xl font-semibold tracking-tight text-foreground">{total}</span>
           <span className="text-xs text-muted-foreground">calls</span>
         </div>
       </div>

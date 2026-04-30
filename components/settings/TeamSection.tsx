@@ -32,8 +32,8 @@ interface InviteResponse {
 }
 
 const ROLE_ICONS: Record<string, React.ReactNode> = {
-  super_admin: <Shield size={14} className="text-purple-500" />,
-  owner: <Crown size={14} className="text-amber-500" />,
+  super_admin: <Shield size={14} strokeWidth={1.5} className="text-primary" />,
+  owner: <Crown size={14} strokeWidth={1.5} className="text-warning" />,
   member: <User size={14} className="text-muted-foreground" />,
 }
 
@@ -219,7 +219,7 @@ export default function TeamSection() {
           <span
             className={
               atCap
-                ? 'text-xs font-medium px-2 py-1 rounded-full bg-amber-500/10 text-amber-600'
+                ? 'text-xs font-medium px-2 h-6 inline-flex items-center rounded-sm bg-warning/10 text-warning'
                 : 'text-xs text-muted-foreground px-2 py-1'
             }
           >
@@ -246,7 +246,7 @@ export default function TeamSection() {
                 {ROLE_ICONS[m.role] ?? ROLE_ICONS.member}
                 <span className="text-sm truncate">{m.email}</span>
                 {isPending && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 text-[10px] font-medium flex-shrink-0">
+                  <span className="inline-flex items-center gap-1 px-1.5 h-[18px] rounded-sm bg-warning/10 text-warning text-[10px] font-medium flex-shrink-0">
                     Pending
                   </span>
                 )}
@@ -295,7 +295,7 @@ export default function TeamSection() {
                     disabled={rowBusy}
                     title="Remove from team"
                     aria-label="Remove from team"
-                    className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                    className="inline-flex items-center gap-1 h-7 px-2 text-xs rounded-md text-destructive hover:bg-destructive/10 active:bg-destructive/15 transition-colors disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {rowBusy && pendingRowAction?.kind === 'remove'
                       ? <Loader2 size={12} className="animate-spin" />
@@ -341,10 +341,10 @@ export default function TeamSection() {
       )}
 
       {error && (
-        <p className="text-sm text-red-500 mt-3">{error}</p>
+        <p className="text-sm text-destructive mt-3" role="alert">{error}</p>
       )}
       {success && (
-        <p className="text-sm text-green-500 mt-3">{success}</p>
+        <p className="text-sm text-success mt-3">{success}</p>
       )}
 
       {/* SMTP-failure fallback — surface the raw link so the owner can
@@ -362,8 +362,8 @@ export default function TeamSection() {
         </div>
       )}
       {copiedInviteUrl && copiedInviteUrl.endsWith('#copied') && (
-        <p className="mt-2 inline-flex items-center gap-1 text-xs text-green-500">
-          <Check size={12} /> Copied
+        <p className="mt-2 inline-flex items-center gap-1 text-xs text-success">
+          <Check size={12} strokeWidth={2} /> Copied
         </p>
       )}
     </div>

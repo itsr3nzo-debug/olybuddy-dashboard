@@ -1,0 +1,289 @@
+/* Nexley Mobile — design tokens (dark + light) and base styles */
+
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* Light tokens */
+  --bg: oklch(0.99 0.002 270);
+  --fg: oklch(0.18 0.005 270);
+  --card: oklch(1 0 0);
+  --elevated: oklch(1 0 0);
+  --muted: oklch(0.96 0.003 270);
+  --muted-fg: oklch(0.51 0.008 270);
+  --border: oklch(0.91 0.004 270);
+  --border-strong: oklch(0.85 0.004 270);
+  --input: oklch(0.94 0.004 270);
+  --ring: oklch(0.55 0.13 264);
+  --primary: oklch(0.5 0.16 264);
+  --primary-fg: oklch(0.99 0.002 270);
+  --primary-soft: oklch(0.92 0.04 264);
+  --success: oklch(0.62 0.14 175);
+  --success-soft: oklch(0.93 0.04 175);
+  --warning: oklch(0.74 0.16 75);
+  --warning-soft: oklch(0.95 0.05 75);
+  --destructive: oklch(0.57 0.21 27);
+  --shadow-modal: 0 20px 60px -10px rgba(20, 20, 30, 0.18);
+}
+
+[data-theme="dark"] {
+  --bg: oklch(0.135 0.005 270);
+  --fg: oklch(0.96 0.002 60);
+  --card: oklch(0.195 0.006 270);
+  --elevated: oklch(0.235 0.006 270);
+  --muted: oklch(0.245 0.005 270);
+  --muted-fg: oklch(0.68 0.008 60);
+  --border: oklch(0.305 0.006 270);
+  --border-strong: oklch(0.38 0.006 270);
+  --input: oklch(0.24 0.006 270);
+  --ring: oklch(0.7 0.16 264);
+  --primary: oklch(0.7 0.16 264);
+  --primary-fg: oklch(0.13 0.005 270);
+  --primary-soft: oklch(0.28 0.07 264);
+  --success: oklch(0.74 0.14 175);
+  --success-soft: oklch(0.28 0.05 175);
+  --warning: oklch(0.78 0.16 75);
+  --warning-soft: oklch(0.3 0.06 75);
+  --destructive: oklch(0.7 0.2 27);
+  --shadow-modal: 0 20px 60px -10px rgba(0, 0, 0, 0.6);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: #1a1a1c;
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+.mono { font-family: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace; font-variant-numeric: tabular-nums; }
+.tracking-tight { letter-spacing: -0.02em; }
+.tracking-tighter { letter-spacing: -0.04em; }
+.tracking-wider { letter-spacing: 0.06em; }
+
+button { font-family: inherit; cursor: pointer; }
+
+/* The phone canvas — every screen renders inside this */
+.nx-screen {
+  background: var(--bg);
+  color: var(--fg);
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+/* hairline border helper */
+.hairline { border: 0.5px solid var(--border); }
+.hairline-t { border-top: 0.5px solid var(--border); }
+.hairline-b { border-bottom: 0.5px solid var(--border); }
+
+/* status dot — orbiting pulse for live state */
+.status-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  flex-shrink: 0;
+}
+.status-dot::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid var(--success);
+  opacity: 0.5;
+  animation: nx-orbit 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.status-dot::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: var(--success);
+  opacity: 0.25;
+  animation: nx-pulse 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes nx-orbit {
+  0% { transform: scale(0.8); opacity: 0.6; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+@keyframes nx-pulse {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 0.5; }
+}
+
+.status-dot.warning { background: var(--warning); }
+.status-dot.warning::before, .status-dot.warning::after { display: none; }
+
+/* skeleton shimmer */
+@keyframes nx-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--muted) 0%, var(--border) 50%, var(--muted) 100%);
+  background-size: 200% 100%;
+  animation: nx-shimmer 1.6s linear infinite;
+  border-radius: 4px;
+}
+
+/* caret blink for streaming */
+@keyframes nx-caret {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+.caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: currentColor;
+  vertical-align: -0.18em;
+  margin-left: 2px;
+  animation: nx-caret 1s steps(1) infinite;
+  border-radius: 1px;
+}
+
+/* waveform thinking */
+.wave {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  height: 12px;
+}
+.wave span {
+  width: 2px;
+  background: currentColor;
+  border-radius: 1px;
+  animation: nx-wave 1.2s ease-in-out infinite;
+}
+.wave span:nth-child(1) { animation-delay: 0s; height: 4px; }
+.wave span:nth-child(2) { animation-delay: 0.1s; height: 8px; }
+.wave span:nth-child(3) { animation-delay: 0.2s; height: 12px; }
+.wave span:nth-child(4) { animation-delay: 0.3s; height: 6px; }
+.wave span:nth-child(5) { animation-delay: 0.4s; height: 10px; }
+@keyframes nx-wave {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+
+/* card with primary accent strip */
+.accent-card {
+  position: relative;
+  background: var(--card);
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.accent-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: var(--primary);
+}
+
+/* hide scrollbars in screens */
+.nx-screen *::-webkit-scrollbar { display: none; }
+.nx-screen * { scrollbar-width: none; }
+
+/* press feedback */
+.pressable {
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.12s, transform 0.08s;
+}
+.pressable:active { transform: scale(0.985); }
+
+/* tab bar indicator */
+.tab-active::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 28px; height: 2px;
+  background: var(--primary);
+  border-radius: 0 0 2px 2px;
+}
+
+/* bubble entrance */
+@keyframes nx-bubble-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.bubble-in { animation: nx-bubble-in 320ms cubic-bezier(0.32, 0.72, 0, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .bubble-in { animation: none; }
+}
+
+/* section rise — opacity-only, end state is default so screenshots capture cleanly */
+@keyframes nx-rise {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.rise { animation: nx-rise 380ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards; flex-shrink: 0; }
+
+/* integrations: spinner, toast, sheet, fade, dot pulse */
+@keyframes nx-spin { to { transform: rotate(360deg); } }
+@keyframes nx-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes nx-sheet {
+  from { transform: translateY(28px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+@keyframes nx-toast {
+  from { transform: translateY(14px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+/* status-dot pulse, distinct from .live-orbit's nx-pulse */
+@keyframes nx-dot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+/* avatar — gradient initials */
+.nx-avatar-gradient {
+  background: linear-gradient(135deg, var(--primary-soft) 0%, var(--primary) 140%);
+  color: var(--primary-fg);
+  border: 0.5px solid color-mix(in oklch, var(--primary) 30%, transparent);
+}
+[data-theme="dark"] .nx-avatar-gradient,
+.is-light [data-theme="dark"] .nx-avatar-gradient {
+  background: linear-gradient(135deg, color-mix(in oklch, var(--primary) 35%, var(--card)) 0%, color-mix(in oklch, var(--primary) 75%, transparent) 140%);
+  color: oklch(0.96 0.005 60);
+}
+
+/* line clamp util */
+.clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* hero ambient glow */
+.nx-hero {
+  position: relative;
+  overflow: hidden;
+  background: var(--card);
+  border: 0.5px solid var(--border);
+  border-radius: 12px;
+}
+.nx-hero::after {
+  content: '';
+  position: absolute;
+  inset: -40% -20% auto auto;
+  width: 60%;
+  height: 100%;
+  background: radial-gradient(ellipse at top right, color-mix(in oklch, var(--primary) 40%, transparent) 0%, transparent 60%);
+  opacity: 0.5;
+  pointer-events: none;
+}
+[data-theme="dark"] .nx-hero::after { opacity: 0.7; }

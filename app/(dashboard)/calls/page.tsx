@@ -9,6 +9,7 @@ import TranscriptBubbles from '@/components/shared/TranscriptBubbles'
 import EmptyState from '@/components/shared/EmptyState'
 import { ChevronRight, Phone, Search, MessageSquare, Send, X } from 'lucide-react'
 import { StatusBadge, DirectionBadge } from '@/components/ui/badge'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { toast } from 'sonner'
 import dynamic from 'next/dynamic'
 
@@ -68,7 +69,7 @@ export default function CallsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Call log</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Call log</h1>
           <p className="text-sm mt-1 text-muted-foreground">Transcripts + outcomes for every voice call handled by your AI Employee</p>
         </div>
       </div>
@@ -82,13 +83,13 @@ export default function CallsPage() {
             placeholder="Search by phone..."
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(0) }}
-            className="pl-9 pr-4 py-2 rounded-lg border text-sm outline-none bg-card-bg text-foreground border-border focus:ring-2 focus:ring-ring min-w-[200px]"
+            className="pl-9 pr-4 py-2 rounded-lg border text-sm outline-none bg-card text-foreground border-border focus:ring-2 focus:ring-ring min-w-[200px]"
           />
         </div>
         <select
           value={statusFilter}
           onChange={e => { setStatusFilter(e.target.value); setPage(0) }}
-          className="px-4 py-2 rounded-lg border text-sm outline-none bg-card-bg text-foreground border-border focus:ring-2 focus:ring-ring"
+          className="px-4 py-2 rounded-lg border text-sm outline-none bg-card text-foreground border-border focus:ring-2 focus:ring-ring"
         >
           <option value="all">All statuses</option>
           <option value="completed">Completed</option>
@@ -98,16 +99,18 @@ export default function CallsPage() {
         </select>
       </div>
 
-      {/* Table */}
-      <div className="rounded-xl shadow-sm border overflow-hidden bg-card-bg border-border">
-        {loading ? (
-          /* Skeleton loader */
+      {/* Table — uses the v2 <Table> primitive (border-separated, hairline
+          dividers, sticky header, small-caps column titles via the @table
+          token mapping). Drops the `shadow-sm` outer wrapper that broke the
+          dashboard's "no shadows on chrome" rule. */}
+      {loading ? (
+        <div className="rounded-lg border border-border bg-card overflow-hidden">
           <div className="divide-y divide-border">
-            <div className="grid grid-cols-6 gap-4 px-5 py-3 bg-muted/50">
+            <div className="grid grid-cols-6 gap-4 px-4 py-2.5 bg-muted/30">
               {[0,1,2,3,4,5].map(i => <div key={i} className="skeleton h-3 w-16 rounded" />)}
             </div>
             {[0,1,2,3,4].map(i => (
-              <div key={i} className="grid grid-cols-6 gap-4 px-5 py-4">
+              <div key={i} className="grid grid-cols-6 gap-4 px-4 py-2.5">
                 <div className="skeleton h-4 w-28 rounded" />
                 <div className="skeleton h-4 w-16 rounded" />
                 <div className="skeleton h-4 w-12 rounded" />
@@ -117,55 +120,59 @@ export default function CallsPage() {
               </div>
             ))}
           </div>
-        ) : calls.length === 0 ? (
+        </div>
+      ) : calls.length === 0 ? (
+        <div className="rounded-lg border border-border bg-card">
           <EmptyState
-            icon={<MessageSquare size={24} />}
+            icon={MessageSquare}
             title="No conversations yet"
             description={search || statusFilter !== 'all'
               ? 'Try adjusting your filters.'
               : 'Conversations will appear here once your AI Employee starts handling messages.'}
           />
-        ) : (
-          <>
-            {/* Desktop table */}
-            <div className="hidden md:block">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-muted/50">
-                    {['Contact', 'Direction', 'Duration', 'Status', 'Date & Time', 'Summary'].map(h => (
-                      <th key={h} className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {calls.map((call) => {
-                    const sc = STATUS_CONFIG[call.status]
-                    const dc = DIRECTION_CONFIG[call.direction]
-                    const caller = callerDisplayName(call)
-                    const isExpanded = expandedId === call.id
-                    const hasDetail = call.summary || call.transcript
+        </div>
+      ) : (
+        <>
+          {/* Desktop table */}
+          <div className="hidden md:block">
+            <Table stickyHeader>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Contact</TableHead>
+                  <TableHead>Direction</TableHead>
+                  <TableHead>Duration</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Date &amp; Time</TableHead>
+                  <TableHead>Summary</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {calls.map((call) => {
+                  const sc = STATUS_CONFIG[call.status]
+                  const dc = DIRECTION_CONFIG[call.direction]
+                  const caller = callerDisplayName(call)
+                  const isExpanded = expandedId === call.id
+                  const hasDetail = call.summary || call.transcript
 
-                    return (
-                      <CallRow
-                        key={call.id}
-                        call={call}
-                        caller={caller}
-                        sc={sc}
-                        dc={dc}
-                        isExpanded={isExpanded}
-                        hasDetail={!!hasDetail}
-                        onToggle={() => hasDetail && setExpandedId(prev => prev === call.id ? null : call.id)}
-                      />
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                  return (
+                    <CallRow
+                      key={call.id}
+                      call={call}
+                      caller={caller}
+                      sc={sc}
+                      dc={dc}
+                      isExpanded={isExpanded}
+                      hasDetail={!!hasDetail}
+                      onToggle={() => hasDetail && setExpandedId(prev => prev === call.id ? null : call.id)}
+                    />
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
 
-            {/* Mobile card layout */}
-            <div className="md:hidden divide-y divide-border">
+          {/* Mobile card layout */}
+          <div className="md:hidden rounded-lg border border-border bg-card overflow-hidden divide-y divide-border">
               {calls.map((call) => {
                 const sc = STATUS_CONFIG[call.status]
                 const caller = callerDisplayName(call)
@@ -203,30 +210,31 @@ export default function CallsPage() {
               })}
             </div>
 
-            {/* Pagination */}
-            <div className="flex items-center justify-between px-5 py-3 border-t border-border">
-              <button
-                onClick={() => setPage(p => Math.max(0, p - 1))}
-                disabled={page === 0}
-                className="px-3 py-1.5 rounded-lg text-sm border disabled:opacity-40 transition-colors bg-card-bg text-foreground border-border hover:bg-muted"
-              >
-                Previous
-              </button>
-              <span className="text-sm text-muted-foreground">
-                {calls.length} results · Page {page + 1}
-                {search && <span className="ml-1">for &ldquo;{search}&rdquo;</span>}
-              </span>
-              <button
-                onClick={() => setPage(p => p + 1)}
-                disabled={calls.length < PAGE_SIZE}
-                className="px-3 py-1.5 rounded-lg text-sm border disabled:opacity-40 transition-colors bg-card-bg text-foreground border-border hover:bg-muted"
-              >
-                Next
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+          {/* Pagination */}
+          <div className="flex items-center justify-between px-4 py-3 mt-3 rounded-lg border border-border bg-card">
+            <button
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="h-8 px-3 rounded-md text-sm border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-muted-foreground">
+              <span className="font-mono tabular-nums">{calls.length}</span> results
+              <span className="text-muted-foreground/60 mx-1.5">·</span>
+              Page <span className="font-mono tabular-nums">{page + 1}</span>
+              {search && <span className="ml-1">for &ldquo;{search}&rdquo;</span>}
+            </span>
+            <button
+              onClick={() => setPage(p => p + 1)}
+              disabled={calls.length < PAGE_SIZE}
+              className="h-8 px-3 rounded-md text-sm border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -244,42 +252,47 @@ function CallRow({ call, caller, sc, dc, isExpanded, hasDetail, onToggle }: {
 }) {
   return (
     <>
-      <tr
+      <TableRow
         onClick={onToggle}
-        className={`transition-colors ${hasDetail ? 'cursor-pointer hover:bg-muted/30' : ''} ${isExpanded ? 'bg-muted/30' : ''}`}
+        className={hasDetail ? 'cursor-pointer' : ''}
+        data-state={isExpanded ? 'selected' : undefined}
       >
-        <td className="px-5 py-3.5 text-sm font-medium text-foreground">
+        <TableCell className="font-medium">
           <div className="flex items-center gap-2">
             {hasDetail && (
-              <ChevronRight size={14} className={`text-muted-foreground transition-transform flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`} />
+              <ChevronRight
+                size={14}
+                strokeWidth={1.5}
+                className={`text-muted-foreground transition-transform flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`}
+              />
             )}
             {caller}
           </div>
-        </td>
-        <td className="px-5 py-3.5">
+        </TableCell>
+        <TableCell>
           <DirectionBadge direction={call.direction} />
-        </td>
-        <td className="px-5 py-3.5 text-sm text-muted-foreground">
+        </TableCell>
+        <TableCell className="text-muted-foreground font-mono tabular-nums">
           {formatDuration(call.duration_seconds)}
-        </td>
-        <td className="px-5 py-3.5">
+        </TableCell>
+        <TableCell>
           <StatusBadge status={call.status} />
-        </td>
-        <td className="px-5 py-3.5 text-sm text-muted-foreground">
+        </TableCell>
+        <TableCell className="text-muted-foreground font-mono tabular-nums">
           {formatDateTime(call.started_at)}
-        </td>
-        <td className="px-5 py-3.5 text-sm text-muted-foreground max-w-xs">
+        </TableCell>
+        <TableCell className="text-muted-foreground max-w-xs">
           <span className="truncate block">
-            {call.summary ? call.summary.slice(0, 80) + (call.summary.length > 80 ? '...' : '') : '—'}
+            {call.summary ? call.summary.slice(0, 80) + (call.summary.length > 80 ? '…' : '') : '—'}
           </span>
-        </td>
-      </tr>
+        </TableCell>
+      </TableRow>
       {isExpanded && (
-        <tr>
-          <td colSpan={6} className="bg-muted/20">
+        <TableRow>
+          <TableCell colSpan={6} className="bg-muted/20 p-0">
             <ExpandedDetail call={call} />
-          </td>
-        </tr>
+          </TableCell>
+        </TableRow>
       )}
     </>
   )
@@ -380,7 +393,7 @@ function ExpandedDetail({ call }: { call: CallLog }) {
             rows={3}
             maxLength={1600}
             placeholder="Hi, this is your AI Employee following up..."
-            className="w-full px-3 py-2 rounded-lg border text-sm bg-card-bg text-foreground border-border focus:ring-2 focus:ring-ring outline-none resize-none"
+            className="w-full px-3 py-2 rounded-lg border text-sm bg-card text-foreground border-border focus:ring-2 focus:ring-ring outline-none resize-none"
           />
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">{smsText.length}/1600</span>

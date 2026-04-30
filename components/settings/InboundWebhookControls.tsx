@@ -86,7 +86,7 @@ export default function InboundWebhookControls() {
   return (
     <div className="space-y-6">
       {/* Webhook URL */}
-      <div className="rounded-xl border bg-card-bg p-5">
+      <div className="rounded-xl border bg-card p-5">
         <h2 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
           <KeyRound size={14} /> Webhook endpoint
         </h2>
@@ -125,16 +125,17 @@ export default function InboundWebhookControls() {
         </div>
       </div>
 
-      {/* New token displayed once */}
+      {/* New token displayed once — high-stakes warning panel uses the
+          v2 warning tokens + 2px accent strip pattern. Was raw amber-500. */}
       {newToken && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5">
+        <div className="rounded-lg border border-warning/30 bg-card shadow-[inset_2px_0_0_0_var(--brand-warning)] p-5">
           <div className="flex items-start gap-3">
-            <AlertTriangle size={16} className="text-amber-400 mt-0.5" />
+            <AlertTriangle size={16} strokeWidth={1.5} className="text-warning mt-0.5" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground mb-1">Your new token — copy it now</p>
               <p className="text-xs text-muted-foreground mb-3">This is the only time the full token is shown. If you lose it, rotate again.</p>
               <div className="flex gap-2">
-                <code className="flex-1 rounded-lg border border-amber-500/40 bg-background px-3 py-2 text-xs font-mono text-foreground break-all">
+                <code className="flex-1 rounded-sm border border-warning/40 bg-background px-3 py-2 text-xs font-mono text-foreground break-all">
                   {newToken}
                 </code>
                 <button
@@ -151,7 +152,7 @@ export default function InboundWebhookControls() {
       )}
 
       {/* Trust level */}
-      <div className="rounded-xl border bg-card-bg p-5">
+      <div className="rounded-xl border bg-card p-5">
         <h2 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
           <Shield size={14} /> Trust level
         </h2>
@@ -188,11 +189,11 @@ export default function InboundWebhookControls() {
       </div>
 
       {msg && (
-        <div className="rounded-xl border bg-card-bg p-3 text-sm text-muted-foreground">{msg}</div>
+        <div className="rounded-xl border bg-card p-3 text-sm text-muted-foreground">{msg}</div>
       )}
 
       {/* Example payloads */}
-      <div className="rounded-xl border bg-card-bg p-5">
+      <div className="rounded-xl border bg-card p-5">
         <h2 className="text-sm font-medium text-foreground mb-2">Example payloads</h2>
         <p className="text-xs text-muted-foreground mb-3">What your external tool should POST.</p>
 

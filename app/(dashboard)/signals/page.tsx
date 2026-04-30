@@ -29,7 +29,7 @@ export default async function SignalsPage() {
   if (error) {
     return (
       <div className="p-8">
-        <p className="text-red-500">Failed to load signals: {error.message}</p>
+        <p className="text-destructive" role="alert">Failed to load signals: {error.message}</p>
       </div>
     )
   }
@@ -37,7 +37,7 @@ export default async function SignalsPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Integration signals</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Integration signals</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Proactive actions your AI employee spotted across your connected integrations
           (Gmail, Xero, Calendar, Stripe). Approve the ones you want it to action.

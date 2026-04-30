@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
-import { LineChart, Line, ResponsiveContainer } from 'recharts'
+import { cn } from '@/lib/utils'
 
 interface KpiCardProps {
   label: string
@@ -17,22 +17,89 @@ interface KpiCardProps {
   index?: number
 }
 
-const colorMap: Record<string, { css: string; hex: string; glow: string }> = {
-  default: { css: 'var(--foreground)',     hex: '#64748b', glow: 'rgba(100,116,139,0.1)' },
-  accent:  { css: 'var(--brand-primary)',  hex: '#6366f1', glow: 'rgba(99,102,241,0.1)' },
-  success: { css: 'var(--brand-success)',  hex: '#22c55e', glow: 'rgba(34,197,94,0.1)' },
-  warning: { css: 'var(--brand-warning)',  hex: '#f59e0b', glow: 'rgba(245,158,11,0.1)' },
-  danger:  { css: 'var(--brand-danger)',   hex: '#ef4444', glow: 'rgba(239,68,68,0.1)' },
+/**
+ * KpiCard — v2.
+ *
+ * Stripped of:
+ * - rounded-2xl → 8px (radius cap auto-applies but we set rounded-lg
+ *   explicitly for clarity)
+ * - Coloured icon tile bg (was `${hex}15` background) → drops the tile
+ *   entirely; icon floats inline with label, in muted colour
+ * - Hover gradient glow → flat hover state (subtle bg shift only)
+ * - Big coloured number (`color: c`) → numbers stay foreground colour;
+ *   only the trend pill carries semantic colour
+ * - 28-36px font → 24-32px is enough for kpi cards (hero number is
+ *   reserved for HeroRoiCard)
+ *
+ * Preserved:
+ * - AnimatedNumber count-up (kept inline)
+ * - Sparkline (kept, but stroke 1.5 in muted-foreground for default,
+ *   primary for accent)
+ * - Trend up/down indicator
+ * - Stagger animation entrance
+ */
+
+const SPARK_STROKE: Record<string, string> = {
+  default: 'var(--muted-foreground)',
+  accent:  'var(--primary)',
+  success: 'var(--brand-success)',
+  warning: 'var(--brand-warning)',
+  danger:  'var(--brand-danger)',
+}
+
+/**
+ * Inline SVG sparkline — replaces the recharts LineChart that previously
+ * lived here. recharts is ~200kB minified and the dashboard ships 4
+ * KpiCards on every render, so this single swap removes recharts from
+ * the dashboard's initial bundle entirely (CallsChart is the only other
+ * recharts consumer on this route, lazy-loaded via next/dynamic).
+ *
+ * The sparkline draws a single 1.5px polyline through the data points,
+ * scaled to fit the SVG viewBox. No fill, no gradient, no dots — Linear /
+ * Vercel pattern.
+ */
+function Sparkline({ data, color }: { data: number[]; color: string }) {
+  if (!data || data.length < 2) return null
+  const w = 100
+  const h = 24
+  const max = Math.max(...data)
+  const min = Math.min(...data)
+  const range = max - min || 1
+  const stepX = w / (data.length - 1)
+  const points = data
+    .map((v, i) => `${(i * stepX).toFixed(1)},${(h - ((v - min) / range) * h).toFixed(1)}`)
+    .join(' ')
+  return (
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="none"
+      className="w-full h-8"
+      aria-hidden
+    >
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  )
 }
 
 function AnimatedNumber({ target, prefix = '' }: { target: number; prefix?: string }) {
   const [display, setDisplay] = useState(0)
   const rafRef = useRef<number>(0)
   const startRef = useRef<number | null>(null)
-  const DURATION = 1200
+  const DURATION = 1000
 
   useEffect(() => {
-    if (target === 0) { setDisplay(0); return }
+    if (target === 0) {
+      setDisplay(0)
+      return
+    }
     startRef.current = null
     function step(ts: number) {
       if (!startRef.current) startRef.current = ts
@@ -46,94 +113,108 @@ function AnimatedNumber({ target, prefix = '' }: { target: number; prefix?: stri
     return () => cancelAnimationFrame(rafRef.current)
   }, [target])
 
-  return <>{prefix}{display.toLocaleString('en-GB')}</>
+  return (
+    <>
+      {prefix}
+      {display.toLocaleString('en-GB')}
+    </>
+  )
 }
 
-export default function KpiCard({ label, value, sub, color = 'default', icon, trend, prefix = '', animate = false, sparklineData, index = 0 }: KpiCardProps) {
-  const { css: c, hex, glow } = colorMap[color] ?? colorMap.default
+function KpiCardImpl({
+  label,
+  value,
+  sub,
+  color = 'default',
+  icon,
+  trend,
+  prefix = '',
+  animate = false,
+  sparklineData,
+  index = 0,
+}: KpiCardProps) {
   const isNumeric = typeof value === 'number' && animate
-  const sparkData = sparklineData?.map((v, i) => ({ i, v }))
+  const sparkColor = SPARK_STROKE[color] ?? SPARK_STROKE.default
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: index * 0.08, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className="group relative rounded-2xl border p-4 sm:p-5 flex flex-col gap-2 transition-all duration-300 hover:shadow-lg bg-card dark:bg-card overflow-hidden"
-      style={{ borderColor: 'var(--border)' }}
+      transition={{
+        duration: 0.3,
+        delay: index * 0.05,
+        ease: [0.25, 0.46, 0.45, 0.94],
+      }}
+      className={cn(
+        'group relative rounded-lg border border-border bg-card',
+        'p-4 flex flex-col gap-2',
+        'transition-colors duration-200',
+        'hover:bg-muted/30',
+      )}
     >
-      {/* Subtle gradient glow on hover */}
-      <div
-        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-2xl"
-        style={{ background: `radial-gradient(circle at 50% 0%, ${glow}, transparent 70%)` }}
-      />
+      {/* Top row — small-caps label + optional inline icon */}
+      <div className="flex items-center justify-between gap-2 min-h-[20px]">
+        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground truncate">
+          {label}
+        </span>
+        {icon && <span className="text-muted-foreground/60 shrink-0">{icon}</span>}
+      </div>
 
-      <div className="relative z-10">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {label}
-          </span>
-          {icon && (
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110"
-              style={{ background: `${hex}15`, color: c }}
-            >
-              {icon}
-            </div>
-          )}
-        </div>
-
-        <div className="text-[28px] sm:text-[36px] font-bold leading-none tracking-tight" style={{ color: c }}>
-          {isNumeric
-            ? <AnimatedNumber target={value as number} prefix={prefix} />
-            : <>{prefix}{typeof value === 'number' ? value.toLocaleString('en-GB') : value}</>
-          }
-        </div>
-
-        {sparkData && sparkData.length > 1 && (
-          <div className="h-10 mt-1 -mx-1 opacity-60 group-hover:opacity-100 transition-opacity">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={sparkData}>
-                <defs>
-                  <linearGradient id={`spark-${color}-${index}`} x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor={hex} stopOpacity={0.3} />
-                    <stop offset="100%" stopColor={hex} stopOpacity={1} />
-                  </linearGradient>
-                </defs>
-                <Line type="monotone" dataKey="v" stroke={`url(#spark-${color}-${index})`} strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+      {/* Value — neutral foreground, mono tabular */}
+      <div className="font-mono tabular-nums text-2xl sm:text-[28px] font-semibold leading-none tracking-tight text-foreground">
+        {isNumeric ? (
+          <AnimatedNumber target={value as number} prefix={prefix} />
+        ) : (
+          <>
+            {prefix}
+            {typeof value === 'number' ? value.toLocaleString('en-GB') : value}
+          </>
         )}
+      </div>
 
-        <div className="flex items-center justify-between mt-1.5 min-h-[18px]">
-          {sub && <span className="text-[11px] text-muted-foreground">{sub}</span>}
-          {trend !== undefined && (
-            <motion.span
-              initial={{ opacity: 0, x: -5 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.6 + index * 0.08 }}
-              className={`text-[11px] font-bold ${trend >= 0 ? 'text-brand-success' : 'text-brand-danger'}`}
-            >
-              {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}%
-            </motion.span>
-          )}
+      {/* Sparkline — inline SVG, no recharts. Replaces a 200kB dependency
+          for KpiCard's tiny 100×24 line render. */}
+      {sparklineData && sparklineData.length > 1 && (
+        <div className="mt-1 -mx-1 opacity-60 group-hover:opacity-100 transition-opacity">
+          <Sparkline data={sparklineData} color={sparkColor} />
         </div>
+      )}
+
+      {/* Bottom row — sub + trend */}
+      <div className="flex items-center justify-between mt-0.5 min-h-[16px]">
+        {sub && (
+          <span className="text-[11px] text-muted-foreground truncate">{sub}</span>
+        )}
+        {trend !== undefined && (
+          <span
+            className={cn(
+              'text-[11px] font-mono tabular-nums shrink-0',
+              trend >= 0 ? 'text-success' : 'text-destructive',
+            )}
+          >
+            {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}%
+          </span>
+        )}
       </div>
     </motion.div>
   )
 }
 
+/**
+ * Memoised — props are mostly primitives. Re-renders only when label /
+ * value / trend actually change. Dashboard renders 4 KpiCards in a row
+ * and re-renders on every realtime tick; memo is a real win here.
+ */
+const KpiCard = memo(KpiCardImpl)
+export default KpiCard
+
 export function KpiCardSkeleton() {
   return (
-    <div className="rounded-2xl border p-4 sm:p-5 flex flex-col gap-2 bg-card" style={{ borderColor: 'var(--border)' }}>
-      <div className="flex items-center justify-between">
-        <div className="skeleton h-3 w-20 rounded" />
-        <div className="skeleton h-9 w-9 rounded-xl" />
-      </div>
-      <div className="skeleton h-10 w-24 rounded" />
-      <div className="skeleton h-10 w-full rounded" />
-      <div className="skeleton h-3 w-28 rounded" />
+    <div className="rounded-lg border border-border bg-card p-4 flex flex-col gap-2">
+      <div className="skeleton h-3 w-20 rounded" />
+      <div className="skeleton h-7 w-20 rounded" />
+      <div className="skeleton h-8 w-full rounded" />
+      <div className="skeleton h-3 w-24 rounded" />
     </div>
   )
 }

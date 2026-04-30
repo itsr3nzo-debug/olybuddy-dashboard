@@ -8,7 +8,7 @@ export default function InboundWebhookPage() {
   return (
     <div className="max-w-3xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Inbound webhook</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Inbound webhook</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Let any external tool — website form, Typeform, Calendly, Fathom — trigger your AI Employee. The agent processes incoming triggers every 5 minutes and handles them based on your trust level.
         </p>

@@ -66,7 +66,7 @@ export default async function ReportingPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Reporting</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Reporting</h1>
         <p className="text-sm mt-1 text-muted-foreground">Last 30 days · Comprehensive analytics</p>
       </div>
 
@@ -83,7 +83,7 @@ export default async function ReportingPage() {
         </Suspense>
 
         {/* Outcome breakdown */}
-        <div className="rounded-xl border p-5 bg-card" style={{ borderColor: 'var(--border)' }}>
+        <div className="rounded-xl border p-5 bg-card">
           <h3 className="text-sm font-semibold text-foreground mb-3">Call Outcomes</h3>
           <div className="space-y-3">
             {outcomes.map(o => {
@@ -125,7 +125,7 @@ export default async function ReportingPage() {
         </div>
 
         {/* Stage breakdown */}
-        <div className="rounded-xl border p-5 bg-card" style={{ borderColor: 'var(--border)' }}>
+        <div className="rounded-xl border p-5 bg-card">
           <h3 className="text-sm font-semibold text-foreground mb-3">Stage Breakdown</h3>
           <div className="space-y-3">
             {stageBreakdown.map(s => (
@@ -143,8 +143,8 @@ export default async function ReportingPage() {
           </div>
           {wonValue > 0 && (
             <div className="mt-4 pt-4 border-t border-border">
-              <p className="text-xs text-muted-foreground">Total Won Revenue</p>
-              <p className="text-2xl font-bold text-brand-success">{formatCurrency(wonValue)}</p>
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Total won revenue</p>
+              <p className="mt-1 text-2xl font-mono tabular-nums tracking-tight text-foreground">{formatCurrency(wonValue)}</p>
             </div>
           )}
         </div>

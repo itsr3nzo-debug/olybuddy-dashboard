@@ -53,7 +53,7 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
 
     return (
       <div className="max-w-3xl mx-auto">
-        <h1 className="text-2xl font-bold text-foreground mb-2">Chat — admin view</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground mb-2">Chat — admin view</h1>
         <p className="text-sm text-muted-foreground mb-6">
           Pick a client to chat as their AI Employee. Messages hit the live client
           agent on its own Hetzner VPS. Clients without a deployed agent are greyed
@@ -77,8 +77,8 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
                   <span className="font-medium truncate flex items-center gap-2">
                     {c.name || c.slug}
                     {hasAgent ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 text-[10px] font-medium">
-                        <span className="h-1 w-1 rounded-full bg-emerald-500" />
+                      <span className="inline-flex items-center gap-1 rounded-sm bg-success/10 text-success px-1.5 h-[18px] text-[10px] font-medium">
+                        <span className="h-1 w-1 rounded-full bg-success" />
                         agent online
                       </span>
                     ) : (

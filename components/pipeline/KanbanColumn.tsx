@@ -21,9 +21,10 @@ export default function KanbanColumn({ stageKey, stageLabel, stageHex, opportuni
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col min-w-[260px] sm:min-w-[280px] max-w-[320px] flex-shrink-0 rounded-xl border transition-all duration-200 ${
+      className={`flex flex-col min-w-[260px] sm:min-w-[280px] max-w-[320px] flex-shrink-0 rounded-lg border transition-colors duration-150 ${
         isOver
-          ? 'border-brand-primary/50 bg-brand-primary/5 shadow-lg shadow-brand-primary/10'
+          // No shadow on drop-zone — colour shift alone signals "land here"
+          ? 'border-primary/50 bg-primary/5'
           : 'border-border bg-muted/30'
       }`}
     >

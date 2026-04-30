@@ -10,6 +10,7 @@ import ProvisioningBanner from '@/components/dashboard/ProvisioningBanner'
 import EmailVerificationBanner from '@/components/dashboard/EmailVerificationBanner'
 import { Breadcrumb } from '@/components/ui/breadcrumb'
 import ChatLauncher from '@/components/chat/ChatLauncher'
+import { cn } from '@/lib/utils'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -51,19 +52,42 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <RoleProvider session={session}>
-      <div className="flex min-h-screen bg-background">
+      {/*
+        Layout wrapper exposes a CSS variable `--sb` that holds the
+        sidebar's current width. Default = `15rem` (240px expanded).
+        When ANY descendant `<aside>` carries `data-collapsed`,
+        `--sb` flips to `3.5rem` (56px). Main content reads it as its
+        left margin. Closes the DA gap where collapsing the sidebar
+        left a 184px empty stripe between sidebar and content.
+
+        `:has()` is supported in Safari 15.4+ / Firefox 121+ / Chromium 105+ —
+        well above our floor (Next 16 requires modern browsers).
+      */}
+      <div
+        className={cn(
+          'flex min-h-screen bg-background',
+          'lg:[--sb:15rem] lg:has-[aside[data-collapsed]]:[--sb:3.5rem]',
+        )}
+      >
         {/* Desktop sidebar */}
         <div className="hidden lg:block">
           <Sidebar businessName={businessName} role={session.role} />
         </div>
 
-        {/* Main content */}
-        <main className="flex-1 lg:ml-60 min-h-screen p-4 sm:p-6 lg:p-8 overflow-auto pb-24 lg:pb-8 transition-[margin] duration-300">
-          <TrialBanner trialEndsAt={trialEndsAt} subscriptionStatus={subscriptionStatus} />
-          {session.role !== 'super_admin' && session.clientId && <ProvisioningBanner />}
-          {session.role !== 'super_admin' && session.clientId && !emailVerifiedAt && clientEmail && (
-            <EmailVerificationBanner email={clientEmail} />
-          )}
+        <main
+          id="main-content"
+          className="flex-1 lg:ml-[var(--sb,15rem)] min-h-screen p-4 sm:p-6 lg:p-8 overflow-auto pb-24 lg:pb-8 transition-[margin] duration-200 ease-out"
+        >
+          {/* Banner stack — three stateful banners share the new
+              <BannerShell> visual primitive. Each owns its own
+              polling/dismissal logic; only the chrome is unified. */}
+          <div className="space-y-2 mb-4 empty:hidden">
+            <TrialBanner trialEndsAt={trialEndsAt} subscriptionStatus={subscriptionStatus} />
+            {session.role !== 'super_admin' && session.clientId && <ProvisioningBanner />}
+            {session.role !== 'super_admin' && session.clientId && !emailVerifiedAt && clientEmail && (
+              <EmailVerificationBanner email={clientEmail} />
+            )}
+          </div>
           <Breadcrumb />
           {children}
         </main>

@@ -122,9 +122,9 @@ export default function CommandPalette() {
             transition={{ duration: 0.15 }}
             className="fixed left-1/2 top-[20%] z-50 -translate-x-1/2 w-full max-w-lg"
           >
-            <div className="rounded-2xl border bg-card shadow-2xl overflow-hidden" style={{ borderColor: 'var(--border)' }}>
+            <div className="rounded-2xl border bg-card shadow-2xl overflow-hidden">
               {/* Search input */}
-              <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+              <div className="flex items-center gap-3 px-4 py-3 border-b">
                 <Search size={16} className="text-muted-foreground" />
                 <input
                   ref={inputRef}

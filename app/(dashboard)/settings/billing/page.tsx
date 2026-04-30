@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { Section } from '@/components/ui/card'
 import { StatusBadge } from '@/components/ui/badge'
-import { CreditCard, Receipt, XCircle, Sparkles, AlertTriangle, RefreshCw, CheckCircle } from 'lucide-react'
+import { CreditCard, Receipt, XCircle, AlertTriangle, RefreshCw, CheckCircle, Zap } from 'lucide-react'
 import ReferralCard from '@/components/dashboard/ReferralCard'
 
 export const metadata: Metadata = { title: 'Billing | Nexley AI' }
@@ -132,7 +132,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Billing</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Billing</h1>
         <p className="text-sm mt-1 text-muted-foreground">
           Your subscription, payment method, and invoices — hosted securely by Stripe
         </p>
@@ -211,7 +211,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
                 </a>
                 <a
                   href="/api/stripe/upgrade?resume=true"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+                  className="inline-flex items-center gap-2 h-9 px-3.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
                 >
                   Resume payment →
                 </a>
@@ -231,9 +231,8 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
                   </div>
                   <a
                     href="/api/stripe/upgrade"
-                    className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-indigo-500/25"
+                    className="inline-flex items-center gap-2 h-10 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
                   >
-                    <Sparkles size={16} />
                     Set up billing — £19.99
                   </a>
                   <p className="text-xs text-muted-foreground mt-3">
@@ -277,9 +276,8 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
                   </div>
                   <a
                     href="/api/stripe/upgrade"
-                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-indigo-500/25 whitespace-nowrap"
+                    className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors whitespace-nowrap"
                   >
-                    <Sparkles size={14} />
                     Upgrade now — £599/mo
                   </a>
                 </div>
@@ -318,7 +316,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
                   <Row label="Status" value={<StatusBadge status="active" />} />
                   <Row
                     label="Cancels on"
-                    value={<span className="text-red-400">{niceDate(state.info.currentPeriodEnd)}<Help>Your agent stays live until this date. Resume your subscription any time from the billing portal.</Help></span>}
+                    value={<span className="text-destructive">{niceDate(state.info.currentPeriodEnd)}<Help>Your agent stays live until this date. Resume your subscription any time from the billing portal.</Help></span>}
                   />
                   <Row label="Billed to" value={client.email ?? '—'} />
                 </div>
@@ -342,7 +340,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
                 <div className="pt-4">
                   <a
                     href="/api/stripe/portal?flow=payment"
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500 text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+                    className="inline-flex items-center gap-2 h-9 px-3.5 rounded-md bg-destructive text-white text-sm font-medium hover:bg-destructive/90 active:bg-destructive/95 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   >
                     <CreditCard size={16} />
                     Update payment method
@@ -363,7 +361,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
                 </p>
                 <a
                   href="/api/stripe/upgrade"
-                  className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+                  className="inline-flex items-center gap-2 h-10 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
                 >
                   <RefreshCw size={16} />
                   Reactivate — £19.99
@@ -399,7 +397,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 function PlanValue({ label }: { label: string }) {
   return (
     <span className="inline-flex items-center gap-2">
-      <Sparkles size={14} className="text-brand-primary" />
+      <Zap size={14} strokeWidth={1.5} className="text-primary" />
       <span className="font-medium">{label}</span>
     </span>
   )
@@ -463,17 +461,17 @@ function ManageCards({ showCancel, resumeLabel }: { showCancel: boolean; resumeL
 
 function DangerCancel() {
   return (
-    <Section title="Cancel subscription" description="Stop future £599 billing — your agent stays live until the end of the current period" className="border-red-500/20">
-      <div className="flex items-start gap-3 p-4 rounded-lg bg-red-500/5 border border-red-500/20 mb-4">
-        <AlertTriangle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
+    <Section title="Cancel subscription" description="Stop future £599 billing — your agent stays live until the end of the current period" className="border-destructive/30">
+      <div className="flex items-start gap-3 p-4 rounded-lg bg-destructive/5 border border-destructive/30 mb-4">
+        <AlertTriangle size={18} className="text-destructive flex-shrink-0 mt-0.5" />
         <div className="text-sm text-muted-foreground">
-          <strong className="text-red-400 block mb-1">Before you cancel:</strong>
+          <strong className="text-destructive block mb-1">Before you cancel:</strong>
           Your agent will keep answering calls and WhatsApp messages until the end of your current billing period. Your data (call logs, contacts, pipeline) is retained for 30 days under UK GDPR — after that it&apos;s permanently deleted.
         </div>
       </div>
       <a
         href="/api/stripe/portal?flow=cancel"
-        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors"
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors"
       >
         <XCircle size={16} />
         Cancel subscription

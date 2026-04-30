@@ -59,7 +59,7 @@ export default async function WebhookDlqPage({
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Webhook DLQ</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Webhook DLQ</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Dead-letter queue for webhook deliveries that couldn&apos;t be routed.
             Most common causes: tenant metadata not yet enriched (Stripe account_id / Calendar channel_id),
@@ -91,7 +91,7 @@ export default async function WebhookDlqPage({
       )}
 
       {(entries ?? []).length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border bg-card-bg p-12 text-center">
+        <div className="rounded-lg border border-dashed border-border bg-card p-12 text-center">
           <p className="text-muted-foreground">
             {providerFilter
               ? `No ${providerFilter} webhooks in the DLQ.`

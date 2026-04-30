@@ -54,7 +54,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           <ArrowLeft size={18} className="text-muted-foreground" />
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-foreground">{name}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{name}</h1>
           <div className="flex items-center gap-3 mt-1">
             {stageConfig && (
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: `${stageConfig.hex}15`, color: stageConfig.hex }}>
@@ -70,7 +70,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column — Contact info */}
         <div className="lg:col-span-1 space-y-4">
-          <div className="rounded-xl border p-5 bg-card space-y-4" style={{ borderColor: 'var(--border)' }}>
+          <div className="rounded-xl border p-5 bg-card space-y-4">
             <h2 className="text-sm font-semibold text-foreground">Contact Info</h2>
             {contact.phone && (
               <div className="flex items-center gap-3">
@@ -107,7 +107,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           </div>
 
           {/* Opportunities */}
-          <div className="rounded-xl border p-5 bg-card" style={{ borderColor: 'var(--border)' }}>
+          <div className="rounded-xl border p-5 bg-card">
             <h2 className="text-sm font-semibold text-foreground mb-3">Opportunities ({opps.length})</h2>
             {opps.length === 0 ? (
               <p className="text-xs text-muted-foreground">No opportunities yet</p>
@@ -131,7 +131,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
 
         {/* Right column — Activity feed */}
         <div className="lg:col-span-2">
-          <div className="rounded-xl border p-5 bg-card" style={{ borderColor: 'var(--border)' }}>
+          <div className="rounded-xl border p-5 bg-card">
             <h2 className="text-sm font-semibold text-foreground mb-4">Activity Timeline</h2>
 
             {activities.length === 0 ? (
@@ -165,7 +165,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
 
           {/* Recent Calls */}
           {calls.length > 0 && (
-            <div className="rounded-xl border p-5 bg-card mt-4" style={{ borderColor: 'var(--border)' }}>
+            <div className="rounded-xl border p-5 bg-card mt-4">
               <h2 className="text-sm font-semibold text-foreground mb-3">Calls ({calls.length})</h2>
               <div className="space-y-3">
                 {calls.slice(0, 5).map((c) => {
@@ -186,7 +186,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
 
           {/* Recent Messages */}
           {comms.length > 0 && (
-            <div className="rounded-xl border p-5 bg-card mt-4" style={{ borderColor: 'var(--border)' }}>
+            <div className="rounded-xl border p-5 bg-card mt-4">
               <h2 className="text-sm font-semibold text-foreground mb-3">Messages ({comms.length})</h2>
               <div className="space-y-3">
                 {comms.slice(0, 5).map((m) => (

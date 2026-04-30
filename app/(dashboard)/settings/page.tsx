@@ -71,7 +71,7 @@ export default async function SettingsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Settings</h1>
         <p className="text-sm mt-1 text-muted-foreground">Your AI Employee configuration and account details</p>
       </div>
 
@@ -100,8 +100,8 @@ export default async function SettingsPage() {
             />
             <ToolLink
               href="/pipeline"
-              title="Pipeline"
-              sub="Drag booked leads across stages — new / contacted / demo / won."
+              title="Jobs"
+              sub="Drag jobs across stages — new / contacted / demo / won."
             />
             <ToolLink
               href="/calls"
@@ -264,7 +264,7 @@ export default async function SettingsPage() {
         </Section>
 
         {/* Danger Zone — cancel via Stripe portal (keeps agent live until period end) */}
-        <Section title="Danger Zone" description="Irreversible actions" className="border-red-500/20">
+        <Section title="Danger Zone" description="Irreversible actions" className="border-destructive/30">
           <div className="flex items-center justify-between py-3">
             <div className="flex-1 pr-4">
               <p className="text-sm font-medium text-foreground">Cancel subscription</p>
@@ -274,7 +274,7 @@ export default async function SettingsPage() {
             </div>
             <a
               href="/api/stripe/portal?flow=cancel"
-              className="px-3 py-1.5 rounded-lg text-sm border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors whitespace-nowrap"
+              className="px-3 py-1.5 rounded-lg text-sm border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors whitespace-nowrap"
             >
               Cancel plan
             </a>
@@ -288,7 +288,7 @@ export default async function SettingsPage() {
             </div>
             <a
               href="mailto:hello@nexley.ai?subject=Delete%20my%20Nexley%20account"
-              className="px-3 py-1.5 rounded-lg text-sm border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors whitespace-nowrap"
+              className="px-3 py-1.5 rounded-lg text-sm border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors whitespace-nowrap"
             >
               Request deletion
             </a>
@@ -343,12 +343,12 @@ function ToolLink({
       className={
         'block rounded-lg border px-3.5 py-3 transition-colors hover:bg-muted/30 ' +
         (danger
-          ? 'border-red-500/30 hover:bg-red-500/5'
+          ? 'border-destructive/40 hover:bg-destructive/5'
           : 'border-border')
       }
     >
       <div className="flex items-center justify-between gap-3">
-        <p className={'text-sm font-medium ' + (danger ? 'text-red-400' : 'text-foreground')}>
+        <p className={'text-sm font-medium ' + (danger ? 'text-destructive' : 'text-foreground')}>
           {title}
         </p>
         <span className="text-xs text-brand-accent">Open →</span>

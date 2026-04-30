@@ -67,7 +67,7 @@ export default async function MoneyPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Money</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Money</h1>
         <p className="text-sm mt-1 text-muted-foreground">Your AI Employee&apos;s financial impact · all time</p>
       </div>
 
@@ -110,7 +110,7 @@ export default async function MoneyPage() {
       </div>
 
       {/* Savings breakdown */}
-      <div className="rounded-xl border p-6 mb-6 bg-card-bg">
+      <div className="rounded-xl border p-6 mb-6 bg-card">
         <h2 className="text-sm font-semibold mb-2 text-foreground">How we calculate this</h2>
         <p className="text-xs mb-5 text-muted-foreground">Based on UK average admin costs (£5/message, £15/call, £50/booking, £2/follow-up)</p>
         <div className="space-y-0 divide-y divide-border">
@@ -124,7 +124,7 @@ export default async function MoneyPage() {
 
       {/* ROI summary */}
       {roi > 0 && (
-        <div className="rounded-xl border p-6 mb-6 bg-card-bg">
+        <div className="rounded-xl border p-6 mb-6 bg-card">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-foreground">Return on Investment</p>
@@ -140,7 +140,7 @@ export default async function MoneyPage() {
       )}
 
       {/* Referral CTA */}
-      <div className="rounded-xl border p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-card-bg">
+      <div className="rounded-xl border p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-card">
         <div className="flex-1">
           <p className="text-sm font-semibold text-foreground">Share your results</p>
           <p className="text-xs mt-1 text-muted-foreground">

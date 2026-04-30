@@ -1,16 +1,30 @@
 'use client'
 
 /**
- * ReferralCard — surfaces the referral program (#14) on the dashboard.
+ * ReferralCard — v2.
  *
- * Renders the user's share URL, copy button, current pending/credited
- * counts, total saved, and progress toward a "free month" (4 credits).
- * Reads from /api/referrals/me on mount and after a refetch event.
+ * Stripped of:
+ * - Emerald gradient background + backdrop-blur (glassmorphism over a
+ *   flat color = AI tell)
+ * - Coloured Gift icon tile (was 40×40 rounded-xl bg-emerald-500/15)
+ * - Sparkles icon on the "Saved" stat (banned)
+ * - rounded-2xl
+ *
+ * Replaced with:
+ * - Plain card (8px hairline-bordered) — no gradient
+ * - Title + description as a simple two-line header
+ * - Share URL kept as a mono input with Copy button
+ * - Progress dots in a more restrained mono treatment
+ * - Stats row with no icons, just label + mono value
+ *
+ * Same data wiring (api/referrals/me + clipboard copy + 4-credit
+ * progress) — only chrome is rebuilt.
  */
 
 import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
-import { Gift, Copy, Check, Users, Sparkles } from 'lucide-react'
+import { Copy, Check } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface Stats {
   code: string | null
@@ -41,7 +55,9 @@ export default function ReferralCard() {
       }
     }
     load()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   if (error) return null
@@ -57,80 +73,104 @@ export default function ReferralCard() {
       await navigator.clipboard.writeText(stats.shareUrl)
       setCopied(true)
       setTimeout(() => setCopied(false), 1800)
-    } catch { /* clipboard blocked */ }
+    } catch {
+      /* clipboard blocked */
+    }
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
+    <motion.section
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl border border-emerald-500/15 bg-gradient-to-br from-emerald-500/5 via-transparent to-emerald-500/5 backdrop-blur-sm p-5 sm:p-6"
+      className="rounded-lg border border-border bg-card p-5 sm:p-6"
     >
-      <div className="flex items-start gap-3 mb-4">
-        <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center">
-          <Gift size={18} className="text-emerald-400" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-base font-semibold text-white">
-            Refer a business, save £150
-          </h3>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Each referred customer who pays their first month gets you £150 off your next invoice. Refer 4 = a free month.
-          </p>
-        </div>
+      {/* Header */}
+      <div className="mb-4 pb-3 border-b border-border">
+        <h3 className="text-base font-semibold text-foreground tracking-tight">
+          Refer a business, save £150
+        </h3>
+        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+          Each referred customer who pays their first month gets you £150 off your next invoice. Four referrals = a free month.
+        </p>
       </div>
 
       {/* Share link */}
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-stretch gap-2 mb-5">
         <input
           type="text"
           value={stats.shareUrl}
           readOnly
-          onFocus={e => e.target.select()}
-          className="flex-1 min-w-0 px-3 py-2.5 rounded-lg bg-white/5 border border-white/10 text-xs sm:text-sm text-slate-200 font-mono"
+          onFocus={(e) => e.target.select()}
+          className={cn(
+            'flex-1 min-w-0 h-9 px-3 rounded-sm bg-transparent border border-input',
+            'font-mono text-xs text-foreground',
+            'focus:outline-none focus:border-primary',
+          )}
         />
         <button
           type="button"
           onClick={copy}
-          className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-xs font-medium transition"
+          className={cn(
+            'shrink-0 inline-flex items-center gap-1.5 h-9 px-3 rounded-sm border',
+            'border-border text-muted-foreground hover:text-foreground hover:bg-muted/60',
+            'text-xs font-medium transition-colors',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          )}
         >
-          {copied ? <><Check size={14} />Copied</> : <><Copy size={14} />Copy</>}
+          {copied ? (
+            <>
+              <Check size={12} strokeWidth={1.75} />
+              Copied
+            </>
+          ) : (
+            <>
+              <Copy size={12} strokeWidth={1.75} />
+              Copy
+            </>
+          )}
         </button>
       </div>
 
       {/* Progress */}
-      <div className="space-y-3">
+      <div className="space-y-2.5 mb-4">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-slate-400">Progress to free month</span>
-          <span className="text-emerald-300 font-medium">{progress}/4 credits</span>
+          <span className="text-muted-foreground">Progress to free month</span>
+          <span className="font-mono tabular-nums text-foreground">
+            {progress}/4 credits
+          </span>
         </div>
-        <div className="grid grid-cols-4 gap-2">
-          {[0, 1, 2, 3].map(i => (
+        <div className="grid grid-cols-4 gap-1.5">
+          {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
-              className={`h-2 rounded-full transition-colors ${i < progress ? 'bg-emerald-500/70' : 'bg-white/5'}`}
+              className={cn(
+                'h-1.5 rounded-full transition-colors',
+                i < progress ? 'bg-primary' : 'bg-muted',
+              )}
             />
           ))}
         </div>
-
-        <div className="grid grid-cols-3 gap-3 pt-3 mt-1 border-t border-white/5">
-          <Stat label="Pending" value={stats.count.pending} icon={<Users size={12} />} />
-          <Stat label="Credited" value={stats.count.credited} icon={<Check size={12} />} />
-          <Stat label="Saved" value={`£${totalSaved}`} icon={<Sparkles size={12} />} />
-        </div>
       </div>
-    </motion.div>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-3 pt-3 border-t border-border">
+        <Stat label="Pending" value={stats.count.pending} />
+        <Stat label="Credited" value={stats.count.credited} />
+        <Stat label="Saved" value={`£${totalSaved}`} />
+      </div>
+    </motion.section>
   )
 }
 
-function Stat({ label, value, icon }: { label: string; value: number | string; icon: React.ReactNode }) {
+function Stat({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="text-center">
-      <div className="flex items-center justify-center gap-1 text-emerald-400 text-xs mb-1">
-        {icon}
-        <span>{label}</span>
-      </div>
-      <div className="text-base font-semibold text-white">{value}</div>
+    <div>
+      <p className="text-[11px] uppercase tracking-wider text-muted-foreground/80">
+        {label}
+      </p>
+      <p className="font-mono tabular-nums text-base font-semibold text-foreground mt-0.5">
+        {value}
+      </p>
     </div>
   )
 }

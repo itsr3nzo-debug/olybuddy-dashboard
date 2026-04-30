@@ -5,7 +5,9 @@ import { motion } from 'motion/react'
 import { formatRelativeTime } from '@/lib/format'
 import { useAgentStatus } from '@/lib/hooks/useAgentStatus'
 import type { AgentStatus } from '@/lib/types'
-import { Clock, MessageSquare, Wifi, WifiOff, Pause, Play, Loader2 } from 'lucide-react'
+import { Pause, Play, Loader2 } from 'lucide-react'
+import { StatusDot } from '@/components/ui/status-dot'
+import { cn } from '@/lib/utils'
 
 interface AgentStatusCardProps {
   agentName: string
@@ -15,44 +17,63 @@ interface AgentStatusCardProps {
   clientId?: string
 }
 
-const STATUS_CONFIG: Record<AgentStatus, { label: string; dotClass: string; icon: React.ReactNode; description: string }> = {
-  online:  { label: 'Online',  dotClass: 'bg-brand-success', icon: <Wifi size={14} />,      description: 'Handling messages' },
-  in_call: { label: 'Processing', dotClass: 'bg-brand-primary', icon: <MessageSquare size={14} />,  description: 'Working on a conversation' },
-  idle:    { label: 'Idle',    dotClass: 'bg-brand-warning', icon: <Clock size={14} />,      description: 'Standing by' },
-  offline: { label: 'Offline', dotClass: 'bg-brand-danger',  icon: <WifiOff size={14} />,    description: 'Not currently active' },
+/**
+ * AgentStatusCard — v2.
+ *
+ * Stripped of:
+ * - Coloured icon tile (was rounded-xl bg-muted with a Wifi/MessageSquare
+ *   inside; bouncy and unfocused)
+ * - Right-side "24/7" pill (decorative; kept claim better lives in the
+ *   "money saved" hero context)
+ * - rounded-xl that read as "card-among-cards"
+ *
+ * Replaced with:
+ * - StatusDot in the top-left, lightweight indicator with optional pulse
+ * - Agent name + label + last-call inline (one row of meaning)
+ * - Pause/Resume button on the right with a hairline destructive style
+ *   when paused
+ *
+ * Preserved:
+ * - Realtime status hook (useAgentStatus)
+ * - Optimistic pause/resume + rollback on error
+ * - Confirmation dialog on pause (it's a kill-switch — must confirm)
+ */
+
+const STATUS_LABEL: Record<AgentStatus, { label: string; dot: 'live' | 'online' | 'warming' | 'offline'; description: string }> = {
+  online:  { label: 'Online',     dot: 'live',    description: 'Handling messages' },
+  in_call: { label: 'In a call',  dot: 'live',    description: 'Working on a conversation' },
+  idle:    { label: 'Idle',       dot: 'online',  description: 'Standing by' },
+  offline: { label: 'Offline',    dot: 'offline', description: 'Not currently active' },
 }
 
-export default function AgentStatusCard({ agentName, status: initialStatus, lastCallAt: initialLastCallAt, isActive, clientId }: AgentStatusCardProps) {
-  // Subscribe to realtime status changes
+export default function AgentStatusCard({
+  agentName,
+  status: initialStatus,
+  lastCallAt: initialLastCallAt,
+  isActive,
+  clientId,
+}: AgentStatusCardProps) {
   const { status: realtimeStatus, lastCallAt: realtimeLastCallAt } = useAgentStatus({
     clientId,
     initialStatus,
     initialLastCallAt,
   })
-  const status = realtimeStatus
-  const lastCallAt = realtimeLastCallAt
-  const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.online
-  // `active` is the server-rendered value; `activeLocal` is the optimistic
-  // client-side state after the user toggles Pause/Resume here. We keep both
-  // so a failed request can roll back and a successful one doesn't wait for
-  // a page refresh.
+
   const [activeLocal, setActiveLocal] = useState<boolean>(isActive)
   const [toggling, setToggling] = useState(false)
-  const effectiveStatus = activeLocal ? status : 'offline'
-  const effectiveConfig = activeLocal ? config : STATUS_CONFIG.offline
+
+  const effectiveStatus: AgentStatus = activeLocal ? realtimeStatus : 'offline'
+  const config = STATUS_LABEL[effectiveStatus] ?? STATUS_LABEL.online
 
   const togglePause = async () => {
-    // Nexley-level kill-switch — confirm before taking the agent down
-    // because it stops responding to customers across all channels.
     if (activeLocal) {
       const ok = window.confirm(
-        'Pause ' + agentName + '?\n\nWhile paused, customers messaging on WhatsApp or calling won\u2019t get a reply. Owner messages are still handled. You can resume from the same button.',
+        `Pause ${agentName}?\n\nWhile paused, customers messaging on WhatsApp or calling won't get a reply. Owner messages are still handled. You can resume from the same button.`,
       )
       if (!ok) return
     }
     setToggling(true)
-    const targetPaused = activeLocal // if currently active → we want paused
-    // Optimistic flip
+    const targetPaused = activeLocal
     setActiveLocal(!activeLocal)
     try {
       const res = await fetch('/api/settings/pause-agent', {
@@ -63,7 +84,6 @@ export default function AgentStatusCard({ agentName, status: initialStatus, last
       })
       if (!res.ok) throw new Error('Failed')
     } catch {
-      // Roll back
       setActiveLocal(activeLocal)
       window.alert('Could not update pause state — please try again.')
     } finally {
@@ -76,59 +96,67 @@ export default function AgentStatusCard({ agentName, status: initialStatus, last
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="rounded-xl border p-4 mb-4 flex items-center gap-4 bg-card"
-      style={{ borderColor: 'var(--border)' }}
+      className="rounded-lg border border-border bg-card p-4 mb-4"
+      role="status"
+      aria-label={`Agent ${agentName} ${config.label}`}
     >
-      {/* Status dot with pulse */}
-      <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-muted">
-        {effectiveConfig.icon}
-        <span className={`absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card ${effectiveConfig.dotClass} ${effectiveStatus === 'online' || effectiveStatus === 'in_call' ? 'animate-pulse-live' : ''}`} />
-      </div>
+      <div className="flex items-center gap-3">
+        {/* Status dot — left edge */}
+        <StatusDot status={config.dot} size="lg" />
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-foreground">{agentName}</span>
-          <span className={`text-xs font-medium ${effectiveStatus === 'online' ? 'text-brand-success' : effectiveStatus === 'in_call' ? 'text-brand-primary' : 'text-muted-foreground'}`}>
-            {effectiveConfig.label}
-          </span>
+        <div className="flex-1 min-w-0">
+          {/* Top row: agent name + state label */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-foreground tracking-tight">
+              {agentName}
+            </span>
+            <span
+              className={cn(
+                'text-xs font-medium',
+                effectiveStatus === 'offline' ? 'text-muted-foreground' : 'text-success',
+              )}
+            >
+              {config.label}
+            </span>
+          </div>
+
+          {/* Sub-row: description + last call */}
+          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+            {activeLocal ? config.description : 'Paused — messages queue until resumed'}
+            {realtimeLastCallAt && (
+              <span className="ml-1 text-muted-foreground/70">
+                · Last call {formatRelativeTime(realtimeLastCallAt)}
+              </span>
+            )}
+          </p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {activeLocal ? effectiveConfig.description : 'Paused — messages queue until resumed'}
-          {lastCallAt && ` · Last call ${formatRelativeTime(lastCallAt)}`}
-        </p>
+
+        {/* Pause / Resume button — kill-switch */}
+        <button
+          type="button"
+          onClick={togglePause}
+          disabled={toggling}
+          aria-label={activeLocal ? 'Pause agent' : 'Resume agent'}
+          className={cn(
+            'inline-flex items-center gap-1.5 h-7 px-3 text-xs font-medium rounded-sm border whitespace-nowrap',
+            'transition-colors',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'disabled:opacity-50 disabled:cursor-not-allowed',
+            activeLocal
+              ? 'border-border text-muted-foreground hover:text-foreground hover:bg-muted/60'
+              : 'border-destructive/30 text-destructive hover:bg-destructive/10 hover:border-destructive/50',
+          )}
+        >
+          {toggling ? (
+            <Loader2 size={12} className="animate-spin" strokeWidth={1.75} />
+          ) : activeLocal ? (
+            <Pause size={12} strokeWidth={1.75} />
+          ) : (
+            <Play size={12} strokeWidth={1.75} />
+          )}
+          {activeLocal ? 'Pause' : 'Resume'}
+        </button>
       </div>
-
-      {/* Pause / Resume toggle — the emergency kill-switch. Previously
-          lived only behind the sidebar "Pause agent" nav item. Now reachable
-          in one click from the dashboard where the owner actually looks. */}
-      <button
-        type="button"
-        onClick={togglePause}
-        disabled={toggling}
-        aria-label={activeLocal ? 'Pause agent' : 'Resume agent'}
-        className={
-          'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors focus-ring ' +
-          (activeLocal
-            ? 'border border-border text-muted-foreground hover:text-foreground hover:bg-muted'
-            : 'border border-red-500/30 text-red-400 hover:bg-red-500/10')
-        }
-      >
-        {toggling ? (
-          <Loader2 size={11} className="animate-spin" />
-        ) : activeLocal ? (
-          <Pause size={11} />
-        ) : (
-          <Play size={11} />
-        )}
-        {activeLocal ? 'Pause' : 'Resume'}
-      </button>
-
-      {/* 24/7 badge — only when the agent is running */}
-      {activeLocal && (
-        <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full bg-brand-success/10 text-brand-success text-xs font-semibold">
-          24/7
-        </div>
-      )}
     </motion.div>
   )
 }

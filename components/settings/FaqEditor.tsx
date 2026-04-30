@@ -60,7 +60,7 @@ export default function FaqEditor({ initialFaqs }: FaqEditorProps) {
                   value={faq.question}
                   onChange={e => updateFaq(i, 'question', e.target.value)}
                   placeholder="e.g. What areas do you cover?"
-                  className="w-full px-3 py-2 rounded-lg border text-sm bg-card-bg text-foreground border-border focus:ring-2 focus:ring-ring outline-none"
+                  className="w-full px-3 py-2 rounded-lg border text-sm bg-card text-foreground border-border focus:ring-2 focus:ring-ring outline-none"
                   maxLength={200}
                 />
               </div>
@@ -79,7 +79,7 @@ export default function FaqEditor({ initialFaqs }: FaqEditorProps) {
                 onChange={e => updateFaq(i, 'answer', e.target.value)}
                 placeholder="e.g. We cover all of Greater Manchester and surrounding areas."
                 rows={2}
-                className="w-full px-3 py-2 rounded-lg border text-sm bg-card-bg text-foreground border-border focus:ring-2 focus:ring-ring outline-none resize-none"
+                className="w-full px-3 py-2 rounded-lg border text-sm bg-card text-foreground border-border focus:ring-2 focus:ring-ring outline-none resize-none"
                 maxLength={500}
               />
             </div>

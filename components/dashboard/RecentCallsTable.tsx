@@ -13,7 +13,7 @@ export default function RecentCallsTable({ calls }: { calls: CallLog[] }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   return (
-    <div className="rounded-xl border overflow-hidden bg-card-bg">
+    <div className="rounded-xl border overflow-hidden bg-card">
       <div className="px-5 py-4 border-b border-border flex items-center justify-between">
         <h2 className="text-sm font-semibold text-foreground">Recent Activity</h2>
         <a href="/calls" className="text-xs font-medium text-brand-primary hover:underline">View all →</a>

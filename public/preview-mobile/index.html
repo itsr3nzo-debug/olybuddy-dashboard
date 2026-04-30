@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Audit fix: when this HTML is served via the /preview/mobile rewrite,
+       the page URL is /preview/mobile (no trailing slash), so the browser
+       resolves relative paths under /preview/, not /preview/mobile/.
+       Setting <base> forces every relative `src` to resolve correctly,
+       and the second next.config rewrite catches /preview/mobile/* requests. -->
+  <base href="/preview/mobile/" />
+  <title>Nexley Mobile</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    body { background: #0d0d0f; min-height: 100vh; }
+    [data-theme="light"] body, body.is-light { background: #efece6; }
+    .nx-app { min-height: 100vh; }
+    .seg-tabs {
+      display: inline-flex; padding: 3px; background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.1); border-radius: 999px; gap: 2px;
+    }
+    .seg-tabs button {
+      background: none; border: none; padding: 7px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 500; color: rgba(255,255,255,0.6); letter-spacing: -0.01em;
+    }
+    .seg-tabs button.active { background: rgba(255,255,255,0.95); color: #111; }
+    body.is-light .seg-tabs { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); }
+    body.is-light .seg-tabs button { color: rgba(0,0,0,0.55); }
+    body.is-light .seg-tabs button.active { background: #111; color: #fff; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script src="mock-data.js?v=5"></script>
+  <script type="text/babel" src="icons.jsx?v=5"></script>
+  <script type="text/babel" src="ios-frame.jsx"></script>
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="screens.jsx?v=5"></script>
+  <script type="text/babel" src="integrations.jsx?v=5"></script>
+  <script type="text/babel" src="capture.jsx?v=1"></script>
+  <script type="text/babel" src="api-client.jsx?v=1"></script>
+  <script type="text/babel" src="live-bridge.jsx?v=1"></script>
+
+  <script type="text/babel" data-presets="react">
+    const useState = React.useState;
+    const useEffect = React.useEffect;
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "theme": "light",
+      "aiName": "Nexley",
+      "density": "comfortable",
+      "freshOnboarding": false,
+      "emptyIntegrations": false,
+      "justConnectedSlack": false,
+      "permissivePermissions": false
+    }/*EDITMODE-END*/;
+
+    // ── Phone shell that hosts a screen on top of an iOS frame ──
+    function Phone({ children, theme, label, scale = 1 }) {
+      const dark = theme === 'dark';
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          {label && <div style={{ fontSize: 11, color: dark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)', letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 500 }}>{label}</div>}
+          <div data-theme={theme} style={{ width: 372, height: 760, borderRadius: 44, padding: 8, background: dark ? '#0a0a0c' : '#1a1a1c', boxShadow: '0 30px 80px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,0,0,0.5)' }}>
+            <div style={{ width: '100%', height: '100%', borderRadius: 36, overflow: 'hidden', background: 'var(--bg)', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+              {/* status bar */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 22px 6px', flexShrink: 0, color: 'var(--fg)' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, fontFamily: '"Geist", system-ui' }}>9:41</div>
+                <div style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: 11 }}>
+                  <svg width="16" height="10" viewBox="0 0 16 10"><rect x="0" y="6" width="2.6" height="4" rx="0.5" fill="currentColor"/><rect x="4" y="4" width="2.6" height="6" rx="0.5" fill="currentColor"/><rect x="8" y="2" width="2.6" height="8" rx="0.5" fill="currentColor"/><rect x="12" y="0" width="2.6" height="10" rx="0.5" fill="currentColor"/></svg>
+                  <svg width="22" height="10" viewBox="0 0 22 10"><rect x="0.5" y="0.5" width="19" height="9" rx="2.5" stroke="currentColor" strokeOpacity="0.5" fill="none"/><rect x="2" y="2" width="16" height="6" rx="1" fill="currentColor"/></svg>
+                </div>
+              </div>
+              {/* content */}
+              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                {children}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Routes for prototype ──
+    function Prototype({ theme, aiName, density }) {
+      const [route, setRoute] = useState({ name: 'home' });
+      const [tab, setTab] = useState('home');
+      const [captureOpen, setCaptureOpen] = useState(false);
+      // Read JWT + API base from localStorage so dev can paste a real token
+      // and switch to live mode. Empty = mock mode.
+      const [auth, setAuth] = useState(() => {
+        if (typeof window === 'undefined') return { jwt: null, apiBase: '' };
+        return {
+          jwt: window.localStorage.getItem('nexley_jwt') || null,
+          apiBase: window.localStorage.getItem('nexley_api_base') || '',
+        };
+      });
+
+      const goTab = (t) => {
+        setTab(t);
+        if (t === 'chat') setRoute({ name: 'ownerChat' });
+        else if (t === 'inbox') setRoute({ name: 'inbox' });
+        else setRoute({ name: t });
+      };
+
+      const screen = (() => {
+        if (route.name === 'home') return (
+          <HomeScreen
+            density={density}
+            aiName={aiName}
+            onOpenChat={() => { setTab('chat'); setRoute({ name: 'ownerChat' }); }}
+            onOpenInbox={() => { setTab('inbox'); setRoute({ name: 'inbox' }); }}
+            onOpenConversation={(id) => setRoute({ name: 'conversation', id })}
+          />
+        );
+        if (route.name === 'ownerChat') return <OwnerChatScreen aiName={aiName} onBack={() => { setTab('home'); setRoute({ name: 'home' }); }} />;
+        if (route.name === 'inbox') return <InboxScreen onOpenConversation={(id) => setRoute({ name: 'conversation', id })} onBack={() => setRoute({ name: 'home' })} />;
+        if (route.name === 'conversation') return <ConversationDetailScreen aiName={aiName} conversationId={route.id} onBack={() => { setTab('inbox'); setRoute({ name: 'inbox' }); }} />;
+        if (route.name === 'integrations') return <IntegrationsScreen onOpenChat={() => { setTab('chat'); setRoute({ name: 'ownerChat' }); }} />;
+        if (route.name === 'contacts') return <PlaceholderScreen title="Contacts" body="Customer directory" />;
+        if (route.name === 'settings') return <SettingsScreen auth={auth} setAuth={setAuth} />;
+        return null;
+      })();
+
+      const showTabs = ['home', 'ownerChat', 'inbox', 'integrations', 'contacts', 'settings'].includes(route.name);
+      const showCaptureFAB = ['home', 'inbox'].includes(route.name) && !captureOpen;
+
+      return (
+        <Phone theme={theme}>
+          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }} data-theme={theme}>
+            <LiveBridge />
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+              {captureOpen ? (
+                <CaptureFlow
+                  apiBase={auth.apiBase}
+                  jwt={auth.jwt}
+                  onClose={() => setCaptureOpen(false)}
+                  onComplete={() => setCaptureOpen(false)}
+                />
+              ) : screen}
+              {showCaptureFAB && <CaptureFAB onPress={() => setCaptureOpen(true)} />}
+            </div>
+            {showTabs && !captureOpen && <TabBar tab={tab} onChange={goTab} />}
+          </div>
+        </Phone>
+      );
+    }
+
+    // Settings — minimal screen with auth controls (JWT input + Live/Mock toggle)
+    function SettingsScreen({ auth, setAuth }) {
+      const [jwt, setJwt] = useState(auth.jwt || '');
+      const [apiBase, setApiBase] = useState(auth.apiBase || window.location.origin);
+      const save = () => {
+        window.localStorage.setItem('nexley_jwt', jwt);
+        window.localStorage.setItem('nexley_api_base', apiBase);
+        setAuth({ jwt: jwt || null, apiBase });
+      };
+      const clear = () => {
+        window.localStorage.removeItem('nexley_jwt');
+        window.localStorage.removeItem('nexley_api_base');
+        setAuth({ jwt: null, apiBase: '' });
+        setJwt(''); setApiBase(window.location.origin);
+      };
+      const isLive = !!auth.jwt;
+      return (
+        <div className="nx-screen" style={{ padding: 18, gap: 14, overflowY: 'auto' }}>
+          <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em' }}>Settings</div>
+          <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted-fg)', marginTop: 12 }}>Mode</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12, background: 'var(--card)', border: '0.5px solid var(--border)', borderRadius: 8 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: isLive ? '#22c55e' : 'var(--muted-fg)' }} />
+            <span style={{ fontSize: 14, fontWeight: 500 }}>{isLive ? 'Live data' : 'Mock data'}</span>
+            <span style={{ flex: 1 }} />
+            <span style={{ fontSize: 11, color: 'var(--muted-fg)' }}>{isLive ? 'Hitting real backend' : 'Demo from mock-data.js'}</span>
+          </div>
+
+          <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted-fg)', marginTop: 12 }}>API base</div>
+          <input value={apiBase} onChange={e=>setApiBase(e.target.value)} placeholder="https://nexley.vercel.app" style={{ padding: '10px 12px', background: 'var(--card)', color: 'var(--fg)', border: '0.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+
+          <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted-fg)', marginTop: 12 }}>Supabase JWT</div>
+          <textarea value={jwt} onChange={e=>setJwt(e.target.value)} placeholder="eyJhbGciOi…" rows={4} style={{ padding: '10px 12px', background: 'var(--card)', color: 'var(--fg)', border: '0.5px solid var(--border)', borderRadius: 8, fontSize: 11, fontFamily: 'ui-monospace, monospace', outline: 'none', resize: 'vertical' }} />
+          <div style={{ fontSize: 11, color: 'var(--muted-fg)' }}>Paste a Supabase access_token to switch to live mode. Stored in localStorage.</div>
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button onClick={save} style={{ flex: 1, padding: 12, background: 'var(--fg)', color: 'var(--bg)', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Save</button>
+            <button onClick={clear} style={{ padding: 12, background: 'transparent', color: 'var(--muted-fg)', border: '0.5px solid var(--border)', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}>Clear</button>
+          </div>
+        </div>
+      );
+    }
+
+    function PlaceholderScreen({ title, body }) {
+      return (
+        <div className="nx-screen" style={{ alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
+          <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 6 }}>{title}</div>
+          <div style={{ fontSize: 13.5, color: 'var(--muted-fg)' }}>{body}</div>
+          <div style={{ marginTop: 12, fontSize: 11, color: 'var(--muted-fg)' }}>(Out of scope for this round)</div>
+        </div>
+      );
+    }
+
+    // ── Canvas overview ──
+    function CanvasOverview({ aiName, density }) {
+      // Each artboard renders one of the three screens, in dark and light variants
+      const W = 320, H = 660;
+      const wrap = (theme, child) => (
+        <div data-theme={theme} style={{ width: W, height: H, background: 'var(--bg)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {/* fake top inset */}
+          <div style={{ height: 36, background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 18px' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>9:41</span>
+            <span style={{ fontSize: 11, color: 'var(--muted-fg)' }}>•••</span>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>{child}</div>
+        </div>
+      );
+      const homeChild = <HomeScreen density={density} aiName={aiName} onOpenChat={()=>{}} onOpenInbox={()=>{}} onOpenConversation={()=>{}} />;
+      const chatChild = <OwnerChatScreen aiName={aiName} onBack={()=>{}} />;
+      const convChild = <ConversationDetailScreen aiName={aiName} onBack={()=>{}} />;
+      const inboxChild = <InboxScreen onOpenConversation={()=>{}} onBack={()=>{}} />;
+      const intChild = <IntegrationsScreen />;
+
+      return (
+        <DesignCanvas>
+          <DCSection id="dark" title="Dark mode (primary)" subtitle="Linear/Mercury restraint with electric-indigo accents and an orbiting live-status pulse.">
+            <DCArtboard id="d-home" label="Home" width={W} height={H}>{wrap('dark', homeChild)}</DCArtboard>
+            <DCArtboard id="d-chat" label={`Chat with ${aiName}`} width={W} height={H}>{wrap('dark', chatChild)}</DCArtboard>
+            <DCArtboard id="d-conv" label="Conversation · Sarah Mitchell" width={W} height={H}>{wrap('dark', convChild)}</DCArtboard>
+            <DCArtboard id="d-inbox" label="Inbox" width={W} height={H}>{wrap('dark', inboxChild)}</DCArtboard>
+            <DCArtboard id="d-int" label="Apps · all integrations" width={W} height={H}>{wrap('dark', intChild)}</DCArtboard>
+          </DCSection>
+          <DCSection id="light" title="Light mode" subtitle="Same tokens, hue shifted warm. Surfaces are not pure inverses — background sits at OKLCH 0.99, foreground at 0.18.">
+            <DCArtboard id="l-home" label="Home" width={W} height={H}>{wrap('light', homeChild)}</DCArtboard>
+            <DCArtboard id="l-chat" label={`Chat with ${aiName}`} width={W} height={H}>{wrap('light', chatChild)}</DCArtboard>
+            <DCArtboard id="l-conv" label="Conversation · Sarah Mitchell" width={W} height={H}>{wrap('light', convChild)}</DCArtboard>
+            <DCArtboard id="l-inbox" label="Inbox" width={W} height={H}>{wrap('light', inboxChild)}</DCArtboard>
+            <DCArtboard id="l-int" label="Apps · all integrations" width={W} height={H}>{wrap('light', intChild)}</DCArtboard>
+          </DCSection>
+        </DesignCanvas>
+      );
+    }
+
+    // ── Root app ──
+    function App() {
+      const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+      const [view, setView] = useState('prototype'); // 'prototype' | 'canvas'
+
+      // Project tweak flags onto the live mock so screens can read them.
+      // (The mock is a global object — every screen reads from it on render.)
+      useEffect(() => {
+        const M = window.NX_MOCK;
+        if (!M.demoFlags) M.demoFlags = {};
+        M.demoFlags.freshOnboarding = !!t.freshOnboarding;
+        M.demoFlags.emptyIntegrations = !!t.emptyIntegrations;
+        M.demoFlags.justConnectedSlack = !!t.justConnectedSlack;
+        M.demoFlags.permissivePermissions = !!t.permissivePermissions;
+        // Cascading effect: emptyIntegrations also flips the empty-state flag the
+        // IntegrationsScreen already checks, so existing wiring just works.
+        if (M.integrationsEmptyState) M.integrationsEmptyState.enabled = !!t.emptyIntegrations;
+      }, [t.freshOnboarding, t.emptyIntegrations, t.justConnectedSlack, t.permissivePermissions]);
+
+      useEffect(() => {
+        document.body.classList.toggle('is-light', t.theme === 'light');
+        document.body.style.background = t.theme === 'light' ? '#efece6' : '#0d0d0f';
+      }, [t.theme]);
+
+      return (
+        <div className="nx-app" data-theme={t.theme}>
+          {/* Top toolbar */}
+          <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 100 }}>
+            <div className="seg-tabs">
+              <button className={view === 'prototype' ? 'active' : ''} onClick={() => setView('prototype')}>Prototype</button>
+              <button className={view === 'canvas' ? 'active' : ''} onClick={() => setView('canvas')}>All screens</button>
+            </div>
+          </div>
+
+          {/* Title */}
+          <div style={{ position: 'fixed', top: 18, left: 24, zIndex: 100, fontFamily: '"Geist Mono", monospace', fontSize: 11, color: t.theme === 'light' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.4)', letterSpacing: '0.04em' }}>
+            NEXLEY · MOBILE · v0.1
+          </div>
+          <div style={{ position: 'fixed', top: 18, right: 24, zIndex: 100, fontSize: 11, color: t.theme === 'light' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.4)', letterSpacing: '0.02em' }}>
+            Varley Electrical Ltd
+          </div>
+
+          {view === 'prototype' ? (
+            <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 24px 32px', gap: 24 }}>
+              <Prototype theme={t.theme} aiName={t.aiName} density={t.density} />
+              <div style={{ fontSize: 11, color: t.theme === 'light' ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)', textAlign: 'center', maxWidth: 360, lineHeight: 1.5 }}>
+                Tap the bottom tabs · Apps to connect tools · long-press a customer to take over their thread
+              </div>
+            </div>
+          ) : (
+            <div style={{ paddingTop: 56 }}><CanvasOverview aiName={t.aiName} density={t.density} /></div>
+          )}
+
+          <TweaksPanel>
+            <TweakSection label="Theme" />
+            <TweakRadio label="Mode" value={t.theme} options={['dark', 'light']} onChange={(v) => setTweak('theme', v)} />
+            <TweakSection label="AI Employee" />
+            <TweakText label="Name" value={t.aiName} onChange={(v) => setTweak('aiName', v)} />
+            <TweakSection label="Layout" />
+            <TweakRadio label="Density" value={t.density} options={['compact', 'comfortable']} onChange={(v) => setTweak('density', v)} />
+            <TweakSection label="Demo states" />
+            <TweakToggle label="Day-0 onboarding" value={t.freshOnboarding} onChange={(v) => setTweak('freshOnboarding', v)} />
+            <TweakToggle label="No integrations on plan" value={t.emptyIntegrations} onChange={(v) => setTweak('emptyIntegrations', v)} />
+            <TweakToggle label="Just-connected suggestion" value={t.justConnectedSlack} onChange={(v) => setTweak('justConnectedSlack', v)} />
+            <TweakToggle label="Permissive auto-reply" value={t.permissivePermissions} onChange={(v) => setTweak('permissivePermissions', v)} />
+          </TweaksPanel>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

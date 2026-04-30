@@ -25,18 +25,29 @@ interface Message {
   sent_at: string
 }
 
+// Channel icons differentiated by GLYPH (not colour). DA pass flagged
+// that SMS + WhatsApp both rendered as MessageSquare in muted-foreground,
+// making them visually identical — load-bearing for trade owners who
+// reply differently across channels. Now: SMS = Phone (it's the SIM-card
+// equivalent), WhatsApp = MessageSquare (its native iconography), Email
+// = Mail, Telegram = Send. All in single muted neutral.
 const CHANNEL_ICONS: Record<string, React.ReactNode> = {
-  sms: <MessageSquare size={12} />,
-  whatsapp: <MessageSquare size={12} />,
+  sms: <PhoneIcon size={12} strokeWidth={1.5} />,
+  whatsapp: <MessageSquare size={12} strokeWidth={1.5} />,
   email: <Mail size={12} />,
   telegram: <Send size={12} />,
 }
 
+// Channel colours collapsed to muted neutral. Channel-icon glyphs are
+// recognisable on their own; mapping each to a brand colour creates a
+// rainbow row in the inbox where no row should claim "I'm more important
+// than the others". Linear/Plain pattern: single neutral for icons, let
+// the message text do the work.
 const CHANNEL_COLORS: Record<string, string> = {
-  sms: 'text-brand-success',
-  whatsapp: 'text-green-500',
-  email: 'text-brand-info',
-  telegram: 'text-blue-400',
+  sms:      'text-muted-foreground',
+  whatsapp: 'text-muted-foreground',
+  email:    'text-muted-foreground',
+  telegram: 'text-muted-foreground',
 }
 
 interface ConversationsLayoutProps {
@@ -121,10 +132,10 @@ export default function ConversationsLayout({ contacts: rawContacts, messages: r
   const selectedContact = contacts.find(c => c.id === selectedContactId)
 
   return (
-    <div className="flex rounded-xl border overflow-hidden bg-card h-[calc(100%-60px)]" style={{ borderColor: 'var(--border)' }}>
+    <div className="flex rounded-xl border overflow-hidden bg-card h-[calc(100%-60px)]">
       {/* Contact list (left) */}
-      <div className={`w-full sm:w-80 sm:border-r flex-shrink-0 flex flex-col ${selectedContactId ? 'hidden sm:flex' : 'flex'}`} style={{ borderColor: 'var(--border)' }}>
-        <div className="p-3 border-b" style={{ borderColor: 'var(--border)' }}>
+      <div className={`w-full sm:w-80 sm:border-r flex-shrink-0 flex flex-col ${selectedContactId ? 'hidden sm:flex' : 'flex'}`}>
+        <div className="p-3 border-b">
           <input
             type="text"
             placeholder="Search contacts..."
@@ -147,7 +158,6 @@ export default function ConversationsLayout({ contacts: rawContacts, messages: r
                   className={`w-full text-left px-4 py-3 border-b transition-colors touch-target ${
                     isSelected ? 'bg-brand-primary/10' : 'hover:bg-muted/50'
                   }`}
-                  style={{ borderColor: 'var(--border)' }}
                 >
                   <div className="flex items-start justify-between">
                     <div className="min-w-0 flex-1">
@@ -184,7 +194,7 @@ export default function ConversationsLayout({ contacts: rawContacts, messages: r
         {selectedContact ? (
           <>
             {/* Thread header */}
-            <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+            <div className="flex items-center gap-3 px-4 py-3 border-b">
               <button
                 onClick={() => setSelectedContactId(null)}
                 className="sm:hidden text-muted-foreground"
@@ -235,7 +245,7 @@ export default function ConversationsLayout({ contacts: rawContacts, messages: r
             </div>
 
             {/* Compose bar (disabled) */}
-            <div className="px-4 py-3 border-t" style={{ borderColor: 'var(--border)' }}>
+            <div className="px-4 py-3 border-t">
               <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-muted/50 text-sm text-muted-foreground">
                 <MessageSquare size={14} />
                 Compose will be enabled when messaging integration is active

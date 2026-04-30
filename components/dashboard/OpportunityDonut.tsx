@@ -29,7 +29,6 @@ export default function OpportunityDonut({ openCount, wonCount, lostCount, total
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.2 }}
       className="rounded-xl border p-5 bg-card mb-6"
-      style={{ borderColor: 'var(--border)' }}
     >
       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">Pipeline Overview</h3>
       <div className="flex items-center gap-6">

@@ -31,11 +31,16 @@ const SOURCE_ICON = {
   email: <Mail size={14} />,
 }
 
-const STATUS_COLOR: Record<CapturedJob['status'], string> = {
-  pending_review: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-  pushed_to_fergus: 'bg-green-500/10 text-green-400 border-green-500/30',
-  failed: 'bg-red-500/10 text-red-400 border-red-500/30',
-  discarded: 'bg-muted/20 text-muted-foreground border-border',
+// STATUS_COLOR removed — uses <StatusBadge> primitive from `components/ui/badge`
+// which centralises the status→variant mapping. Adapter below maps the
+// captured-job lifecycle keys onto the canonical status keys.
+import { StatusBadge } from '@/components/ui/badge'
+
+const STATUS_TO_BADGE: Record<CapturedJob['status'], string> = {
+  pending_review:    'pending',
+  pushed_to_fergus:  'booked',
+  failed:            'failed',
+  discarded:         'cancelled',
 }
 
 export default function CapturedJobsList({ initial }: { initial: CapturedJob[] }) {
@@ -65,7 +70,7 @@ export default function CapturedJobsList({ initial }: { initial: CapturedJob[] }
 
   if (jobs.length === 0) {
     return (
-      <div className="rounded-xl border bg-card-bg p-10 text-center">
+      <div className="rounded-xl border bg-card p-10 text-center">
         <Mic size={28} className="mx-auto text-muted-foreground mb-3" />
         <p className="text-sm font-medium text-foreground">No captures yet</p>
         <p className="text-xs text-muted-foreground mt-1">
@@ -100,7 +105,7 @@ export default function CapturedJobsList({ initial }: { initial: CapturedJob[] }
             key={j.id}
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl border bg-card-bg overflow-hidden"
+            className="rounded-xl border bg-card overflow-hidden"
           >
             <div className="p-4 flex items-start gap-3">
               <div className="flex-shrink-0 mt-1 text-muted-foreground">
@@ -111,9 +116,7 @@ export default function CapturedJobsList({ initial }: { initial: CapturedJob[] }
                   <span className="text-sm font-medium text-foreground">
                     {j.extracted_client_name || 'Unattributed'}
                   </span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_COLOR[j.status]}`}>
-                    {j.status.replace(/_/g, ' ')}
-                  </span>
+                  <StatusBadge status={STATUS_TO_BADGE[j.status]} />
                   <span className="text-xs text-muted-foreground">
                     {new Date(j.captured_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   </span>

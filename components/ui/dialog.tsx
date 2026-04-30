@@ -31,7 +31,12 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 bg-black/40 supports-backdrop-filter:backdrop-blur-[2px]",
+        // Backdrop fades in over 180ms — matches the popup curve below
+        "duration-180 ease-[cubic-bezier(0.32,0.72,0,1)]",
+        "data-open:animate-in data-open:fade-in-0",
+        // Slightly faster exit so dismiss feels snappy
+        "data-closed:animate-out data-closed:fade-out-0 data-closed:duration-120",
         className
       )}
       {...props}
@@ -53,7 +58,19 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // Anchor + size
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2",
+          // Surface: 8px radius via cap, hairline border (no ring), shadow only
+          // here because dialogs are the one place where shadow is the depth signal
+          "gap-4 rounded-lg border border-border bg-popover p-4 sm:max-w-lg",
+          "shadow-[0_24px_80px_rgba(0,0,0,0.5)]",
+          "text-sm text-popover-foreground outline-none",
+          // Motion — Linear/Stripe curve: cubic-bezier(0.32, 0.72, 0, 1) over
+          // 180ms in, 120ms out. zoom-95 was too tight; v2 uses zoom-96 +
+          // 8px y-translate so the dialog feels "placed" not "snapped".
+          "duration-180 ease-[cubic-bezier(0.32,0.72,0,1)]",
+          "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-96 data-open:slide-in-from-top-2",
+          "data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-98 data-closed:duration-120",
           className
         )}
         {...props}

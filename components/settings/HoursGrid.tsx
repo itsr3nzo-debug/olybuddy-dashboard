@@ -79,7 +79,7 @@ export default function HoursGrid({ initialHours }: HoursGridProps) {
                 <select
                   value={dayHours.open}
                   onChange={e => updateDay(day, 'open', e.target.value)}
-                  className="px-2 py-1 rounded-md border text-xs bg-card-bg text-foreground border-border"
+                  className="px-2 py-1 rounded-md border text-xs bg-card text-foreground border-border"
                 >
                   {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
@@ -87,7 +87,7 @@ export default function HoursGrid({ initialHours }: HoursGridProps) {
                 <select
                   value={dayHours.close}
                   onChange={e => updateDay(day, 'close', e.target.value)}
-                  className="px-2 py-1 rounded-md border text-xs bg-card-bg text-foreground border-border"
+                  className="px-2 py-1 rounded-md border text-xs bg-card text-foreground border-border"
                 >
                   {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>

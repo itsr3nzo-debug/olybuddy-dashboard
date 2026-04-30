@@ -8,7 +8,7 @@ export default function EmergencyPage() {
   return (
     <div className="max-w-3xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Emergency controls</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Emergency controls</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Pause your AI Employee immediately. Pre-send check on every outbound message — takes effect within seconds.
         </p>

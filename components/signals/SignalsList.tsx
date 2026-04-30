@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { Mail, Banknote, Calendar, CreditCard, MessageSquare, Bell } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
 interface Signal {
   id: number
@@ -19,20 +21,24 @@ interface Signal {
   owner_note: string | null
 }
 
-const PROVIDER_EMOJI: Record<string, string> = {
-  gmail: '📧',
-  xero: '💷',
-  quickbooks: '💷',
-  google_calendar: '📆',
-  stripe: '💳',
-  slack: '💬',
+// Provider emoji (📧💷📆💳💬) replaced with Lucide icons. Premium dashboards
+// don't use emoji as provider markers — they use brand SVG (when available)
+// or a semantic line icon (Linear / Stripe pattern).
+const PROVIDER_ICON: Record<string, LucideIcon> = {
+  gmail:           Mail,
+  xero:            Banknote,
+  quickbooks:      Banknote,
+  google_calendar: Calendar,
+  stripe:          CreditCard,
+  slack:           MessageSquare,
 }
 
+// Urgency styles — token-based; was raw red-500 / amber-500.
 const URGENCY_STYLE: Record<Signal['urgency'], string> = {
-  emergency: 'border-red-500 bg-red-500/10',
-  urgent: 'border-amber-500 bg-amber-500/10',
-  normal: 'border-border bg-card-bg',
-  low: 'border-muted bg-muted/30',
+  emergency: 'border-destructive/40 bg-destructive/8 shadow-[inset_2px_0_0_0_var(--brand-danger)]',
+  urgent:    'border-warning/40 bg-warning/8 shadow-[inset_2px_0_0_0_var(--brand-warning)]',
+  normal:    'border-border bg-card',
+  low:       'border-border bg-muted/20',
 }
 
 export function SignalsList({ initialSignals }: { initialSignals: Signal[] }) {
@@ -84,7 +90,7 @@ export function SignalsList({ initialSignals }: { initialSignals: Signal[] }) {
 
   if (pending.length === 0 && approved.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-border bg-card-bg p-12 text-center">
+      <div className="rounded-lg border border-dashed border-border bg-card p-12 text-center">
         <p className="text-muted-foreground">
           Nothing pending. Your AI is quietly watching your integrations — anything actionable
           will show up here within 15 minutes of being detected.
@@ -107,23 +113,33 @@ export function SignalsList({ initialSignals }: { initialSignals: Signal[] }) {
                 className={`rounded-lg border p-4 transition ${URGENCY_STYLE[s.urgency]}`}
               >
                 <div className="flex items-start gap-3">
-                  <div className="text-2xl">{PROVIDER_EMOJI[s.provider] ?? '🔔'}</div>
+                  {(() => {
+                    const Icon = PROVIDER_ICON[s.provider] ?? Bell
+                    return (
+                      <Icon
+                        size={18}
+                        strokeWidth={1.5}
+                        className="shrink-0 mt-0.5 text-muted-foreground"
+                        aria-hidden
+                      />
+                    )
+                  })()}
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+                    <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted-foreground">
                       <span>{s.provider.replace('_', ' ')}</span>
-                      <span>·</span>
+                      <span className="text-muted-foreground/60">·</span>
                       <span>{s.signal_type.replace(/_/g, ' ')}</span>
-                      <span>·</span>
-                      <span>{new Date(s.detected_at_iso).toLocaleString()}</span>
+                      <span className="text-muted-foreground/60">·</span>
+                      <span className="font-mono tabular-nums">{new Date(s.detected_at_iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                       {s.urgency !== 'normal' && (
                         <>
-                          <span>·</span>
+                          <span className="text-muted-foreground/60">·</span>
                           <span
                             className={
                               s.urgency === 'emergency'
-                                ? 'font-semibold text-red-500'
+                                ? 'font-semibold text-destructive'
                                 : s.urgency === 'urgent'
-                                  ? 'font-semibold text-amber-500'
+                                  ? 'font-semibold text-warning'
                                   : ''
                             }
                           >
@@ -154,7 +170,7 @@ export function SignalsList({ initialSignals }: { initialSignals: Signal[] }) {
                         onClick={() => decide(s.signal_id, 'owner_approved')}
                         disabled={!!inFlight[s.signal_id]}
                         aria-busy={inFlight[s.signal_id] === 'approve'}
-                        className="flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         {inFlight[s.signal_id] === 'approve' && <Spinner />}
                         {inFlight[s.signal_id] === 'approve' ? 'Approving…' : 'Approve'}
@@ -191,7 +207,10 @@ export function SignalsList({ initialSignals }: { initialSignals: Signal[] }) {
           <ul className="space-y-2 text-sm text-muted-foreground">
             {approved.map(s => (
               <li key={s.signal_id} className="flex items-center gap-2 rounded-md px-3 py-1.5">
-                <span>{PROVIDER_EMOJI[s.provider] ?? '🔔'}</span>
+                {(() => {
+                  const Icon = PROVIDER_ICON[s.provider] ?? Bell
+                  return <Icon size={14} strokeWidth={1.5} className="text-muted-foreground" aria-hidden />
+                })()}
                 <span className="truncate">{s.summary}</span>
                 <span className="ml-auto text-xs">
                   {new Date(s.detected_at_iso).toLocaleDateString()}

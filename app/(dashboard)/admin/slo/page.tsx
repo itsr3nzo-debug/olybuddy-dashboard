@@ -195,7 +195,7 @@ export default async function SloDashboardPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-foreground mb-1">SLO Dashboard</h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-foreground mb-1">SLO Dashboard</h1>
       <p className="text-sm text-muted-foreground mb-6">
         Live status against targets in <code>docs/operations/SLO-SLA.md</code>. Last 30d unless noted.
       </p>

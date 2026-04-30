@@ -4,109 +4,187 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ── Nexley AI Design Tokens (Light) ───────────────── */
+/* ─────────────────────────────────────────────────────────────────────
+   Nexley v2 Design Tokens
+
+   Philosophy:
+   - Monochrome + ONE deliberate accent. Navy `#3850A0` — distinct from
+     default-indigo (`#6366f1`), doesn't clash with WhatsApp green that
+     is permanently visible alongside this dashboard, passes AA for white
+     text on accent.
+   - Three-level surface stratification (page → card → input) instead of
+     shadows. Linear/Vercel stack — 1px hairline borders, zero shadow.
+   - OKLCH for everything that participates in shadcn token cascade.
+     Hex only for legacy --brand-* / --skeleton-* / --hero-gradient that
+     aren't routed through shadcn.
+   - Radii capped at 8px (cards/modals). 4px inputs, 6px buttons, full
+     for status dots / avatars / pills. Never 12px+ — that's the AI tell.
+
+   Three things this file deliberately does NOT do:
+   - No drop shadows on product chrome (`box-shadow` only on the ⌘K
+     overlay where shadow IS the depth signal).
+   - No gradients on actionable elements (buttons, links, card surfaces).
+     `--hero-gradient` stays for legacy callsites pending migration.
+   - No `font-family` override on body — let `--font-sans` (set by
+     next/font Geist) cascade through `html { font-sans }` in @layer base.
+
+   Light mode is shipped but considered "untested for v2"; dark is default.
+   ───────────────────────────────────────────────────────────────────── */
+
+/* ── Light mode (mirror, untested for v2) ──────────────────────────── */
 :root {
-  /* Brand colors */
-  --brand-primary:   #6366f1;
-  --brand-success:   #22c55e;
-  --brand-danger:    #ef4444;
-  --brand-warning:   #f59e0b;
-  --brand-info:      #3b82f6;
+  /* ─── Legacy brand tokens (kept for components that read them directly) */
+  --brand-primary:   #3850A0;  /* navy — was indigo #6366f1 */
+  --brand-success:   #16A34A;
+  --brand-danger:    #DC2626;
+  --brand-warning:   #D97706;
+  --brand-info:      #2563EB;
 
-  /* Surface colors */
+  /* ─── Surface helpers (legacy) */
   --card-bg:         #ffffff;
-  --accent-light:    #eef2ff;
-  --sidebar-bg:      #0f172a;
-  --skeleton-from:   #e2e8f0;
-  --skeleton-to:     #f1f5f9;
-  --hero-gradient:   linear-gradient(135deg, #166534 0%, #15803d 50%, #16a34a 100%);
+  --accent-light:    #EEF1FA;
+  --sidebar-bg:      #0A0B12;
+  --skeleton-from:   #E2E8F0;
+  --skeleton-to:     #F1F5F9;
+  --hero-gradient:   linear-gradient(135deg, #1F4D3A 0%, #15803D 50%, #16A34A 100%);
 
-  /* shadcn tokens */
-  --background:      oklch(1 0 0);
-  --foreground:      oklch(0.145 0 0);
-  --card:            oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover:         oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary:         oklch(0.488 0.243 264.376);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary:       oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted:           oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent:          oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive:     oklch(0.577 0.245 27.325);
-  --border:          oklch(0.922 0 0);
-  --input:           oklch(0.922 0 0);
-  --ring:            oklch(0.488 0.243 264.376);
-  --chart-1:         #6366f1;
-  --chart-2:         #8b5cf6;
-  --chart-3:         #06b6d4;
-  --chart-4:         #f59e0b;
-  --chart-5:         #22c55e;
-  --radius:          0.75rem;
-  --sidebar:         oklch(0.145 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent:  oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border:  oklch(1 0 0 / 10%);
-  --sidebar-ring:    oklch(0.488 0.243 264.376);
+  /* ─── shadcn tokens (OKLCH) — Light */
+  /* Background stratification: page (1) → card (0.98) → input (0.96) */
+  --background:           oklch(0.99 0 0);
+  --foreground:           oklch(0.13 0.01 270);
+  --card:                 oklch(1 0 0);
+  --card-foreground:      oklch(0.13 0.01 270);
+  --popover:              oklch(1 0 0);
+  --popover-foreground:   oklch(0.13 0.01 270);
+  /* Primary = navy `#3850A0`. ~OKLCH(0.45 0.13 264) — darker on light bg
+     so white text passes AA. */
+  --primary:              oklch(0.45 0.13 264);
+  --primary-foreground:   oklch(0.99 0 0);
+  --secondary:            oklch(0.96 0.005 270);
+  --secondary-foreground: oklch(0.13 0.01 270);
+  --muted:                oklch(0.96 0.005 270);
+  --muted-foreground:     oklch(0.45 0.01 270);
+  --accent:               oklch(0.96 0.005 270);
+  --accent-foreground:    oklch(0.13 0.01 270);
+  --destructive:          oklch(0.55 0.24 27);
+  --border:               oklch(0 0 0 / 8%);
+  --input:                oklch(0 0 0 / 12%);
+  --ring:                 oklch(0.45 0.13 264);
+
+  /* Charts — single-accent dominant, with semantic differentiation */
+  --chart-1:              oklch(0.45 0.13 264);   /* navy primary */
+  --chart-2:              oklch(0.55 0.10 240);   /* slate-blue */
+  --chart-3:              oklch(0.65 0.10 200);   /* dim cyan */
+  --chart-4:              oklch(0.62 0.16 50);    /* warm amber */
+  --chart-5:              oklch(0.55 0.15 145);   /* muted green */
+
+  /* Radius scale capped at 8px — `--radius` is the LARGEST the system
+     ever uses. Tailwind's xl/2xl/3xl/4xl get capped via @theme below
+     so even legacy `rounded-2xl` callsites can't exceed 8px. */
+  --radius:               0.5rem;  /* 8px */
+
+  /* Sidebar — dark even in light mode (Linear/Mercury pattern) */
+  --sidebar:                      oklch(0.13 0.01 270);
+  --sidebar-foreground:           oklch(0.99 0 0);
+  --sidebar-primary:              oklch(0.65 0.13 264);
+  --sidebar-primary-foreground:   oklch(0.99 0 0);
+  --sidebar-accent:               oklch(0.20 0.01 270);
+  --sidebar-accent-foreground:    oklch(0.99 0 0);
+  --sidebar-border:               oklch(1 0 0 / 8%);
+  --sidebar-ring:                 oklch(0.65 0.13 264);
 }
 
-/* ── Nexley AI Design Tokens (Dark) ────────────────── */
+/* ── Dark mode (DEFAULT — this is what ships) ──────────────────────── */
 .dark {
-  /* Brand colors (slightly lighter for dark bg) */
-  --brand-primary:   #818cf8;
-  --brand-success:   #4ade80;
-  --brand-danger:    #f87171;
-  --brand-warning:   #fbbf24;
-  --brand-info:      #60a5fa;
+  /* Brand tokens — slightly brighter so they pass AA on near-black bg */
+  --brand-primary:   #6580D0;  /* navy lifted for dark */
+  --brand-success:   #4ADE80;
+  --brand-danger:    #F87171;
+  --brand-warning:   #FBBF24;
+  --brand-info:      #60A5FA;
 
-  /* Surface colors */
-  --card-bg:         #1e293b;
-  --accent-light:    #1e1b4b;
-  --sidebar-bg:      #020617;
-  --skeleton-from:   #1e293b;
-  --skeleton-to:     #334155;
-  --hero-gradient:   linear-gradient(135deg, #15803d 0%, #16a34a 50%, #22c55e 100%);
+  /* Surface helpers (legacy) */
+  --card-bg:         #131318;
+  --accent-light:    #1A1E2E;
+  --sidebar-bg:      #0A0B12;
+  --skeleton-from:   #1A1A22;
+  --skeleton-to:     #262630;
+  --hero-gradient:   linear-gradient(135deg, #1F4D3A 0%, #15803D 50%, #22C55E 100%);
 
-  /* shadcn tokens */
-  --background:      oklch(0.145 0 0);
-  --foreground:      oklch(0.985 0 0);
-  --card:            oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover:         oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary:         oklch(0.707 0.165 264.376);
-  --primary-foreground: oklch(0.145 0 0);
-  --secondary:       oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted:           oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent:          oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive:     oklch(0.704 0.191 22.216);
-  --border:          oklch(1 0 0 / 10%);
-  --input:           oklch(1 0 0 / 15%);
-  --ring:            oklch(0.707 0.165 264.376);
-  --chart-1:         #818cf8;
-  --chart-2:         #a78bfa;
-  --chart-3:         #22d3ee;
-  --chart-4:         #fbbf24;
-  --chart-5:         #4ade80;
-  --sidebar:         oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.707 0.165 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent:  oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border:  oklch(1 0 0 / 10%);
-  --sidebar-ring:    oklch(0.707 0.165 264.376);
+  /* ─── shadcn tokens (OKLCH) — Dark
+       Surface stratification:
+       - page         L=0.13  (#0A0A0E)
+       - card/popover L=0.18  (#131318)
+       - elevated     L=0.22  (#1B1B23)
+       Borders are alpha-channel rgba(255,255,255,...) so they ride any bg. */
+  /*
+   * Dark v2 — warm-neutral grays.
+   *
+   * Earlier draft used `chroma 0.005 hue 270` (cool blue-tinted slate).
+   * Linear's 2026 refresh deliberately shifted from cool to warm gray
+   * because cool gray on dark surfaces reads "default Tailwind" — the
+   * current premium direction is a warm desaturated neutral. We mirror:
+   *   - chroma stays low (0.004–0.006) so it's still essentially gray
+   *   - hue shifts from 270 (blue-purple) → 60 (warm yellow-tan)
+   *   - lightness ramp unchanged (0.13 → 0.18 → 0.22)
+   *
+   * Net effect: surfaces feel a hair warmer in side-by-side, more like
+   * an aged paper or worn brass than a fluorescent-lit office. Colour
+   * temperature is the difference.
+   */
+  --background:           oklch(0.13 0.004 60);
+  --foreground:           oklch(0.96 0 0);
+  --card:                 oklch(0.18 0.004 60);
+  --card-foreground:      oklch(0.96 0 0);
+  --popover:              oklch(0.18 0.004 60);
+  --popover-foreground:   oklch(0.96 0 0);
+  /* Primary = navy lifted for dark — kept on its original blue hue (264)
+     so the accent reads cool against the warmed neutrals. The colour
+     contrast between accent and background is what makes the navy feel
+     deliberate. White text on navy passes AA (~5:1). */
+  --primary:              oklch(0.65 0.13 264);
+  --primary-foreground:   oklch(0.13 0.004 60);
+  --secondary:            oklch(0.22 0.004 60);
+  --secondary-foreground: oklch(0.96 0 0);
+  --muted:                oklch(0.22 0.004 60);
+  /* `0.72 chroma 0.005 hue 60` → contrast 6.5:1 vs page bg, AA pass.
+     Warm-tinted muted text stays legible without the cool steel feel
+     that Tailwind defaults give. */
+  --muted-foreground:     oklch(0.72 0.005 60);
+  --accent:               oklch(0.22 0.004 60);
+  --accent-foreground:    oklch(0.96 0 0);
+  --destructive:          oklch(0.70 0.19 22);
+  --border:               oklch(1 0 0 / 8%);
+  --input:                oklch(1 0 0 / 12%);
+  --ring:                 oklch(0.65 0.13 264);
+
+  --chart-1:              oklch(0.65 0.13 264);
+  --chart-2:              oklch(0.70 0.09 240);
+  --chart-3:              oklch(0.75 0.09 200);
+  --chart-4:              oklch(0.75 0.16 50);
+  --chart-5:              oklch(0.70 0.15 145);
+
+  --sidebar:                      oklch(0.13 0.004 60);
+  --sidebar-foreground:           oklch(0.96 0 0);
+  --sidebar-primary:              oklch(0.65 0.13 264);
+  --sidebar-primary-foreground:   oklch(0.99 0 0);
+  --sidebar-accent:               oklch(0.22 0.004 60);
+  --sidebar-accent-foreground:    oklch(0.96 0 0);
+  --sidebar-border:               oklch(1 0 0 / 8%);
+  --sidebar-ring:                 oklch(0.65 0.13 264);
 }
 
+/* ─────────────────────────────────────────────────────────────────────
+   @theme inline — Tailwind v4 token bridge
+
+   Two important changes from v1:
+   1. --font-sans / --font-mono now BOTH map to next/font CSS vars (Geist).
+   2. --radius-{sm,md,lg,xl,2xl,3xl,4xl} are CAPPED at the same value as
+      --radius (8px). This is the single biggest "kill the AI tell" move:
+      every legacy `rounded-2xl` and `rounded-3xl` callsite in the codebase
+      now collapses to 8px without any code edits. Migration is gradual
+      and visual; the cap is enforced at the token layer.
+   ───────────────────────────────────────────────────────────────────── */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -145,30 +223,58 @@
   --color-brand-danger: var(--brand-danger);
   --color-brand-warning: var(--brand-warning);
   --color-brand-info: var(--brand-info);
+  /* Compatibility alias — many legacy callsites use `bg-brand-accent`,
+     `text-brand-accent`, `focus:ring-brand-accent/30` etc. Without this
+     mapping the Tailwind utilities resolve to `var(--undefined)` and the
+     Sender Roles save button (and ~30 other CTAs) render with transparent
+     bg + white text — invisible. Aliased to --primary so v2 navy flows. */
+  --color-brand-accent: var(--primary);
+  --color-success: var(--brand-success);
+  --color-danger: var(--brand-danger);
+  --color-warning: var(--brand-warning);
+  --color-info: var(--brand-info);
   --font-heading: var(--font-sans);
   --font-sans: var(--font-sans);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --font-mono: var(--font-mono);
+
+  /* Radius scale — capped at 8px.
+     Inputs/badges = 4px (--radius-sm)
+     Buttons       = 6px (--radius-md)
+     Cards/popover = 8px (--radius / --radius-lg)
+     Anything that asks for xl+ collapses to 8px — this is the cap that
+     kills "rounded-2xl on a button looking like a kid's toy". */
+  --radius-2xs: 0.125rem;   /* 2px — focus rings */
+  --radius-xs:  0.1875rem;  /* 3px */
+  --radius-sm:  0.25rem;    /* 4px — inputs, tags */
+  --radius-md:  0.375rem;   /* 6px — buttons */
+  --radius-lg:  0.5rem;     /* 8px — cards, modals (= --radius) */
+  --radius-xl:  0.5rem;     /* CAPPED 8px (was 16px+) */
+  --radius-2xl: 0.5rem;     /* CAPPED 8px (was 21.6px+) */
+  --radius-3xl: 0.5rem;     /* CAPPED 8px (was 26px+) */
+  --radius-4xl: 0.5rem;     /* CAPPED 8px (was 31px+) */
 }
 
+/* ── Global resets + base ──────────────────────────────────────────── */
 * { box-sizing: border-box; }
 
+/* NOTE: `body` no longer has a hardcoded `font-family`. Geist cascades
+   via `html { @apply font-sans }` in @layer base which reads --font-sans
+   from next/font. Removing the hardcoded -apple-system/Segoe/Inter
+   stack was a Phase 1 unblock for the font swap. */
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
   margin: 0;
   transition: background 0.2s, color 0.2s;
+  /* Tabular figures everywhere by default — most of the dashboard is
+     numbers, and they should align. Where prose flows, override with
+     `font-feature-settings: 'tnum' off`. */
+  font-feature-settings: 'cv11', 'ss01', 'tnum';
 }
 
-/* ── Focus / Accessibility ─────────────────────────── */
+/* ── Focus / Accessibility ─────────────────────────────────────────── */
 :focus-visible {
-  outline: 2px solid var(--brand-primary);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: 3px;
 }
 
 .sr-only {
@@ -188,7 +294,7 @@ body {
   min-width: 44px;
 }
 
-/* ── Skeleton shimmer ──────────────────────────────── */
+/* ── Skeleton shimmer ──────────────────────────────────────────────── */
 @keyframes shimmer {
   0%   { background-position: -400px 0; }
   100% { background-position:  400px 0; }
@@ -200,20 +306,59 @@ body {
   border-radius: 6px;
 }
 
-/* ── Pulsing live indicator ────────────────────────── */
+/* ── Pulsing live indicator ────────────────────────────────────────── */
 @keyframes pulse-live {
   0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(1.2); }
+  50%      { opacity: 0.5; transform: scale(1.2); }
 }
 .animate-pulse-live {
   animation: pulse-live 2s ease-in-out infinite;
 }
 
-/* ── Scrollbar ─────────────────────────────────────── */
+/* ── Scrollbar ─────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-.dark ::-webkit-scrollbar-thumb { background: #475569; }
+::-webkit-scrollbar-thumb {
+  background: oklch(0 0 0 / 14%);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0 0 0 / 22%);
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: oklch(1 0 0 / 14%);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: oklch(1 0 0 / 22%);
+}
+
+/* ── Tabular figures helper ────────────────────────────────────────── */
+/* Pair Geist Mono with `tnum` for column-aligned digits. Apply via
+   `<span className="num">123,456</span>` anywhere a number lives in a
+   table or hero. */
+.num {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum', 'lnum';
+}
+
+/* ── Type label small-caps helper ──────────────────────────────────── */
+/* For sidebar section headers ("WORKSPACE" / "AI EMPLOYEE"), table
+   column headers, and pill labels. 11px is the smallest readable size
+   that still feels intentional. */
+.label {
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-foreground);
+}
+
+/* ── Hairline divider helper ───────────────────────────────────────── */
+/* Linear's pattern: every panel separated by a single 1px alpha border. */
+.hairline {
+  border-color: var(--border);
+}
 
 @layer base {
   * {

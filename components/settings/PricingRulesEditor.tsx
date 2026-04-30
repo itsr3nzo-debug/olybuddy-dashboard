@@ -84,7 +84,7 @@ export default function PricingRulesEditor() {
   return (
     <div className="space-y-5">
       {/* Core rates */}
-      <div className="rounded-xl border bg-card-bg p-5">
+      <div className="rounded-xl border bg-card p-5">
         <h2 className="text-sm font-medium text-foreground mb-3">Core rates</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -109,7 +109,7 @@ export default function PricingRulesEditor() {
       </div>
 
       {/* Markup tiers */}
-      <div className="rounded-xl border bg-card-bg p-5">
+      <div className="rounded-xl border bg-card p-5">
         <h2 className="text-sm font-medium text-foreground mb-3">Markup tiers (%)</h2>
         <p className="text-xs text-muted-foreground mb-3">Applied to material cost by item type.</p>
         <div className="grid grid-cols-3 gap-3">
@@ -128,7 +128,7 @@ export default function PricingRulesEditor() {
       </div>
 
       {/* Loadings */}
-      <div className="rounded-xl border bg-card-bg p-5">
+      <div className="rounded-xl border bg-card p-5">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-medium text-foreground">Site loadings (%)</h2>
           <button onClick={addLoading} className="inline-flex items-center gap-1 text-xs text-brand-accent">
@@ -162,7 +162,7 @@ export default function PricingRulesEditor() {
       </div>
 
       {/* Item-rate summary */}
-      <div className="rounded-xl border bg-card-bg p-5">
+      <div className="rounded-xl border bg-card p-5">
         <h2 className="text-sm font-medium text-foreground mb-2">Item rates</h2>
         <p className="text-xs text-muted-foreground">
           Your AI Employee starts with UK electrical defaults (socket £8.50 + 20 min labour, downlight £7.50 + 12 min, etc). Per-line edits happen on each estimate. This is on the roadmap as a full rate book editor — for now, the estimator shows defaults and you edit per-line.
@@ -170,7 +170,7 @@ export default function PricingRulesEditor() {
       </div>
 
       {/* Notes */}
-      <div className="rounded-xl border bg-card-bg p-5">
+      <div className="rounded-xl border bg-card p-5">
         <h2 className="text-sm font-medium text-foreground mb-3">Notes</h2>
         <textarea
           value={rules.notes ?? ''}
@@ -180,7 +180,7 @@ export default function PricingRulesEditor() {
         />
       </div>
 
-      <div className="rounded-xl border bg-card-bg p-4 flex items-center justify-between">
+      <div className="rounded-xl border bg-card p-4 flex items-center justify-between">
         <div className="text-xs text-muted-foreground">{msg || 'Unsaved changes are not applied.'}</div>
         <button
           onClick={save}

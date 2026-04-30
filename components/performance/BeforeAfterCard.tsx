@@ -43,7 +43,7 @@ function MetricRow({ label, before, after, suffix = '', higherIsBetter = true }:
 export default function BeforeAfterCard({ first30, current30, hasEnoughData }: BeforeAfterCardProps) {
   if (!hasEnoughData) {
     return (
-      <div className="rounded-xl border p-6 bg-card" style={{ borderColor: 'var(--border)' }}>
+      <div className="rounded-xl border p-6 bg-card">
         <div className="flex items-center gap-2 mb-2">
           <Clock size={16} className="text-muted-foreground" />
           <h3 className="text-sm font-semibold text-foreground">Before vs After</h3>
@@ -61,7 +61,6 @@ export default function BeforeAfterCard({ first30, current30, hasEnoughData }: B
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
       className="rounded-xl border p-6 bg-card"
-      style={{ borderColor: 'var(--border)' }}
     >
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-foreground">Before vs After</h3>

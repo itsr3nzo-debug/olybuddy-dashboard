@@ -181,7 +181,7 @@ export default function OnboardingPage() {
   return (
     <div className="max-w-2xl mx-auto py-8">
       <div className="mb-8 text-center">
-        <h1 className="text-2xl font-bold mb-1">Welcome to Nexley AI</h1>
+        <h1 className="text-2xl font-semibold tracking-tight mb-1">Welcome to Nexley AI</h1>
         <p className="text-muted-foreground">Let&apos;s get your AI Employee set up.</p>
       </div>
 
@@ -195,11 +195,11 @@ export default function OnboardingPage() {
           return (
             <div key={s.label} className="flex-1 flex flex-col items-center gap-1.5">
               <div className={`w-full h-1.5 rounded-full transition-colors ${
-                isDone ? 'bg-green-500' : isActive ? 'bg-brand-primary' : 'bg-muted'
+                isDone ? 'bg-success' : isActive ? 'bg-primary' : 'bg-muted'
               }`} />
               <div className="flex items-center gap-1.5">
                 {isDone ? (
-                  <Check size={14} className="text-green-500" />
+                  <Check size={14} strokeWidth={2} className="text-success" />
                 ) : (
                   <StepIcon size={14} className={isActive ? 'text-brand-primary' : 'text-muted-foreground'} />
                 )}
@@ -311,7 +311,7 @@ export default function OnboardingPage() {
         )}
 
         {/* Error */}
-        {error && <p className="text-sm text-red-500 mt-4">{error}</p>}
+        {error && <p className="text-sm text-destructive mt-4">{error}</p>}
 
         {/* Navigation */}
         <div className="flex items-center justify-between mt-8 pt-6 border-t">

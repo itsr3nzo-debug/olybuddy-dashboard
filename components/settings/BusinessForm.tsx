@@ -32,7 +32,7 @@ export default function BusinessForm({ initialName, initialEmail, initialPhone }
         <input
           name="name"
           defaultValue={initialName}
-          className="w-full px-3 py-2 rounded-lg border text-sm bg-card-bg text-foreground border-border focus:ring-2 focus:ring-ring outline-none"
+          className="w-full px-3 py-2 rounded-lg border text-sm bg-card text-foreground border-border focus:ring-2 focus:ring-ring outline-none"
         />
       </div>
       <div>
@@ -41,7 +41,7 @@ export default function BusinessForm({ initialName, initialEmail, initialPhone }
           name="email"
           type="email"
           defaultValue={initialEmail}
-          className="w-full px-3 py-2 rounded-lg border text-sm bg-card-bg text-foreground border-border focus:ring-2 focus:ring-ring outline-none"
+          className="w-full px-3 py-2 rounded-lg border text-sm bg-card text-foreground border-border focus:ring-2 focus:ring-ring outline-none"
         />
       </div>
       <div>
@@ -49,7 +49,7 @@ export default function BusinessForm({ initialName, initialEmail, initialPhone }
         <input
           name="phone"
           defaultValue={initialPhone}
-          className="w-full px-3 py-2 rounded-lg border text-sm bg-card-bg text-foreground border-border focus:ring-2 focus:ring-ring outline-none"
+          className="w-full px-3 py-2 rounded-lg border text-sm bg-card text-foreground border-border focus:ring-2 focus:ring-ring outline-none"
         />
       </div>
       <button

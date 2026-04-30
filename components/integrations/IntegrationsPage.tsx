@@ -27,39 +27,41 @@ function ConnectedRow({ integration, onDisconnect }: { integration: ConnectedInt
   // The status pill lives under the provider name so the middle column can
   // carry the account email (what the user recognises as "who owns this").
   return (
-    <tr className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
+    <tr className="border-b border-border hover:bg-muted/40 transition-colors">
       <td className="py-4 px-4">
         <div className="flex items-center gap-3">
-          <ProviderIcon provider={def || { id: integration.provider, name: integration.provider, iconColor: 'bg-gray-700/30 text-gray-300' }} size={36} />
+          <ProviderIcon provider={def || { id: integration.provider, name: integration.provider, iconColor: 'bg-muted text-foreground' }} size={36} />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{def?.name || integration.provider}</p>
-              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                integration.status === 'connected' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
-                integration.status === 'expired' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' :
-                'bg-red-500/10 text-red-600 dark:text-red-400'
+              <p className="font-medium text-foreground text-sm truncate">{def?.name || integration.provider}</p>
+              {/* Status pill — semantic v2 tokens. Was raw emerald/amber/red 500. */}
+              <span className={`inline-flex items-center gap-1.5 px-2 h-[18px] rounded-sm text-[10px] font-medium ${
+                integration.status === 'connected' ? 'bg-success/10 text-success' :
+                integration.status === 'expired'   ? 'bg-warning/10 text-warning' :
+                                                     'bg-destructive/12 text-destructive'
               }`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${
-                  integration.status === 'connected' ? 'bg-emerald-500' :
-                  integration.status === 'expired' ? 'bg-amber-500' : 'bg-red-500'
+                <span className={`size-1.5 rounded-full ${
+                  integration.status === 'connected' ? 'bg-success' :
+                  integration.status === 'expired'   ? 'bg-warning' :
+                                                       'bg-destructive'
                 }`} />
                 {integration.status === 'connected' ? 'Active' : integration.status === 'expired' ? 'Expired' : 'Error'}
               </span>
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{def?.description}</p>
+            <p className="text-xs text-muted-foreground truncate">{def?.description}</p>
           </div>
         </div>
       </td>
-      <td className="py-4 px-4 text-sm text-gray-600 dark:text-gray-300 truncate">
+      <td className="py-4 px-4 text-sm text-muted-foreground truncate">
         {integration.account_email || integration.account_name || '\u2014'}
       </td>
-      <td className="py-4 px-4 text-sm text-gray-500 dark:text-gray-400">
+      <td className="py-4 px-4 text-sm text-muted-foreground">
         {integration.created_at ? new Date(integration.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '\u2014'}
       </td>
       <td className="py-4 px-4 text-right">
         <button
           onClick={() => onDisconnect(integration.id, integration.provider)}
-          className="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium transition-colors"
+          className="text-xs text-destructive hover:text-destructive/80 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
         >
           Disconnect
         </button>
@@ -249,11 +251,11 @@ function AddIntegrationModal({ open, onClose, connectedProviders, onChanged }: {
                     key={provider.id}
                     href={provider.available && !isConnected && !provider.pat ? `/api/oauth/${oauthProviderId}` : undefined}
                     onClick={(e) => handleTileClick(e, provider)}
-                    className={`flex items-start gap-3 p-4 rounded-xl border transition-all ${
+                    className={`flex items-start gap-3 p-4 rounded-md border transition-colors ${
                       isConnected
-                        ? 'border-emerald-500/30 bg-emerald-500/5 cursor-default'
+                        ? 'border-success/30 bg-success/5 cursor-default'
                         : provider.available
-                        ? 'border-border hover:border-brand-primary/50 hover:shadow-md cursor-pointer'
+                        ? 'border-border hover:border-primary/50 hover:bg-muted/40 cursor-pointer'
                         : 'border-border opacity-50 cursor-not-allowed'
                     }`}
                   >
@@ -380,24 +382,30 @@ export default function IntegrationsPage() {
 
   return (
     <div className="px-6 py-8 max-w-6xl mx-auto">
-      {/* Success Banner */}
+      {/* Success Banner — semantic v2 tokens, accent strip on left edge,
+          matches the BannerShell visual language used elsewhere. */}
       {success && (
-        <div className="mb-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between">
-          <p className="text-sm text-emerald-600 dark:text-emerald-400">{success}</p>
-          <button onClick={() => setSuccess('')} className="text-emerald-600 dark:text-emerald-400 hover:opacity-80 text-xs">Dismiss</button>
+        <div className="mb-4 px-4 py-2.5 rounded-lg border border-success/30 bg-card shadow-[inset_2px_0_0_0_var(--brand-success)] flex items-center justify-between">
+          <p className="text-sm text-foreground">{success}</p>
+          <button
+            onClick={() => setSuccess('')}
+            className="text-success hover:text-success/80 text-xs font-medium px-2 h-6 rounded-sm hover:bg-success/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
-      {/* Expired-token re-link banner */}
+      {/* Expired-token re-link banner — semantic warning tokens. */}
       {integrations.some(i => i.status === 'expired' || i.status === 'error') && (
-        <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-          <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">Some integrations need re-authorising</p>
-          <ul className="mt-1 text-xs text-amber-700/80 dark:text-amber-300/80 space-y-0.5">
+        <div className="mb-4 px-4 py-3 rounded-lg border border-warning/30 bg-card shadow-[inset_2px_0_0_0_var(--brand-warning)]">
+          <p className="text-sm text-foreground font-medium">Some integrations need re-authorising</p>
+          <ul className="mt-1.5 text-xs text-muted-foreground space-y-1">
             {integrations.filter(i => i.status === 'expired' || i.status === 'error').map(i => (
               <li key={i.id} className="flex items-center justify-between">
-                <span>· {i.provider.replace(/_/g, ' ')} {i.error_message ? `\u2014 ${i.error_message.slice(0, 80)}` : ''}</span>
+                <span><span className="text-muted-foreground/60">·</span> {i.provider.replace(/_/g, ' ')} {i.error_message ? `\u2014 ${i.error_message.slice(0, 80)}` : ''}</span>
                 <a href={`/api/oauth/${getOAuthProviderId(i.provider)}`}
-                   className="ml-3 px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-200 text-[11px]">
+                   className="ml-3 px-2 h-6 inline-flex items-center rounded-sm border border-warning/30 text-warning hover:bg-warning/10 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   Reconnect
                 </a>
               </li>
@@ -406,25 +414,30 @@ export default function IntegrationsPage() {
         </div>
       )}
 
-      {/* Error Banner */}
+      {/* Error Banner — semantic destructive tokens. */}
       {error && (
-        <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-between">
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-          <button onClick={() => setError('')} className="text-red-600 dark:text-red-400 hover:opacity-80 text-xs">Dismiss</button>
+        <div className="mb-4 px-4 py-2.5 rounded-lg border border-destructive/30 bg-card shadow-[inset_2px_0_0_0_var(--brand-danger)] flex items-center justify-between">
+          <p className="text-sm text-foreground">{error}</p>
+          <button
+            onClick={() => setError('')}
+            className="text-destructive hover:text-destructive/80 text-xs font-medium px-2 h-6 rounded-sm hover:bg-destructive/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
       {/* Header — matches ElevenLabs: title + Alpha pill on left, primary CTA on right */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
-          <h1 className="text-4xl font-semibold text-gray-900 dark:text-white tracking-tight">Integrations</h1>
+          <h1 className="text-2xl font-semibold text-foreground tracking-tight">Integrations</h1>
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
             Alpha
           </span>
         </div>
         <button
           onClick={() => setModalOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors shadow-sm"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
         >
           <Plus className="w-4 h-4" strokeWidth={2.5} />
           Add integration
@@ -434,33 +447,33 @@ export default function IntegrationsPage() {
       {/* Search + sort controls — always visible (ElevenLabs parity) */}
       <div className="flex items-center gap-3 mb-6">
         <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search integrations..."
-            className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-white/10 focus:border-gray-300 dark:focus:border-gray-700 outline-none transition-shadow"
+            className="w-full pl-10 pr-4 py-2.5 text-sm border border-border rounded-lg bg-card text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-primary outline-none transition-shadow"
           />
         </div>
         <button
           type="button"
-          className="inline-flex items-center gap-2 px-3.5 py-2.5 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          className="inline-flex items-center gap-2 px-3.5 py-2.5 text-sm border border-border rounded-lg bg-card text-foreground hover:bg-muted/40 transition-colors"
         >
-          <ArrowUpDown className="w-3.5 h-3.5 text-gray-400" strokeWidth={2} />
+          <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground" strokeWidth={2} />
           Recent
-          <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
         </button>
       </div>
 
       {/* Table shell — header always visible; body is either rows, loading, or the empty-state illustration */}
-      <div className="border-b border-gray-200 dark:border-gray-800 mb-0">
+      <div className="border-b border-border mb-0">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-200 dark:border-gray-800">
-              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 dark:text-gray-400">Name</th>
-              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 dark:text-gray-400">Created by</th>
-              <th className="text-left py-3 px-4 text-xs font-medium text-gray-500 dark:text-gray-400">
+            <tr className="border-b border-border">
+              <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Name</th>
+              <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">Created by</th>
+              <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">
                 <span className="inline-flex items-center gap-1">Date created <ChevronDown className="w-3 h-3" /></span>
               </th>
               <th className="py-3 px-4"></th>
@@ -484,15 +497,15 @@ export default function IntegrationsPage() {
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="relative mb-5">
-            <div className="w-20 h-20 rounded-full bg-gray-50/50 dark:bg-gray-900/50 flex items-center justify-center">
+            <div className="w-20 h-20 rounded-full bg-muted/30 flex items-center justify-center">
               <Globe className="w-11 h-11 text-gray-300 dark:text-gray-600" strokeWidth={1} />
             </div>
-            <div className="absolute top-0 right-0 w-6 h-6 rounded-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 flex items-center justify-center shadow-sm">
-              <HelpCircle className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" strokeWidth={2} />
+            <div className="absolute top-0 right-0 w-6 h-6 rounded-full bg-card border border-border flex items-center justify-center shadow-sm">
+              <HelpCircle className="w-3.5 h-3.5 text-muted-foreground" strokeWidth={2} />
             </div>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1.5">No integrations configured</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md">
+          <h3 className="text-lg font-semibold text-foreground mb-1.5">No integrations configured</h3>
+          <p className="text-sm text-muted-foreground max-w-md">
             Connect your AI Employee to your existing tools or browse the library of integrations below.
           </p>
         </div>
@@ -516,12 +529,12 @@ export default function IntegrationsPage() {
                     setModalOpen(true)
                   }
                 }}
-                className="flex items-start gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-sm cursor-pointer transition-all"
+                className="flex items-start gap-3 p-4 rounded-md border border-border bg-card hover:border-primary/40 hover:bg-muted/30 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <ProviderIcon provider={provider} size={36} />
                 <div className="min-w-0">
-                  <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{provider.name}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{provider.description}</p>
+                  <p className="font-medium text-foreground text-sm truncate">{provider.name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{provider.description}</p>
                 </div>
               </a>
             )

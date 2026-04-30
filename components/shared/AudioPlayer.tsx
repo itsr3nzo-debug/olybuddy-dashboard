@@ -77,7 +77,7 @@ export default function AudioPlayer({ url, onTimeUpdate, className = '' }: Audio
 
   if (error) {
     return (
-      <div className={`flex items-center gap-2 rounded-lg border bg-card-bg px-4 py-3 text-sm text-muted-foreground ${className}`}>
+      <div className={`flex items-center gap-2 rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground ${className}`}>
         <Volume2 size={16} />
         <span>Recording unavailable</span>
       </div>
@@ -85,7 +85,7 @@ export default function AudioPlayer({ url, onTimeUpdate, className = '' }: Audio
   }
 
   return (
-    <div className={`rounded-lg border bg-card-bg p-4 ${className}`}>
+    <div className={`rounded-lg border bg-card p-4 ${className}`}>
       {isLoading && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />

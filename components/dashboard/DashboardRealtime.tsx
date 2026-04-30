@@ -98,51 +98,70 @@ export default function DashboardRealtime({ initialCalls, clientId }: DashboardR
 
   return (
     <div>
-      {/* Activity Feed */}
+      {/* Activity Feed — full-width list. Each row is 36-44px tall,
+          hairline-bordered, channel icon + contact + summary + time +
+          inbound/outbound chip. Stripe/Linear pattern. */}
       {recentActivity.length > 0 && (
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-3">
-            <h2 className="text-sm font-semibold text-foreground">Live Activity</h2>
-            <LiveIndicator isConnected={bothConnected} />
+        <section className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-foreground tracking-tight flex items-center gap-2">
+              Live activity
+              <LiveIndicator isConnected={bothConnected} />
+            </h2>
+            <span className="font-mono tabular-nums text-xs text-muted-foreground">
+              {recentActivity.length} {recentActivity.length === 1 ? 'event' : 'events'}
+            </span>
           </div>
-          <div className="space-y-2">
-            {recentActivity.slice(0, 5).map((a, i) => (
-              <div
+          <ul className="rounded-lg border border-border bg-card overflow-hidden divide-y divide-border">
+            {recentActivity.slice(0, 5).map((a) => (
+              <li
                 key={a.id}
-                className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
-                style={{ borderColor: 'var(--border)', animationDelay: `${i * 50}ms` }}
+                className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40 transition-colors"
               >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                  a.type === 'call' ? 'bg-violet-500/10 text-violet-500' : 'bg-brand-primary/10 text-brand-primary'
-                }`}>
-                  {a.type === 'call' ? <Phone size={14} /> : <MessageSquare size={14} />}
-                </div>
+                {/* Channel icon — small, dim, no tile */}
+                {a.type === 'call' ? (
+                  <Phone size={14} strokeWidth={1.5} className="text-muted-foreground shrink-0" />
+                ) : (
+                  <MessageSquare size={14} strokeWidth={1.5} className="text-muted-foreground shrink-0" />
+                )}
+
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{a.contact}</p>
+                  <p className="text-sm font-medium text-foreground truncate tracking-tight">
+                    {a.contact}
+                  </p>
                   <p className="text-xs text-muted-foreground truncate">{a.summary}</p>
                 </div>
-                <div className="text-right shrink-0">
-                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
-                    a.direction === 'inbound' ? 'bg-brand-success/10 text-brand-success' : 'bg-blue-500/10 text-blue-500'
-                  }`}>
-                    {a.direction === 'inbound' ? '← In' : '→ Out'}
+
+                {/* Direction + time — right-aligned, mono */}
+                <div className="text-right shrink-0 flex items-center gap-3">
+                  <span
+                    className={`font-mono tabular-nums text-[10px] uppercase tracking-wider ${
+                      a.direction === 'inbound' ? 'text-success' : 'text-muted-foreground'
+                    }`}
+                  >
+                    {a.direction === 'inbound' ? 'IN' : 'OUT'}
                   </span>
                   {a.time && (
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {new Date(a.time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                    </p>
+                    <span className="font-mono tabular-nums text-xs text-muted-foreground">
+                      {new Date(a.time).toLocaleTimeString('en-GB', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
                   )}
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </section>
       )}
 
-      {/* Recent Calls Table (kept for backward compat) */}
-      <div className="flex items-center gap-2 mb-3">
-        <h2 className="text-sm font-semibold text-foreground">Recent Conversations</h2>
-        <LiveIndicator isConnected={bothConnected} />
+      {/* Recent Calls Table (kept) */}
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold text-foreground tracking-tight flex items-center gap-2">
+          Recent conversations
+          <LiveIndicator isConnected={bothConnected} />
+        </h2>
       </div>
       <RecentCallsTable calls={calls} />
     </div>

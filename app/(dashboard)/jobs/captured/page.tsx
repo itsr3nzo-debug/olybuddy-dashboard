@@ -23,7 +23,7 @@ export default async function CapturedJobsPage() {
   return (
     <div className="max-w-5xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Captured jobs</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Captured jobs</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Voice notes, photos, and forwards your AI Employee turned into structured jobs. Review and push to your job system.
         </p>

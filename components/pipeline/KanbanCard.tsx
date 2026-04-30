@@ -31,12 +31,15 @@ export default function KanbanCard({ opportunity: opp, isDragOverlay }: KanbanCa
     <div
       ref={setNodeRef}
       style={style}
-      className={`rounded-xl border bg-card p-3.5 transition-all group ${
+      className={`rounded-lg border border-border bg-card p-3.5 transition-colors group ${
         isDragOverlay
-          ? 'shadow-xl border-brand-primary/30 ring-2 ring-brand-primary/20'
+          // The drag-overlay is the ONE place where shadow IS the depth signal
+          // (Linear / Stripe pattern — lifted card during reorder).
+          ? 'shadow-[0_8px_24px_rgba(0,0,0,0.32)] border-primary/40'
           : isDragging
             ? 'opacity-30'
-            : 'shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing'
+            // Hairline-only at rest. Hover bg shift instead of shadow growth.
+            : 'cursor-grab active:cursor-grabbing hover:bg-muted/40 hover:border-border'
       }`}
     >
       <div className="flex items-start justify-between mb-2">

@@ -5,13 +5,30 @@ import { createClient } from '@/lib/supabase/server'
 export const metadata: Metadata = { title: 'Overview | Nexley AI' }
 import { redirect } from 'next/navigation'
 import KpiCard, { KpiCardSkeleton } from '@/components/dashboard/KpiCard'
-import CallsChart, { ChartSkeleton } from '@/components/dashboard/CallsChart'
+import { ChartSkeleton } from '@/components/dashboard/CallsChart'
+import dynamic from 'next/dynamic'
+
+// CallsChart pulls in recharts (~200kB). Lazy-loading it via next/dynamic
+// keeps recharts out of the dashboard's initial JS chunk — the chart still
+// renders but in a separate bundle that loads after first paint. SSR is
+// kept on so the chart appears in the initial HTML without flash.
+const CallsChart = dynamic(() => import('@/components/dashboard/CallsChart'), {
+  loading: () => <ChartSkeleton />,
+})
 import DashboardRealtime from '@/components/dashboard/DashboardRealtime'
 import EmptyState from '@/components/shared/EmptyState'
 import HeroRoiCard from '@/components/dashboard/HeroRoiCard'
 import AgentStatusCard from '@/components/dashboard/AgentStatusCard'
+import VpsStatusCard from '@/components/dashboard/VpsStatusCard'
+import TodayDigestCard from '@/components/dashboard/TodayDigestCard'
 import IntegrationsCta from '@/components/dashboard/IntegrationsCta'
-import VpsHeartbeatBadge from '@/components/dashboard/VpsHeartbeatBadge'
+// VpsHeartbeatBadge intentionally NOT imported — DA pass found the badge
+// (a) lacked clientSlug filter so its query was unscoped, (b) missing RLS
+// on agent_heartbeats meant the authenticated client read 0 rows, so it
+// permanently rendered "No heartbeat" right next to the page title. The
+// liveness signal is now carried by VpsStatusCard + AgentStatusCard, which
+// together have the right data + scope. Three "Ava is alive" indicators
+// stacked above the fold was also redundant.
 import type { CallLog, AgentStatus } from '@/lib/types'
 import { MessageSquare, Calendar, UserPlus, TrendingUp } from 'lucide-react'
 import GettingStarted from '@/components/dashboard/GettingStarted'
@@ -126,11 +143,15 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   let followUpsSent = 0
   let bookingsThisWeek = 0
   let prevBookings = 0
+  // "Yesterday" digest counter — drives the TodayDigestCard headline.
+  // Booked/quoted/lost/awaiting-reply intentionally NOT computed here:
+  // see comment at the derivation site for why (DB columns missing).
+  let yesterdayHandled = 0
   let agentName = 'Nexley'
   let agentStatus: AgentStatus = 'online'
   let agentIsActive = true
   let agentLastCallAt: string | null = null
-  let subscriptionPlan = 'trial'
+  // (subscriptionPlan/isVoicePlan removed — dead reads, see comment below)
   // Walkthrough state (item #19) — populated below if we have a client row.
   let clientCreatedAt: string | null = null
   let ownerFirstName: string | null = null
@@ -139,6 +160,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   let oppLost = 0
   let oppTotalValue = 0
   let integrationsCount = 0
+  // Per-client VPS state — drives the VpsStatusCard hero row.
+  let vpsIp: string | null = null
+  let vpsServiceSlug: string | null = null
+  let vpsReady = false
+  let vpsReadyAt: string | null = null
 
   if (clientId) {
     // Parallel fetch all dashboard data for faster load
@@ -190,7 +216,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       // contact_name (for first-run onboarding walkthrough — item #19).
       supabase
         .from('clients')
-        .select('subscription_plan, created_at, contact_name')
+        // vps_* fields surface the per-client VPS as a first-class object
+        // in the dashboard header — Vercel-tier moat play. Only Nexley
+        // ships single-tenant per-customer agents in this UK market.
+        .select('subscription_plan, created_at, contact_name, vps_ip, vps_service_slug, vps_ready, vps_ready_at')
         .eq('id', clientId)
         .single(),
       // WhatsApp/SMS messages this period
@@ -236,13 +265,46 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     followUpsSent = followUpsRes.count ?? 0
     bookingsThisWeek = bookingsRes.count ?? 0
     prevBookings = prevBookingsRes.count ?? 0
-    subscriptionPlan = (clientRes.data as { subscription_plan: string } | null)?.subscription_plan ?? 'trial'
+    // subscription_plan no longer read — when feature gating returns we'll
+    // fetch it again. Avoid letting unused globals accumulate in the meantime.
     // Walkthrough props for item #19 — first-run modal triggers when:
     //   - account is <72h old AND
     //   - no conversations or calls yet (gated below at render time).
     clientCreatedAt = (clientRes.data as { created_at?: string } | null)?.created_at ?? null
     const contactName = (clientRes.data as { contact_name?: string } | null)?.contact_name ?? null
     ownerFirstName = contactName ? contactName.split(' ')[0] : null
+
+    // VPS hero data — only renders when vps_ready=true. Drives the
+    // VpsStatusCard "Ava is online · hostname · uptime" treatment.
+    const c = clientRes.data as Record<string, unknown> | null
+    if (c) {
+      vpsIp = (c.vps_ip as string) ?? null
+      vpsServiceSlug = (c.vps_service_slug as string) ?? null
+      vpsReady = (c.vps_ready as boolean) ?? false
+      vpsReadyAt = (c.vps_ready_at as string) ?? null
+    }
+
+    // ─── Yesterday digest derivation ──────────────────────────────
+    // We can credibly count yesterday's CONVERSATION VOLUME from the
+    // `calls` array (filter by started_at). We CANNOT credibly count
+    // booked/quoted/lost outcomes or "awaiting your eyes" because the
+    // call_logs schema doesn't have outcome / needs_owner_action
+    // columns yet. The earlier draft cast through unknown and read
+    // those fields anyway, which always returned undefined → always 0
+    // → the digest card always claimed "all clear ✓" regardless of
+    // reality. Misleading. Removed. The card now stays honest by only
+    // showing the count we can prove, and the breakdown row + "needs
+    // your eyes" branch only render once the data exists.
+    const yStart = new Date()
+    yStart.setHours(0, 0, 0, 0)
+    yStart.setDate(yStart.getDate() - 1)
+    const yEnd = new Date(yStart)
+    yEnd.setDate(yEnd.getDate() + 1)
+    const yesterdayCalls = calls.filter((call) => {
+      const t = call.started_at ? new Date(call.started_at).getTime() : 0
+      return t >= yStart.getTime() && t < yEnd.getTime()
+    })
+    yesterdayHandled = yesterdayCalls.length
 
     // Agent config (gracefully handle missing columns from migration)
     const ac = agentRes.data as Record<string, unknown> | null
@@ -272,7 +334,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   const totalConversations = messagesThisPeriod + calls.length
   const prevTotalConversations = prevMessages + prevCalls.length
-  const isVoicePlan = subscriptionPlan === 'voice'
+  // `subscriptionPlan` and `isVoicePlan` were dead globals (read but
+  // never gated any conditional render). Removed during DA cleanup.
 
   // Money saved: messages × £5 + calls × £15 + bookings × £50
   const savedPounds = messagesThisPeriod * 5 + answered * 15 + bookingsThisWeek * 50
@@ -321,15 +384,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         ownerName={ownerFirstName}
       />
 
-      {/* Header — minimal: title + heartbeat dot + period picker.
-          Streak badge removed (gamification for trade owners was noise). */}
+      {/* Header — minimal: title + period picker. The agent-liveness signal
+          lives in the VpsStatusCard + AgentStatusCard rows below, so
+          the title doesn't need its own heartbeat indicator. */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-3">
-            Overview <VpsHeartbeatBadge />
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Overview
           </h1>
           <p className="text-sm mt-1 text-muted-foreground">
-            {periodLabel} · {allTimeMessages + allTimeCalls} conversations all time
+            {periodLabel}
+            <span className="text-muted-foreground/60"> · </span>
+            <span className="font-mono tabular-nums">{allTimeMessages + allTimeCalls}</span> conversations all time
           </p>
         </div>
         <Suspense fallback={null}>
@@ -359,11 +425,36 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       {/* Orphan-client warning (super_admin whose stamped client_id doesn't
           resolve). Kept because it's recoverable-only-by-support. */}
       {!clientId && (
-        <div className="rounded-xl p-4 mb-6 border bg-brand-warning/5 border-brand-warning/20">
-          <p className="text-sm text-brand-warning">
-            <strong>Setup required:</strong> Your account hasn&apos;t been linked to a business yet. Contact Nexley AI to complete your onboarding.
+        <div className="rounded-lg border border-warning/30 bg-card shadow-[inset_2px_0_0_0_var(--brand-warning)] p-4 mb-6">
+          <p className="text-sm text-foreground">
+            <strong className="font-semibold">Setup required.</strong>
+            <span className="text-muted-foreground ml-1.5">
+              Your account hasn&apos;t been linked to a business yet. Contact Nexley AI to complete your onboarding.
+            </span>
           </p>
         </div>
+      )}
+
+      {/* Per-client VPS hero — only when the VPS is ready. The moat play:
+          every UK competitor in this space is multi-tenant. Nexley ships
+          a sandboxed Hetzner box per customer. Surface it. */}
+      {clientId && vpsReady && vpsIp && vpsServiceSlug && (
+        <VpsStatusCard
+          agentName={agentName}
+          hostname={vpsServiceSlug}
+          ip={vpsIp}
+          readyAt={vpsReadyAt}
+          isLive={agentStatus !== 'offline' && agentIsActive}
+        />
+      )}
+
+      {/* TodayDigestCard — yesterday's volume + open inbox CTA.
+          Booked/quoted/lost breakdown + "needs your eyes" claim are
+          deliberately not passed yet — they require call_logs.outcome
+          and call_logs.needs_owner_action columns that don't exist.
+          The card stays honest until those columns ship + are populated. */}
+      {clientId && (
+        <TodayDigestCard handledCount={yesterdayHandled} />
       )}
 
       {/* AI Employee status — the "is my employee alive" signal */}
@@ -377,8 +468,20 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         />
       )}
 
-      {/* One hero metric — £ saved vs hiring an admin. The pitch number. */}
-      <HeroRoiCard savedPounds={savedPounds} />
+      {/* One hero metric — £ saved vs hiring an admin. The pitch number.
+          Provenance breakdown shown in the card itself: hover the
+          info chevron to see the math (DA fix — was reading as
+          "marketing claim", now reads as "audit trail"). */}
+      <HeroRoiCard
+        savedPounds={savedPounds}
+        sparkline={savedSparkline.length > 1 ? savedSparkline : undefined}
+        breakdown={{
+          messages: messagesThisPeriod,
+          calls: answered,
+          bookings: bookingsThisWeek,
+        }}
+        periodLabel={periodLabel.toLowerCase()}
+      />
 
       {/* KPI grid — four cards that don't duplicate the hero above.
           Previously this grid ALSO had "Money Saved" which doubled up on
@@ -447,7 +550,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
       {/* Recent conversations — realtime list, the "what just happened" feed */}
       <Suspense fallback={
-        <div className="rounded-xl border p-5 bg-card-bg">
+        <div className="rounded-lg border border-border bg-card p-5">
           <div className="skeleton h-4 w-32 mb-4 rounded" />
           {[0,1,2,3,4].map(i => <div key={i} className="skeleton h-12 w-full rounded mb-2" />)}
         </div>
@@ -456,7 +559,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <DashboardRealtime initialCalls={calls.slice(0, 5)} clientId={clientId} />
         ) : clientId ? (
           <EmptyState
-            icon={<MessageSquare size={24} />}
+            icon={MessageSquare}
             title="No activity yet"
             description="Your AI Employee is live on WhatsApp. Send a message to see conversations appear here."
           />

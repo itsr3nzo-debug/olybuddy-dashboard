@@ -6,7 +6,16 @@ const MEMBER_BLOCKED = ['/settings', '/integrations']
 // Pages only for 'super_admin'
 const ADMIN_ONLY = ['/admin']
 // Public pages that don't require auth
-const PUBLIC_PATHS = ['/login', '/signup', '/auth', '/security', '/forgot-password', '/reset-password', '/api/auth/request-reset']
+const PUBLIC_PATHS = [
+  '/login', '/signup', '/auth',
+  '/security', '/forgot-password', '/reset-password',
+  '/api/auth/request-reset',
+  // Mobile build surfaces — token-gated server-side, not Supabase-auth-gated.
+  '/build',                   // /build/mobile?key=... uses build_tokens table
+  '/preview',                 // /preview/mobile is the prototype (no PII, demo only)
+  '/preview-mobile',          // public/ assets served via /preview/mobile rewrite target
+  '/oauth/mobile-success',    // OAuth completion page rendered after Composio callback
+]
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
