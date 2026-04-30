@@ -21,7 +21,15 @@ export interface Breadcrumb {
 }
 
 export interface Attachment {
-  url: string;          // public Supabase storage URL
+  /** Short-lived signed URL (7-day TTL) for direct UI rendering. Re-mint
+   * via supabase.storage.from('chat-attachments').createSignedUrl(path, ttl)
+   * if expired — RLS grants the owning user SELECT on their client_id folder. */
+  url: string;
+  /** Storage path: <client_id>/<session_id>/<timestamp>-<safe-name>.
+   * Persisted alongside `url` so the URL can be re-minted when expired
+   * without round-tripping. Optional for legacy rows that pre-date the
+   * 2026-04-30 privatisation migration. */
+  path?: string;
   name: string;         // original filename
   mime: string;         // MIME type
   size: number;         // bytes
