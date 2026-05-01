@@ -84,19 +84,50 @@ export async function GET(req: NextRequest) {
   let result: Record<string, unknown>
   try {
     if (row.metadata?.auth_mode === 'compound_pat') {
-      // WordPress: access_token_enc holds JSON {siteUrl, username, appPassword}.
-      const blob = JSON.parse(decryptToken(row.access_token_enc)) as {
-        siteUrl: string; username: string; appPassword: string; schemaVersion?: number
+      // Compound-PAT shape varies per provider. Each connect route writes a
+      // schema-versioned JSON blob into access_token_enc. We decrypt + reshape
+      // here so the watcher receives a clean {config, credentials} envelope
+      // regardless of provider.
+      const decrypted = JSON.parse(decryptToken(row.access_token_enc)) as Record<string, unknown>
+      let config: Record<string, unknown>
+      let credentials: Record<string, unknown>
+
+      if (row.provider === 'wordpress') {
+        const blob = decrypted as { siteUrl: string; username: string; appPassword: string }
+        config = { siteUrl: blob.siteUrl, username: blob.username, ...(row.metadata ?? {}) }
+        credentials = { appPassword: blob.appPassword }
+      } else if (row.provider === 'hostgator_email') {
+        const blob = decrypted as {
+          emailAddress: string; password: string;
+          imapHost: string; imapPort: number;
+          smtpHost: string; smtpPort: number; smtpSecure: boolean
+        }
+        config = {
+          emailAddress: blob.emailAddress,
+          imapHost: blob.imapHost,
+          imapPort: blob.imapPort,
+          smtpHost: blob.smtpHost,
+          smtpPort: blob.smtpPort,
+          smtpSecure: blob.smtpSecure,
+          ...(row.metadata ?? {}),
+        }
+        credentials = { password: blob.password }
+      } else if (row.provider === 'salon_booking_system') {
+        const blob = decrypted as { siteUrl: string; apiKey: string }
+        config = { siteUrl: blob.siteUrl, ...(row.metadata ?? {}) }
+        credentials = { apiKey: blob.apiKey }
+      } else {
+        return NextResponse.json(
+          { error: `compound_pat provider ${row.provider} has no decrypt schema` },
+          { status: 500 },
+        )
       }
+
       result = {
         provider: row.provider,
         status: row.status,
-        config: {
-          siteUrl: blob.siteUrl,
-          username: blob.username,
-          ...(row.metadata ?? {}),
-        },
-        credentials: { appPassword: blob.appPassword },
+        config,
+        credentials,
       }
     } else if (row.metadata?.auth_mode === 'oauth') {
       const accessToken = decryptToken(row.access_token_enc)
@@ -135,31 +166,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Decryption failed' }, { status: 500 })
   }
 
-  // Ack: VPS now has the latest credential. Update timestamps + log event.
-  //
-  // Vercel serverless freezes the function the moment we return the response,
-  // so a bare fire-and-forget `void supabase...then(noop, noop)` may never
-  // reach the DB — see 2026-05-01 devil's advocate finding #4. `after()`
-  // (Next.js 15+) explicitly registers work to run after the response is
-  // sent, with the runtime keeping the lambda warm until it resolves.
-  after(async () => {
-    try {
-      await supabase
-        .from('integrations')
-        .update({ last_applied_at: new Date().toISOString() })
-        .eq('id', row.id)
-      await supabase.rpc('log_integration_event', {
-        p_integration_id: row.id,
-        p_client_id: auth.clientId,
-        p_provider: row.provider,
-        p_event: 'vps_applied',
-        p_payload: { token_expires_at: row.token_expires_at },
-        p_actor_user_id: null,
-      })
-    } catch (e) {
-      console.error('[creds-api] post-response ack failed:', e)
-    }
-  })
+  // No `last_applied_at` ack on the GET path — that field is reserved for
+  // confirming the VPS actually wrote the cred to disk, not that it merely
+  // fetched. The watcher POSTs to this same endpoint with
+  // `X-Watcher-File-Changed: true` ONLY when writeCredFile returns true (real
+  // disk change), and that's the path that updates `last_applied_at`. Deep
+  // audit H1 (2026-05-01): a stuck-but-still-fetching watcher would otherwise
+  // keep the dashboard showing "Active" even if it never wrote a new file.
 
   return NextResponse.json(result)
 }
@@ -176,7 +189,7 @@ async function listAll(clientId: string) {
     .from('integrations')
     .select('provider, status, metadata, last_applied_at, last_synced_at, expected_ready_at, blocked_reason, updated_at')
     .eq('client_id', clientId)
-    .in('provider', ['wordpress', 'calcom', 'google_business_profile'])
+    .in('provider', ['wordpress', 'hostgator_email', 'google_business_profile', 'salon_booking_system'])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -195,14 +208,27 @@ async function listAll(clientId: string) {
 }
 
 /**
- * POST /api/agent/integrations/creds — VPS-side health-check ack.
- * Body: { provider, status: 'ok' | 'fail', error?: string }
+ * POST /api/agent/integrations/creds — VPS-side ack endpoint.
  *
- * Called by custom-mcp-adapter every 5 minutes after pinging the provider.
- * On 'ok': sets last_health_check_at, resets health_failure_count, flips
- * degraded → connected.
- * On 'fail': increments health_failure_count, after 3 consecutive failures
- * flips connected → degraded (with hysteresis to prevent flapping).
+ * Two distinct ack types, distinguished by the X-Watcher-File-Changed header:
+ *
+ *   1. File-changed ack (header `X-Watcher-File-Changed: true`).
+ *      Called by custom-integrations-watcher.ts ONLY when writeCredFile
+ *      actually rewrote a file on disk (real cred change).
+ *      Body: { provider, status: 'connected' }.
+ *      Side effect: set `last_applied_at = now()` + log `vps_applied` event.
+ *      This is the ONLY path that updates last_applied_at — see deep audit H1
+ *      (2026-05-01). The cred-fetcher GET intentionally does NOT update it,
+ *      so a stuck-but-still-fetching watcher can't keep the dashboard
+ *      misleadingly showing "Active".
+ *
+ *   2. Health-check ack (no header).
+ *      Called by custom-mcp-adapter every 5 minutes after pinging providers.
+ *      Body: { provider, status: 'ok' | 'fail', error? }.
+ *      On 'ok': sets last_health_check_at, resets health_failure_count, flips
+ *      degraded → connected.
+ *      On 'fail': increments health_failure_count, after 3 consecutive
+ *      failures flips connected → degraded (hysteresis to prevent flapping).
  */
 export async function POST(req: NextRequest) {
   const auth = await authenticateAgent(req)
@@ -210,19 +236,58 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}))
   const provider = body.provider as string | undefined
-  const status = body.status as 'ok' | 'fail' | undefined
+  const status = body.status as 'ok' | 'fail' | 'connected' | undefined
   const errorMsg = body.error as string | undefined
+  const fileChanged = req.headers.get('x-watcher-file-changed') === 'true'
 
   if (!provider || !status) {
     return NextResponse.json({ error: 'provider and status required' }, { status: 400 })
   }
-  // Whitelist providers — health-check is only for the three custom integrations
-  // that this adapter actually exposes. Rejecting unknown values stops a
-  // compromised oak_ token from triggering side effects on Composio rows.
-  const ALLOWED = new Set(['wordpress', 'calcom', 'google_business_profile'])
+  // Whitelist providers — only the four custom integrations the adapter
+  // exposes. Rejecting unknown values stops a compromised oak_ token from
+  // triggering side effects on Composio rows or unrelated tables.
+  const ALLOWED = new Set(['wordpress', 'hostgator_email', 'google_business_profile', 'salon_booking_system'])
   if (!ALLOWED.has(provider)) {
     return NextResponse.json({ error: `provider must be one of: ${[...ALLOWED].join(', ')}` }, { status: 400 })
   }
+
+  // Branch 1: file-changed ack. Bumps last_applied_at + logs vps_applied.
+  // Doesn't touch health-check counters.
+  if (fileChanged) {
+    if (status !== 'connected') {
+      return NextResponse.json({ error: 'X-Watcher-File-Changed requires status="connected"' }, { status: 400 })
+    }
+    const supabase = svc()
+    const { data: row } = await supabase
+      .from('integrations')
+      .select('id, token_expires_at')
+      .eq('client_id', auth.clientId)
+      .eq('provider', provider)
+      .maybeSingle()
+    if (!row) return NextResponse.json({ error: 'No such integration' }, { status: 404 })
+    const now = new Date().toISOString()
+    const { error } = await supabase
+      .from('integrations')
+      .update({ last_applied_at: now })
+      .eq('id', row.id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    after(async () => {
+      try {
+        await supabase.rpc('log_integration_event', {
+          p_integration_id: row.id,
+          p_client_id: auth.clientId,
+          p_provider: provider,
+          p_event: 'vps_applied',
+          p_payload: { token_expires_at: row.token_expires_at },
+          p_actor_user_id: null,
+        })
+      } catch (e) {
+        console.error('[creds-api] vps_applied audit failed:', e)
+      }
+    })
+    return NextResponse.json({ ok: true })
+  }
+
   if (status !== 'ok' && status !== 'fail') {
     return NextResponse.json({ error: 'status must be "ok" or "fail"' }, { status: 400 })
   }

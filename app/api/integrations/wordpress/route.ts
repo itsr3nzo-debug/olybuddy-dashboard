@@ -28,6 +28,8 @@ import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { encryptToken } from '@/lib/encryption'
+import { lookup as dnsLookup } from 'node:dns/promises'
+import { isIP } from 'node:net'
 
 function svc() {
   return createClient(
@@ -60,6 +62,11 @@ function normaliseSiteUrl(input: string): string | null {
   try {
     const u = new URL(input.trim())
     if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
+    // Reject non-standard ports — WP self-hosted is always on :80 or :443.
+    // This blocks pivots to internal services (Postgres :5432, Redis :6379,
+    // Supabase :54321, ES :9200, etc.) that happen to share hostname with a
+    // WP install.
+    if (u.port && u.port !== '80' && u.port !== '443') return null
     // Strip trailing slash and any wp-admin / paths the user pasted by accident.
     u.pathname = '/'
     u.search = ''
@@ -68,6 +75,93 @@ function normaliseSiteUrl(input: string): string | null {
   } catch {
     return null
   }
+}
+
+// SSRF guard. Returns null when the host is safe to fetch from a Vercel egress
+// IP, or a string error reason otherwise. Caller must call this BEFORE any
+// fetch() against a user-supplied URL — and pass `redirect: 'manual'` to fetch
+// so a public host returning a 302 to a private host can't bypass the check.
+//
+// 2026-05-01 deep audit C1: prior code did `fetch(siteUrl)` with no allowlist,
+// no DNS resolution, default redirect-following, and reflected up to 200 bytes
+// of response body back to the client — a textbook reflected SSRF that exposes
+// every HTTP service reachable from Vercel's egress (Supabase internal,
+// metadata services, internal company VPN, etc.).
+async function assertSafeUrl(rawUrl: string): Promise<string | null> {
+  let u: URL
+  try {
+    u = new URL(rawUrl)
+  } catch {
+    return 'invalid URL'
+  }
+
+  // Block obvious aliases for self / link-local before DNS.
+  const hostLower = u.hostname.toLowerCase()
+  const blockedHosts = new Set([
+    'localhost',
+    'localhost.localdomain',
+    'metadata.google.internal',
+    'metadata',
+    'instance-data',
+    'instance-data.ec2.internal',
+  ])
+  if (blockedHosts.has(hostLower)) return 'host is reserved/internal'
+  if (hostLower.endsWith('.internal')) return 'host is reserved/internal'
+  if (hostLower.endsWith('.local')) return 'host is reserved/internal'
+  if (hostLower.endsWith('.localhost')) return 'host is reserved/internal'
+  if (hostLower.endsWith('.svc') || hostLower.endsWith('.svc.cluster.local')) return 'host is reserved/internal'
+
+  // Resolve hostname → IP. Reject if it's in any private/link-local/loopback
+  // range. We resolve here ourselves (not via fetch) so we can block before
+  // the request hits the wire. Note: a public hostname resolving to a private
+  // IP (DNS rebinding) is still possible mid-request, but `fetch` opens a
+  // single connection and our redirect:'manual' below blocks the second hop.
+  let resolved: { address: string; family: number }
+  try {
+    resolved = await dnsLookup(u.hostname)
+  } catch {
+    return 'DNS resolution failed'
+  }
+  const reason = isPrivateIp(resolved.address, resolved.family)
+  if (reason) return reason
+
+  return null
+}
+
+function isPrivateIp(addr: string, family: number): string | null {
+  // If addr came back as a literal IP (rare, but happens for IPv4-mapped IPv6
+  // and for hostnames that ARE IPs), validate as IP.
+  if (family === 4 || isIP(addr) === 4) {
+    const parts = addr.split('.').map((n) => parseInt(n, 10))
+    if (parts.length !== 4 || parts.some((p) => Number.isNaN(p) || p < 0 || p > 255)) {
+      return 'invalid IPv4'
+    }
+    const [a, b] = parts
+    if (a === 10) return 'private IPv4 (10.0.0.0/8)'
+    if (a === 127) return 'loopback IPv4 (127.0.0.0/8)'
+    if (a === 169 && b === 254) return 'link-local IPv4 (169.254.0.0/16)' // includes AWS metadata
+    if (a === 172 && b >= 16 && b <= 31) return 'private IPv4 (172.16.0.0/12)'
+    if (a === 192 && b === 168) return 'private IPv4 (192.168.0.0/16)'
+    if (a === 100 && b >= 64 && b <= 127) return 'CGNAT IPv4 (100.64.0.0/10)'
+    if (a === 0) return 'reserved IPv4 (0.0.0.0/8)'
+    if (a >= 224) return 'multicast/reserved IPv4'
+    return null
+  }
+  if (family === 6 || isIP(addr) === 6) {
+    const lc = addr.toLowerCase()
+    if (lc === '::1' || lc === '0:0:0:0:0:0:0:1') return 'loopback IPv6 (::1)'
+    if (lc.startsWith('fe80:') || lc.startsWith('fe9') || lc.startsWith('fea') || lc.startsWith('feb'))
+      return 'link-local IPv6 (fe80::/10)'
+    if (lc.startsWith('fc') || lc.startsWith('fd')) return 'unique-local IPv6 (fc00::/7)'
+    if (lc.startsWith('::ffff:')) {
+      // IPv4-mapped IPv6 — recurse on the v4 portion.
+      const v4 = lc.slice('::ffff:'.length)
+      return isPrivateIp(v4, 4)
+    }
+    if (lc.startsWith('ff')) return 'multicast IPv6 (ff00::/8)'
+    return null
+  }
+  return 'unknown address family'
 }
 
 function isWpComUrl(url: string): boolean {
@@ -101,12 +195,26 @@ async function validateWordPressCreds(
   username: string,
   appPassword: string,
 ): Promise<ValidationResult> {
+  // SSRF guard — runs BEFORE any fetch. Resolves DNS and rejects private IPs
+  // (loopback, RFC1918, link-local incl. AWS metadata, CGNAT, multicast).
+  const blockReason = await assertSafeUrl(`${siteUrl}/wp-json/`)
+  if (blockReason) {
+    return {
+      ok: false,
+      error: 'Site URL is not reachable from a public network',
+      detail: `Refusing to probe ${siteUrl} — ${blockReason}.`,
+    }
+  }
+
   // Self-hosted WP detection: probe /wp-json/ first.
   // WP.com sites under their hosted plans return JSON too but with different
   // namespaces; we treat *.wordpress.com hostnames as WP.com regardless.
+  // redirect:'manual' so a public WP site returning a 302 to a private host
+  // can't pivot us into an internal service (DNS-rebinding-style attack).
   const probeRes = await fetch(`${siteUrl}/wp-json/`, {
     method: 'GET',
     headers: { Accept: 'application/json' },
+    redirect: 'manual',
     signal: AbortSignal.timeout(10_000),
   }).catch(() => null)
 
@@ -143,6 +251,7 @@ async function validateWordPressCreds(
       Authorization: `Basic ${auth}`,
       Accept: 'application/json',
     },
+    redirect: 'manual',
     signal: AbortSignal.timeout(10_000),
   }).catch(() => null)
 
@@ -168,22 +277,41 @@ async function validateWordPressCreds(
     }
   }
   if (!meRes.ok) {
-    const body = await meRes.text().catch(() => '')
+    // Don't leak response body — it could be from any reachable endpoint
+    // (the SSRF guard prevents private IPs but a hijacked public DNS could
+    // still serve crafted JSON). Generic message only.
     return {
       ok: false,
       error: `WordPress returned HTTP ${meRes.status}`,
-      detail: body.slice(0, 200),
+      detail: 'The server reached your site but it didn\'t accept the credentials. ' +
+        'Double-check the username and Application Password.',
     }
   }
 
   const user = (await meRes.json()) as WpUserMe
 
-  // Blast-radius gate: Administrator role is too broad. Refuse it.
-  // The owner should create a dedicated nexley_bot user with Editor role.
-  if (user.roles?.includes('administrator')) {
+  // Blast-radius gate: deny any user with admin-equivalent capabilities.
+  // Capability-based check is robust against custom-role naming (e.g. "super_admin",
+  // "shop_manager_pro" with manage_options) — slug match alone (just rejecting
+  // 'administrator') misses these. Deep audit H5 (2026-05-01).
+  const adminCaps = [
+    'manage_options',     // change site settings
+    'install_plugins',    // RCE vector
+    'install_themes',
+    'edit_users',         // user enumeration / privilege escalation
+    'create_users',
+    'delete_users',
+    'promote_users',
+    'manage_network',     // multisite admin
+    'edit_dashboard',     // backend control
+    'switch_themes',
+  ]
+  const userCaps = user.capabilities ?? {}
+  const dangerousCap = adminCaps.find((c) => userCaps[c] === true)
+  if (dangerousCap || user.roles?.includes('administrator') || user.roles?.includes('super_admin')) {
     return {
       ok: false,
-      error: `User ${username} has Administrator role — too broad`,
+      error: `User ${username} has admin-level permissions (${dangerousCap || 'role'}) — too broad`,
       detail:
         'For security, please create a dedicated WordPress user with Editor role ' +
         'instead. An admin-level bot user is high-blast-radius if compromised. ' +

@@ -493,23 +493,6 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     },
   },
 
-  // ═══ Scheduling — custom-built ═══
-  {
-    // Cal.com — OAuth 2.1 (PKCE). Self-host and free cloud both work.
-    // Composio has no Cal.com toolkit; we delegate runtime tool calls to
-    // mcp.cal.com (official MCP server, free tier, OAuth 2.1) instead of
-    // building our own. Dashboard handles the OAuth handshake; the resulting
-    // refresh token is what the agent uses.
-    id: 'calcom',
-    name: 'Cal.com',
-    description: 'Open-source scheduling — site visits, appointments, with calendar sync',
-    category: 'scheduling',
-    iconColor: 'bg-muted text-muted-foreground',
-    available: true,
-    customOAuth: true,
-    recommendedForTrades: true,
-  },
-
   // ═══ Marketing — Google Business Profile (custom OAuth) ═══
   {
     // Google Business Profile (formerly Google My Business). Composio has no
@@ -527,6 +510,95 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     available: true,
     customOAuth: true,
     recommendedForTrades: true,
+  },
+
+  // ═══ Email — generic IMAP/SMTP (covers HostGator, Bluehost, Namecheap,
+  //     IONOS, Krystal, 123-reg, and any standard email host) ═══
+  {
+    // The customer's email is hosted on something running standard IMAP/SMTP.
+    // For a HostGator-hosted domain `ckbuilding.co.uk` the IMAP server is
+    // typically `mail.ckbuilding.co.uk:993` (SSL) and SMTP `:465` (SSL) — same
+    // for most cPanel-style hosts. Auth is the email-account password (NOT
+    // the cPanel login). 2FA users issue an app-specific password.
+    //
+    // Composio has no generic IMAP toolkit. This is a custom build with
+    // imapflow + nodemailer running on the VPS adapter.
+    id: 'hostgator_email',
+    name: 'Email (IMAP/SMTP)',
+    description: 'Read inbox + draft replies for your business email (works with HostGator, Bluehost, Namecheap, any IMAP host)',
+    category: 'communication',
+    iconColor: 'bg-muted text-muted-foreground',
+    available: true,
+    recommendedForTrades: true,
+    compoundPat: {
+      validateEndpoint: '/api/integrations/email-imap',
+      helpUrl: 'https://www.hostgator.com/help/article/email-server-settings',
+      fields: [
+        {
+          key: 'emailAddress',
+          label: 'Email address',
+          placeholder: 'info@ckbuilding.co.uk',
+          type: 'text',
+          validate: 'url',  // we just check it parses as something email-shaped
+          helpText: 'The full email address (e.g. info@yourbusiness.co.uk)',
+        },
+        {
+          key: 'password',
+          label: 'Email password',
+          placeholder: '••••••••',
+          type: 'password',
+          helpText: 'The password for THIS email account (not your cPanel/HostGator login). 2FA users: use an app-specific password.',
+        },
+        {
+          key: 'imapHost',
+          label: 'IMAP server (optional)',
+          placeholder: 'auto-detect from email domain',
+          type: 'text',
+          helpText: 'Leave blank to auto-derive (mail.{your-domain}). Override if HostGator gave you a different hostname.',
+        },
+      ],
+    },
+  },
+
+  // ═══ Salon Booking System (WordPress plugin) ═══
+  {
+    // Salon Booking System is a WordPress plugin. We talk to it via its REST
+    // API at /wp-json/salon/api/v1, which requires the plugin's "Pro" version
+    // (free version has no API). Auth: a plugin-issued API key the owner
+    // generates inside the plugin's settings, separate from WordPress
+    // application passwords. We expose it as a separate integration from
+    // WordPress because the API surface is plugin-specific (services,
+    // appointments, availability, customers).
+    //
+    // Composio has zero SBS support. Custom build.
+    id: 'salon_booking_system',
+    name: 'Salon Booking System',
+    description: 'Manage appointment bookings on your WordPress site (Salon Booking System Pro)',
+    category: 'scheduling',
+    iconColor: 'bg-muted text-muted-foreground',
+    available: true,
+    recommendedForTrades: true,
+    compoundPat: {
+      validateEndpoint: '/api/integrations/salon-booking-system',
+      helpUrl: 'https://www.salonbookingsystem.com/salon-booking-system-restful-api/',
+      fields: [
+        {
+          key: 'siteUrl',
+          label: 'WordPress site URL',
+          placeholder: 'https://yoursite.co.uk',
+          type: 'url',
+          validate: 'url',
+          helpText: 'The same WordPress site where Salon Booking System Pro is installed',
+        },
+        {
+          key: 'apiKey',
+          label: 'Plugin API key',
+          placeholder: 'Generated in WP-Admin → Salon → Settings → API',
+          type: 'password',
+          helpText: 'Generate inside the Salon Booking System Pro plugin: WP-Admin → Salon → Settings → API → Generate Key',
+        },
+      ],
+    },
   },
 ]
 
@@ -550,10 +622,20 @@ const REGISTRY = composioRegistry as Record<string, ComposioRegistryEntry>
 const PROVIDER_TO_TOOLKIT: Record<string, string> = {
   google_calendar: 'googlecalendar',
   google_drive: 'googledrive',
-  calcom: 'cal',
   wordpress: 'wordpress',
   google_business_profile: 'google_business_profile',
 }
+
+// Composio toolkits we DO NOT want to auto-render as tiles (no curated entry,
+// not via PROVIDER_TO_TOOLKIT either). Use this when we explicitly DON'T offer
+// an integration but Composio's catalog includes it. Keeps the modal clean.
+//
+// 2026-05-01: `cal` suppressed because Cal.com was scope-corrected out (user
+// originally asked for Salon Booking System, not Cal.com).
+const SUPPRESSED_AUTO_TOOLKITS = new Set<string>([
+  'cal',
+])
+
 // Reverse: toolkit slug → curated provider ID
 const TOOLKIT_TO_CURATED_ID = new Map<string, string>()
 for (const p of CURATED_PROVIDERS) {
@@ -618,6 +700,7 @@ const CATEGORY_COLORS: Record<ProviderCategory, string> = {
 const AUTO_PROVIDERS: ProviderConfig[] = []
 for (const [slug, entry] of Object.entries(REGISTRY)) {
   if (TOOLKIT_TO_CURATED_ID.has(slug)) continue // already curated
+  if (SUPPRESSED_AUTO_TOOLKITS.has(slug)) continue // explicitly suppressed
   const category = categorizeFromComposio(entry.categories)
   AUTO_PROVIDERS.push({
     id: slug,
