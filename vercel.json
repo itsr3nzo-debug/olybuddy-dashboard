@@ -73,16 +73,8 @@
       "schedule": "30 3 * * *"
     },
     {
-      "path": "/api/cron/sync-jwt-denylist",
-      "schedule": "*/2 * * * *"
-    },
-    {
       "path": "/api/cron/purge-expired-idempotency",
       "schedule": "0 3 * * *"
-    },
-    {
-      "path": "/api/cron/process-gdpr-requests",
-      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/cron/purge-deleted-accounts",
@@ -90,11 +82,11 @@
     },
     {
       "path": "/api/cron/send-daily-digest",
-      "schedule": "0 * * * *"
+      "schedule": "0 8 * * *"
     },
     {
       "path": "/api/cron/build-digest",
-      "schedule": "0 * * * *"
+      "schedule": "0 9 * * *"
     },
     {
       "path": "/api/cron/rotate-build-token",
