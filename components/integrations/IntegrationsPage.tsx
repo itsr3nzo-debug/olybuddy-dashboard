@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Search, Plus, Globe, HelpCircle, ChevronDown, ArrowUpDown } from 'lucide-react'
 import { PROVIDERS, CATEGORIES, getOAuthProviderId, type ProviderConfig } from '@/lib/integrations-config'
 import ProviderIcon from '@/components/integrations/ProviderIcon'
+import CompoundPatModal from '@/components/integrations/CompoundPatModal'
 import { Badge, StatusBadge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
@@ -17,8 +18,65 @@ interface ConnectedIntegration {
   account_email: string | null
   account_name: string | null
   last_synced_at: string | null
+  last_applied_at?: string | null     // VPS-side ack — when the credential reached the agent
+  last_health_check_at?: string | null
+  expected_ready_at?: string | null   // for blocked_external (e.g. GBP 60-day gate)
+  blocked_reason?: string | null
   created_at: string
   error_message?: string | null
+}
+
+/**
+ * Map raw DB status → display state with a single name and colour scheme.
+ * Statuses we expect: connected | degraded | refreshing | expired | error |
+ * disconnected | pending | validating | blocked_external.
+ */
+function statusDisplay(integration: ConnectedIntegration): {
+  label: string
+  variant: 'success' | 'warning' | 'destructive' | 'neutral' | 'info'
+  pulse?: boolean
+} {
+  const { status, last_applied_at } = integration
+  // "Connected" without VPS ack = "applying" (intermediate state).
+  if (status === 'connected' && !last_applied_at) {
+    return { label: 'Applying', variant: 'info', pulse: true }
+  }
+  switch (status) {
+    case 'connected':         return { label: 'Active',     variant: 'success' }
+    case 'refreshing':        return { label: 'Refreshing', variant: 'info', pulse: true }
+    case 'degraded':          return { label: 'Degraded',   variant: 'warning' }
+    case 'validating':        return { label: 'Validating', variant: 'info', pulse: true }
+    case 'pending':           return { label: 'Pending',    variant: 'neutral' }
+    case 'expired':           return { label: 'Expired',    variant: 'warning' }
+    case 'error':             return { label: 'Error',      variant: 'destructive' }
+    case 'blocked_external':  return { label: 'Verifying',  variant: 'warning' }
+    default:                  return { label: status,       variant: 'neutral' }
+  }
+}
+
+function formatRelativeTime(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const seconds = (Date.now() - new Date(iso).getTime()) / 1000
+  if (seconds < 60) return 'just now'
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m ago`
+  if (seconds < 86_400) return `${Math.round(seconds / 3600)}h ago`
+  return `${Math.round(seconds / 86_400)}d ago`
+}
+
+function blockedReasonExplanation(reason: string | null | undefined, expectedReadyAt: string | null | undefined): string {
+  const eta = expectedReadyAt
+    ? new Date(expectedReadyAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : 'soon'
+  switch (reason) {
+    case 'gbp_60day_gate':
+      return `Google requires your Business Profile listing to be verified for 60 days before our app can post on its behalf. We'll auto-enable on or around ${eta}.`
+    case 'gbp_oauth_unverified':
+      return `Google is still reviewing our OAuth app for Business Profile access. We'll auto-enable once Google approves (~${eta}).`
+    case 'gbp_no_accounts_yet':
+      return `No Business Profile listings are yet linked to this Google account. Verify your listing in Google, accept the manager invite, then reconnect here.`
+    default:
+      return `Waiting on external service.${expectedReadyAt ? ` ETA: ${eta}.` : ''}`
+  }
 }
 
 function ConnectedRow({ integration, onDisconnect }: { integration: ConnectedIntegration; onDisconnect: (id: string, provider: string) => void }) {
@@ -34,21 +92,40 @@ function ConnectedRow({ integration, onDisconnect }: { integration: ConnectedInt
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <p className="font-medium text-foreground text-sm truncate">{def?.name || integration.provider}</p>
-              {/* Status pill — semantic v2 tokens. Was raw emerald/amber/red 500. */}
-              <span className={`inline-flex items-center gap-1.5 px-2 h-[18px] rounded-sm text-[10px] font-medium ${
-                integration.status === 'connected' ? 'bg-success/10 text-success' :
-                integration.status === 'expired'   ? 'bg-warning/10 text-warning' :
-                                                     'bg-destructive/12 text-destructive'
-              }`}>
-                <span className={`size-1.5 rounded-full ${
-                  integration.status === 'connected' ? 'bg-success' :
-                  integration.status === 'expired'   ? 'bg-warning' :
-                                                       'bg-destructive'
-                }`} />
-                {integration.status === 'connected' ? 'Active' : integration.status === 'expired' ? 'Expired' : 'Error'}
-              </span>
+              {(() => {
+                const display = statusDisplay(integration)
+                const pillStyles: Record<string, string> = {
+                  success: 'bg-success/10 text-success',
+                  warning: 'bg-warning/10 text-warning',
+                  destructive: 'bg-destructive/12 text-destructive',
+                  info: 'bg-brand-accent/10 text-brand-accent',
+                  neutral: 'bg-muted text-muted-foreground',
+                }
+                const dotStyles: Record<string, string> = {
+                  success: 'bg-success',
+                  warning: 'bg-warning',
+                  destructive: 'bg-destructive',
+                  info: 'bg-brand-accent',
+                  neutral: 'bg-muted-foreground',
+                }
+                return (
+                  <span className={`inline-flex items-center gap-1.5 px-2 h-[18px] rounded-sm text-[10px] font-medium ${pillStyles[display.variant]}`}>
+                    <span className={`size-1.5 rounded-full ${dotStyles[display.variant]} ${display.pulse ? 'animate-pulse' : ''}`} />
+                    {display.label}
+                  </span>
+                )
+              })()}
             </div>
-            <p className="text-xs text-muted-foreground truncate">{def?.description}</p>
+            {integration.status === 'blocked_external' ? (
+              <p className="text-xs text-warning/90 mt-0.5">{blockedReasonExplanation(integration.blocked_reason, integration.expected_ready_at)}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground truncate">{def?.description}</p>
+            )}
+            {integration.last_health_check_at && integration.last_applied_at && integration.status === 'connected' && (
+              <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                Last verified {formatRelativeTime(integration.last_health_check_at)}
+              </p>
+            )}
           </div>
         </div>
       </td>
@@ -153,6 +230,7 @@ function AddIntegrationModal({ open, onClose, connectedProviders, onChanged }: {
   const [category, setCategory] = useState('all')
   const [search, setSearch] = useState('')
   const [patProvider, setPatProvider] = useState<ProviderConfig | null>(null)
+  const [compoundProvider, setCompoundProvider] = useState<ProviderConfig | null>(null)
 
   const recommended = PROVIDERS.filter(p => p.recommendedForTrades && !connectedProviders.has(p.id))
 
@@ -162,11 +240,28 @@ function AddIntegrationModal({ open, onClose, connectedProviders, onChanged }: {
     return true
   })
 
+  function tileHref(provider: ProviderConfig): string | undefined {
+    // Connected tiles render as non-clickable; render no href.
+    if (!provider.available || connectedProviders.has(provider.id)) return undefined
+    // Compound-PAT and Plain-PAT tiles open a modal (not an href).
+    if (provider.compoundPat || provider.pat) return undefined
+    // customOAuth → direct flow at /api/oauth/{id}
+    if (provider.customOAuth) return `/api/oauth/${provider.id}`
+    // Composio / standard OAuth: getOAuthProviderId handles dual-row mappings.
+    return `/api/oauth/${getOAuthProviderId(provider.id)}`
+  }
+
   function handleTileClick(e: React.MouseEvent, provider: ProviderConfig) {
     if (!provider.available || connectedProviders.has(provider.id)) return
+    if (provider.compoundPat) {
+      e.preventDefault()
+      setCompoundProvider(provider)
+      return
+    }
     if (provider.pat) {
       e.preventDefault()
       setPatProvider(provider)
+      return
     }
     // else → the <a href> fires and redirects to /api/oauth/{provider}
   }
@@ -219,11 +314,10 @@ function AddIntegrationModal({ open, onClose, connectedProviders, onChanged }: {
                 </div>
                 <div className="grid grid-cols-2 gap-3 mb-2">
                   {recommended.map(provider => {
-                    const oauthProviderId = getOAuthProviderId(provider.id)
                     return (
                       <a
                         key={provider.id}
-                        href={provider.available && !provider.pat ? `/api/oauth/${oauthProviderId}` : undefined}
+                        href={tileHref(provider)}
                         onClick={(e) => handleTileClick(e, provider)}
                         className="flex items-start gap-3 p-4 rounded-xl border border-brand-accent/30 bg-brand-accent/5 hover:border-brand-accent/60 hover:shadow-md cursor-pointer transition-all"
                       >
@@ -245,11 +339,10 @@ function AddIntegrationModal({ open, onClose, connectedProviders, onChanged }: {
             <div className="grid grid-cols-2 gap-3 p-4">
               {filtered.map(provider => {
                 const isConnected = connectedProviders.has(provider.id)
-                const oauthProviderId = getOAuthProviderId(provider.id)
                 return (
                   <a
                     key={provider.id}
-                    href={provider.available && !isConnected && !provider.pat ? `/api/oauth/${oauthProviderId}` : undefined}
+                    href={tileHref(provider)}
                     onClick={(e) => handleTileClick(e, provider)}
                     className={`flex items-start gap-3 p-4 rounded-md border transition-colors ${
                       isConnected
@@ -281,6 +374,14 @@ function AddIntegrationModal({ open, onClose, connectedProviders, onChanged }: {
           provider={patProvider}
           onClose={() => setPatProvider(null)}
           onConnected={() => { setPatProvider(null); onChanged(); }}
+        />
+      )}
+
+      {compoundProvider && (
+        <CompoundPatModal
+          provider={compoundProvider}
+          onClose={() => setCompoundProvider(null)}
+          onConnected={() => { setCompoundProvider(null); onChanged(); }}
         />
       )}
     </Dialog>
@@ -317,6 +418,20 @@ export default function IntegrationsPage() {
     } else if (err === 'composio_init_failed' || err === 'composio_callback_failed') {
       setError(`Couldn't connect ${provider || 'that integration'} — please try again. If it keeps failing, contact support.`)
       window.history.replaceState({}, '', '/integrations')
+    } else if (err === 'blocked_external') {
+      // GBP listing-age gate or unverified OAuth scope. The integration row
+      // already exists with status='blocked_external' and a friendly explanation,
+      // so we just show a quick acknowledgement banner here and let the row UI
+      // carry the full message.
+      setSuccess('Connected — but Google needs to finish a one-time check before our AI can use it. The card below shows when it will switch on.')
+      setTimeout(() => setSuccess(''), 8000)
+      window.history.replaceState({}, '', '/integrations')
+    } else if (err === 'state_mismatch') {
+      setError('Connection failed — security check did not pass (state mismatch). Please try again.')
+      window.history.replaceState({}, '', '/integrations')
+    } else if (err === 'no_refresh_token') {
+      setError('Connection failed — Google did not provide a refresh token. Sign out of Google in another tab and try again.')
+      window.history.replaceState({}, '', '/integrations')
     }
     const connected = params.get('connected')
     if (connected) {
@@ -332,16 +447,12 @@ export default function IntegrationsPage() {
     const supabase = createClient()
     const { data } = await supabase
       .from('integrations')
-      .select('id, provider, status, account_email, account_name, last_synced_at, created_at, error_message')
-      // Belt + suspenders — disconnect now hard-deletes rows, but any legacy
-      // rows still sitting on status='disconnected' shouldn't re-appear here.
-      // Credential presence is enforced server-side by the
-      // integrations_credentials_present CHECK constraint — a row cannot sit
-      // on status='connected' without either access_token_enc or
-      // metadata.composio_connected_account_id. That means the tile-disabled
-      // bug (seed data showing "Connected" while the agent had no tokens) is
-      // prevented at the DB layer; the UI doesn't need to filter.
-      .in('status', ['connected', 'expired', 'error'])
+      .select('id, provider, status, account_email, account_name, last_synced_at, last_applied_at, last_health_check_at, expected_ready_at, blocked_reason, created_at, error_message')
+      // Show every "live" status — including the new states from the custom-
+      // integrations watcher (refreshing, degraded, blocked_external, validating).
+      // 'disconnected' rows are excluded; disconnects hard-delete rows so this
+      // is a belt-and-braces filter for legacy data.
+      .in('status', ['connected', 'expired', 'error', 'refreshing', 'degraded', 'blocked_external', 'validating', 'pending'])
       .order('created_at', { ascending: false })
     setIntegrations(data || [])
     setLoading(false)
@@ -349,15 +460,51 @@ export default function IntegrationsPage() {
 
   useEffect(() => { fetchIntegrations() }, [])
 
+  // Realtime subscription — when any integration row changes (status, ack
+  // timestamps, refresh, etc.), repaint without a manual refresh. Required
+  // so "Applying..." → "Active" transitions are visible immediately when the
+  // VPS watcher writes back its `last_applied_at` ack.
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel('integrations-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'integrations' },
+        () => {
+          // Could merge incrementally, but a re-fetch is simpler and the table
+          // is small per-tenant. Throttled to at most once per 500ms to avoid
+          // bursts during refresh-cron runs.
+          fetchIntegrations()
+        },
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
+
   const connectedProviders = new Set(integrations.filter(i => i.status === 'connected').map(i => i.provider))
 
   const handleDisconnect = async (id: string, provider: string) => {
     if (!confirm('Disconnect this integration? Your AI Employee will no longer have access.')) return
-    // Use the OAuth provider ID for the disconnect endpoint (e.g., gmail -> google)
-    const oauthProviderId = getOAuthProviderId(provider)
-    const res = await fetch(`/api/oauth/${oauthProviderId}/disconnect`, { method: 'POST' })
+
+    const def = PROVIDERS.find(p => p.id === provider)
+
+    let res: Response
+    if (def?.compoundPat) {
+      // Compound-PAT providers (e.g. WordPress): DELETE on the validate endpoint
+      res = await fetch(def.compoundPat.validateEndpoint, { method: 'DELETE' })
+    } else if (def?.pat) {
+      // Plain PAT (e.g. Fergus): existing route accepts ?provider=
+      res = await fetch(`/api/integrations/pat?provider=${provider}`, { method: 'DELETE' })
+    } else {
+      // Composio + customOAuth: existing /api/oauth/{id}/disconnect
+      const oauthProviderId = getOAuthProviderId(provider)
+      res = await fetch(`/api/oauth/${oauthProviderId}/disconnect`, { method: 'POST' })
+    }
+
     if (res.ok) {
-      // For Google, remove both gmail + google_calendar rows
+      const oauthProviderId = getOAuthProviderId(provider)
+      // For Google, remove both gmail + google_calendar rows.
       if (oauthProviderId === 'google') {
         setIntegrations(prev => prev.filter(i => i.provider !== 'gmail' && i.provider !== 'google_calendar'))
       } else {

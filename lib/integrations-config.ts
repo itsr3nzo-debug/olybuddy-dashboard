@@ -52,6 +52,24 @@ export interface ProviderPATConfig {
   validateUrl?: string // if set, we GET this (with Authorization: Bearer <token>) to validate before saving
 }
 
+export interface CompoundPatField {
+  // One field in a compound credential form (e.g. WordPress = siteUrl + username + appPassword).
+  key: string                       // form field key (used in API request body)
+  label: string                     // human label
+  placeholder?: string
+  type?: 'text' | 'url' | 'password'
+  helpText?: string                 // shown beneath the input
+  validate?: 'url' | 'username' | 'wp_app_password'  // client-side regex check before submit
+}
+
+export interface ProviderCompoundPatConfig {
+  // Multi-field credential form. Custom validation handler at /api/integrations/{providerId}.
+  // Compound creds get JSON-encoded then encrypted into integrations.access_token_enc.
+  fields: CompoundPatField[]
+  helpUrl: string                   // primary "how do I get these creds" link
+  validateEndpoint: string          // e.g. '/api/integrations/wordpress' — POST validates + saves
+}
+
 export interface ProviderConfig {
   id: string
   name: string
@@ -62,6 +80,8 @@ export interface ProviderConfig {
   available: boolean // true = OAuth wired, false = "Coming Soon"
   oauth?: ProviderOAuthConfig
   pat?: ProviderPATConfig // alternative auth mode — pasted token
+  compoundPat?: ProviderCompoundPatConfig // multi-field credential form (e.g. WordPress)
+  customOAuth?: boolean // OAuth not handled by Composio — use direct flow at /api/oauth/{id}
   createsDualRows?: string[] // e.g., Google creates ['gmail', 'google_calendar']
   oauthProvider?: string // if this row maps to a different OAuth provider (e.g., gmail → google)
   recommendedForTrades?: boolean // surface in "Recommended for Trades" section
@@ -423,6 +443,89 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     category: 'payments',
     iconColor: 'bg-muted text-muted-foreground',
     available: true,
+    recommendedForTrades: true,
+  },
+
+  // ═══ Marketing / Web — custom-built (not Composio) ═══
+  {
+    // WordPress — connects via the customer's WP REST API + Application Password.
+    // Composio doesn't have a WordPress toolkit (verified Apr 2026 against the
+    // 1032-toolkit catalog), so we ship our own MCP adapter on the VPS.
+    // Auth: compound credentials (site URL + bot username + app password) so the
+    // owner can mint a dedicated `nexley_bot` Editor-role user instead of giving
+    // us their admin login. App passwords created in WP-Admin → Profile.
+    id: 'wordpress',
+    name: 'WordPress',
+    description: 'Publish blog posts, update pages, upload media on your WordPress site',
+    category: 'marketing',
+    iconColor: 'bg-muted text-muted-foreground',
+    available: true,
+    recommendedForTrades: true,
+    compoundPat: {
+      validateEndpoint: '/api/integrations/wordpress',
+      helpUrl: 'https://wordpress.org/documentation/article/application-passwords/',
+      fields: [
+        {
+          key: 'siteUrl',
+          label: 'Site URL',
+          placeholder: 'https://yoursite.co.uk',
+          type: 'url',
+          validate: 'url',
+          helpText: 'Your full WordPress site URL (https://...)',
+        },
+        {
+          key: 'username',
+          label: 'Bot username',
+          placeholder: 'nexley_bot',
+          type: 'text',
+          validate: 'username',
+          helpText: 'A dedicated WP user (Editor role recommended, not Administrator)',
+        },
+        {
+          key: 'appPassword',
+          label: 'Application password',
+          placeholder: 'xxxx xxxx xxxx xxxx xxxx xxxx',
+          type: 'password',
+          validate: 'wp_app_password',
+          helpText: 'Create at WP-Admin → Users → Profile → Application Passwords',
+        },
+      ],
+    },
+  },
+
+  // ═══ Scheduling — custom-built ═══
+  {
+    // Cal.com — OAuth 2.1 (PKCE). Self-host and free cloud both work.
+    // Composio has no Cal.com toolkit; we delegate runtime tool calls to
+    // mcp.cal.com (official MCP server, free tier, OAuth 2.1) instead of
+    // building our own. Dashboard handles the OAuth handshake; the resulting
+    // refresh token is what the agent uses.
+    id: 'calcom',
+    name: 'Cal.com',
+    description: 'Open-source scheduling — site visits, appointments, with calendar sync',
+    category: 'scheduling',
+    iconColor: 'bg-muted text-muted-foreground',
+    available: true,
+    customOAuth: true,
+    recommendedForTrades: true,
+  },
+
+  // ═══ Marketing — Google Business Profile (custom OAuth) ═══
+  {
+    // Google Business Profile (formerly Google My Business). Composio has no
+    // toolkit for this. Requires (a) listing verified ≥60 days, (b) Google
+    // OAuth verification of the `business.manage` sensitive scope (1-4 weeks),
+    // (c) Standard API Access form approved (1-3 weeks).
+    //
+    // Until verification clears, integration sits in `blocked_external` status
+    // with `expected_ready_at` showing the customer when it'll come online.
+    id: 'google_business_profile',
+    name: 'Google Business Profile',
+    description: 'Post updates, reply to reviews, manage hours on your Google listing',
+    category: 'marketing',
+    iconColor: 'bg-muted text-muted-foreground',
+    available: true,
+    customOAuth: true,
     recommendedForTrades: true,
   },
 ]
