@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="Salon Booking System">
+  <title>Salon Booking System</title>
+  <rect width="24" height="24" rx="4" fill="#E91E63"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="5" y="6.5" width="14" height="12" rx="1.5"/>
+    <path d="M5 10h14"/>
+    <path d="M8.5 4v4"/>
+    <path d="M15.5 4v4"/>
+    <path d="M9 13.5l1.5 1.5L15 11"/>
+  </g>
+</svg>
