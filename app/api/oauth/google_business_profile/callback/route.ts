@@ -126,7 +126,7 @@ export async function GET(req: NextRequest) {
   let gbpAccountName: string | undefined
   let blocked = false
   let blockedReason: string | undefined
-  let expectedReadyAt: string | undefined
+  let expectedReadyAt: string | null = null
 
   try {
     const accountsRes = await fetch(GBP_ACCOUNTS_URL, {
