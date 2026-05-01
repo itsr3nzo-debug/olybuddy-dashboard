@@ -105,8 +105,18 @@ export async function GET(req: NextRequest) {
     }).catch(() => null)
 
     if (!tokenRes) {
-      // Network error — leave row as 'refreshing' for next tick.
+      // Network error — restore status to whatever it was so we don't leave
+      // the row stuck on 'refreshing' indefinitely (devil's advocate #16).
+      // Next tick retries. Keep error_message so dashboard surfaces context.
       console.error(`[refresh-gbp-tokens] network error for ${row.id}`)
+      await supabase
+        .from('integrations')
+        .update({
+          status: 'connected',     // optimistic restore — next health check confirms
+          error_message: 'Network error during token refresh; will retry',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', row.id)
       failed++
       continue
     }

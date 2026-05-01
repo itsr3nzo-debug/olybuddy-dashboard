@@ -30,6 +30,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { after } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { authenticateAgent } from '@/lib/agent-auth'
 import { decryptToken } from '@/lib/encryption'
@@ -135,23 +136,30 @@ export async function GET(req: NextRequest) {
   }
 
   // Ack: VPS now has the latest credential. Update timestamps + log event.
-  // Best-effort — failure here doesn't fail the response.
-  void supabase
-    .from('integrations')
-    .update({ last_applied_at: new Date().toISOString() })
-    .eq('id', row.id)
-    .then(() => {}, () => {})
-
-  void supabase
-    .rpc('log_integration_event', {
-      p_integration_id: row.id,
-      p_client_id: auth.clientId,
-      p_provider: row.provider,
-      p_event: 'vps_applied',
-      p_payload: { token_expires_at: row.token_expires_at },
-      p_actor_user_id: null,
-    })
-    .then(() => {}, () => {})
+  //
+  // Vercel serverless freezes the function the moment we return the response,
+  // so a bare fire-and-forget `void supabase...then(noop, noop)` may never
+  // reach the DB — see 2026-05-01 devil's advocate finding #4. `after()`
+  // (Next.js 15+) explicitly registers work to run after the response is
+  // sent, with the runtime keeping the lambda warm until it resolves.
+  after(async () => {
+    try {
+      await supabase
+        .from('integrations')
+        .update({ last_applied_at: new Date().toISOString() })
+        .eq('id', row.id)
+      await supabase.rpc('log_integration_event', {
+        p_integration_id: row.id,
+        p_client_id: auth.clientId,
+        p_provider: row.provider,
+        p_event: 'vps_applied',
+        p_payload: { token_expires_at: row.token_expires_at },
+        p_actor_user_id: null,
+      })
+    } catch (e) {
+      console.error('[creds-api] post-response ack failed:', e)
+    }
+  })
 
   return NextResponse.json(result)
 }
@@ -208,6 +216,16 @@ export async function POST(req: NextRequest) {
   if (!provider || !status) {
     return NextResponse.json({ error: 'provider and status required' }, { status: 400 })
   }
+  // Whitelist providers — health-check is only for the three custom integrations
+  // that this adapter actually exposes. Rejecting unknown values stops a
+  // compromised oak_ token from triggering side effects on Composio rows.
+  const ALLOWED = new Set(['wordpress', 'calcom', 'google_business_profile'])
+  if (!ALLOWED.has(provider)) {
+    return NextResponse.json({ error: `provider must be one of: ${[...ALLOWED].join(', ')}` }, { status: 400 })
+  }
+  if (status !== 'ok' && status !== 'fail') {
+    return NextResponse.json({ error: 'status must be "ok" or "fail"' }, { status: 400 })
+  }
 
   const supabase = svc()
   const { data: row } = await supabase
@@ -247,14 +265,22 @@ export async function POST(req: NextRequest) {
   const { error } = await supabase.from('integrations').update(update).eq('id', row.id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  void supabase.rpc('log_integration_event', {
-    p_integration_id: row.id,
-    p_client_id: auth.clientId,
-    p_provider: provider,
-    p_event: event,
-    p_payload: { error: errorMsg ?? null, failure_count: update.health_failure_count },
-    p_actor_user_id: null,
-  }).then(() => {}, () => {})
+  // `after()` runs post-response in the same lambda — replaces the
+  // void+then(noop) pattern that doesn't survive serverless freeze.
+  after(async () => {
+    try {
+      await supabase.rpc('log_integration_event', {
+        p_integration_id: row.id,
+        p_client_id: auth.clientId,
+        p_provider: provider,
+        p_event: event,
+        p_payload: { error: errorMsg ?? null, failure_count: update.health_failure_count },
+        p_actor_user_id: null,
+      })
+    } catch (e) {
+      console.error('[creds-api] health-check audit failed:', e)
+    }
+  })
 
   return NextResponse.json({ ok: true, status: update.status ?? row.status })
 }

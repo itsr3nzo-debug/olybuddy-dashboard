@@ -1,20 +1,21 @@
 /**
- * Cal.com OAuth handler — initiates OAuth 2.1 (PKCE) flow against Cal.com.
+ * Cal.com OAuth handler — initiates OAuth 2.1 against Cal.com.
  *
  * Composio doesn't have a Cal.com toolkit (verified Apr 2026), so we run our
  * own OAuth flow and store the refresh token in integrations.refresh_token_enc.
- * At runtime, the agent talks to Cal.com via the official mcp.cal.com MCP
- * server — we just need a valid OAuth refresh token for that server to use.
  *
- * Cal.com OAuth endpoints (cloud, free + paid):
- *   authorize: https://app.cal.com/oauth/authorize
- *   token:     https://app.cal.com/oauth/token
+ * Cal.com OAuth endpoints (verified against cal.com/docs/api-reference/v2/oauth):
+ *   authorize: https://app.cal.com/auth/oauth2/authorize
+ *   token:     https://api.cal.com/v2/auth/oauth2/token
  *   userinfo:  https://api.cal.com/v2/me   (Bearer access_token)
- *   scopes:    READ_BOOKING WRITE_BOOKING READ_EVENT_TYPE WRITE_EVENT_TYPE
- *              READ_CALENDAR READ_PROFILE
+ *   scopes:    RESOURCE_ACTION pairs (BOOKING_READ, BOOKING_WRITE, etc.).
+ *              Legacy names like READ_BOOKING are deprecated and treat the
+ *              client as a "legacy" client with reduced privileges.
  *
- * Self-host customers get the same OAuth endpoints under their own domain;
- * we use cloud as the default and could add a custom endpoint later if needed.
+ * Confidential client (we have a CLIENT_SECRET): we authenticate with
+ * client_secret. Cal.com docs say PKCE and client_secret are mutually
+ * exclusive — pick one. We pick client_secret because the dashboard is
+ * server-side and can hold the secret safely.
  *
  * Env required:
  *   CALCOM_CLIENT_ID
@@ -23,26 +24,17 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
-import { randomBytes, createHash } from 'crypto'
+import { randomBytes } from 'crypto'
 
-const CALCOM_AUTH_URL = 'https://app.cal.com/oauth/authorize'
+const CALCOM_AUTH_URL = 'https://app.cal.com/auth/oauth2/authorize'
 const SCOPES = [
-  'READ_BOOKING',
-  'WRITE_BOOKING',
-  'READ_EVENT_TYPE',
-  'WRITE_EVENT_TYPE',
-  'READ_CALENDAR',
-  'READ_PROFILE',
+  'BOOKING_READ',
+  'BOOKING_WRITE',
+  'EVENT_TYPE_READ',
+  'EVENT_TYPE_WRITE',
+  'SCHEDULE_READ',
+  'PROFILE_READ',
 ].join(' ')
-
-// PKCE — Cal.com supports OAuth 2.1 with PKCE. We use S256.
-function makePkceVerifier(): string {
-  return randomBytes(32).toString('base64url')
-}
-
-function makePkceChallenge(verifier: string): string {
-  return createHash('sha256').update(verifier).digest('base64url')
-}
 
 export async function GET(req: NextRequest) {
   const origin = new URL(req.url).origin
@@ -80,10 +72,9 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  // CSRF state + PKCE verifier.
+  // CSRF state only — confidential client, so client_secret is used at the
+  // token-exchange step instead of PKCE.
   const state = randomBytes(32).toString('hex')
-  const codeVerifier = makePkceVerifier()
-  const codeChallenge = makePkceChallenge(codeVerifier)
   const redirectUri = `${origin}/api/oauth/calcom/callback`
 
   const authParams = new URLSearchParams({
@@ -92,15 +83,10 @@ export async function GET(req: NextRequest) {
     response_type: 'code',
     scope: SCOPES,
     state,
-    code_challenge: codeChallenge,
-    code_challenge_method: 'S256',
   })
 
   const response = NextResponse.redirect(`${CALCOM_AUTH_URL}?${authParams.toString()}`)
   response.cookies.set('oauth_state', state, {
-    httpOnly: true, secure: true, sameSite: 'lax', maxAge: 600, path: '/',
-  })
-  response.cookies.set('oauth_pkce_verifier', codeVerifier, {
     httpOnly: true, secure: true, sameSite: 'lax', maxAge: 600, path: '/',
   })
   response.cookies.set('oauth_provider', 'calcom', {

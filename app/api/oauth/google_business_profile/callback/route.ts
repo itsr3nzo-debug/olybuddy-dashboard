@@ -149,17 +149,20 @@ export async function GET(req: NextRequest) {
     } else if (accountsRes.status === 403) {
       blocked = true
       const body = await accountsRes.text().catch(() => '')
-      // Two main reasons we'd see this:
-      //   (a) sensitive scope not yet verified (test mode + non-allowlisted user)
-      //   (b) 60-day listing-age gate
-      // We can't always distinguish, so set a generic reason and let the
-      // backoffice resolve manually.
+      // 403 reasons we might see, none of which we can reliably distinguish
+      // from the response alone:
+      //   (a) Standard API Access not yet approved by Google (1-3 weeks)
+      //   (b) Sensitive scope verification not yet approved (1-4 weeks)
+      //   (c) Manager invite not yet accepted by our service account
+      //   (d) Listing not yet verified by the owner (postcard/video/call)
+      //
+      // We do NOT fabricate an ETA — the previous "60-day gate" + 60-day-from-
+      // now ETA was SEO folklore (devil's advocate finding #9, 2026-05-01),
+      // not Google policy. We surface the response body so support can act.
       blockedReason = body.toLowerCase().includes('not allowed')
         ? 'gbp_oauth_unverified'
-        : 'gbp_60day_gate'
-      // Optimistic ETA: 60 days from now if it's the gate; ~14 days if it's OAuth review.
-      const etaDays = blockedReason === 'gbp_60day_gate' ? 60 : 14
-      expectedReadyAt = new Date(Date.now() + etaDays * 24 * 3600 * 1000).toISOString()
+        : 'gbp_403_unspecified'
+      expectedReadyAt = null
     } else {
       console.error('[gbp-callback] unexpected accounts response', accountsRes.status)
     }

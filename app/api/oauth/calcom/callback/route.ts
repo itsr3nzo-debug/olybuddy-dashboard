@@ -1,17 +1,17 @@
 /**
- * Cal.com OAuth callback — exchanges authorization code + PKCE verifier for
- * access + refresh tokens, fetches user info, encrypts and upserts into
- * public.integrations, then redirects back to /integrations with success.
+ * Cal.com OAuth callback — exchanges authorization code for access + refresh
+ * tokens, fetches user info, encrypts and upserts into public.integrations,
+ * then redirects back to /integrations with success.
  *
- * Token endpoint: POST https://app.cal.com/oauth/token
+ * Token endpoint: POST https://api.cal.com/v2/auth/oauth2/token
  *   grant_type=authorization_code
- *   client_id=...&client_secret=...&code=...&code_verifier=...&redirect_uri=...
+ *   client_id=...&client_secret=...&code=...&redirect_uri=...
+ *
+ * Confidential client — we send client_secret. No PKCE.
  *
  * Userinfo: GET https://api.cal.com/v2/me  Authorization: Bearer <access_token>
  *
- * Token lifetime: access_token ~60min; refresh_token ~1 year. The mcp.cal.com
- * server we delegate to handles its own refresh cycle if we hand it the
- * refresh_token at startup.
+ * Token lifetime: access_token ~60min; refresh_token ~1 year.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -19,7 +19,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { encryptToken } from '@/lib/encryption'
 
-const CALCOM_TOKEN_URL = 'https://app.cal.com/oauth/token'
+const CALCOM_TOKEN_URL = 'https://api.cal.com/v2/auth/oauth2/token'
 const CALCOM_USERINFO_URL = 'https://api.cal.com/v2/me'
 
 function svc() {
@@ -52,17 +52,11 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  // Recover CSRF state + PKCE verifier from cookies.
+  // CSRF state check.
   const stateFromCookie = req.cookies.get('oauth_state')?.value
-  const pkceVerifier = req.cookies.get('oauth_pkce_verifier')?.value
   if (!stateFromCookie || stateFromCookie !== stateFromQuery) {
     return NextResponse.redirect(
       new URL('/integrations?error=state_mismatch&provider=calcom', origin),
-    )
-  }
-  if (!pkceVerifier) {
-    return NextResponse.redirect(
-      new URL('/integrations?error=missing_pkce&provider=calcom', origin),
     )
   }
 
@@ -88,7 +82,7 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  // Exchange code for tokens.
+  // Exchange code for tokens (confidential-client flow — no PKCE).
   const redirectUri = `${origin}/api/oauth/calcom/callback`
   const tokenRes = await fetch(CALCOM_TOKEN_URL, {
     method: 'POST',
@@ -98,7 +92,6 @@ export async function GET(req: NextRequest) {
       client_id: calcomClientId,
       client_secret: calcomClientSecret,
       code,
-      code_verifier: pkceVerifier,
       redirect_uri: redirectUri,
     }),
   }).catch(() => null)
@@ -213,7 +206,6 @@ export async function GET(req: NextRequest) {
     new URL('/integrations?connected=calcom', origin),
   )
   response.cookies.delete('oauth_state')
-  response.cookies.delete('oauth_pkce_verifier')
   response.cookies.delete('oauth_provider')
   return response
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Search, Plus, Globe, HelpCircle, ChevronDown, ArrowUpDown } from 'lucide-react'
 import { PROVIDERS, CATEGORIES, getOAuthProviderId, type ProviderConfig } from '@/lib/integrations-config'
@@ -64,18 +64,25 @@ function formatRelativeTime(iso: string | null | undefined): string {
 }
 
 function blockedReasonExplanation(reason: string | null | undefined, expectedReadyAt: string | null | undefined): string {
+  // Where we have a real ETA (e.g. token-refresh cron set one), show it.
+  // Otherwise stay honest — don't fabricate dates. The 'gbp_60day_gate'
+  // string was retired 2026-05-01 (it was SEO folklore, not Google policy);
+  // existing rows with that reason fall through to the generic path.
   const eta = expectedReadyAt
-    ? new Date(expectedReadyAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-    : 'soon'
+    ? ` Expected to come online around ${new Date(expectedReadyAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}.`
+    : ''
   switch (reason) {
-    case 'gbp_60day_gate':
-      return `Google requires your Business Profile listing to be verified for 60 days before our app can post on its behalf. We'll auto-enable on or around ${eta}.`
     case 'gbp_oauth_unverified':
-      return `Google is still reviewing our OAuth app for Business Profile access. We'll auto-enable once Google approves (~${eta}).`
+      return `Google is still reviewing our app's Business Profile access. We check daily and will switch this on automatically once approved.${eta}`
+    case 'gbp_403_unspecified':
+    case 'gbp_60day_gate':
+      // Genuinely ambiguous 403: could be Standard API Access, sensitive scope
+      // review, manager invite acceptance, or listing verification.
+      return `Google returned 'permission denied' on connect. Common causes: Standard API Access still being approved, our app's sensitive-scope review still in progress, manager invite not yet accepted, or listing not fully verified. We retry every health check; support has been notified.${eta}`
     case 'gbp_no_accounts_yet':
-      return `No Business Profile listings are yet linked to this Google account. Verify your listing in Google, accept the manager invite, then reconnect here.`
+      return `No Business Profile listings are linked to this Google account yet. Verify your listing in Google, accept the manager invite, then reconnect here.`
     default:
-      return `Waiting on external service.${expectedReadyAt ? ` ETA: ${eta}.` : ''}`
+      return `Waiting on external service.${eta}`
   }
 }
 
@@ -443,8 +450,13 @@ export default function IntegrationsPage() {
     }
   }, [])
 
+  // Hoist the supabase client so realtime cleanup uses the SAME instance the
+  // channel was created on. Previously every effect run did `createClient()`
+  // which created a fresh client per channel; `removeChannel` on a different
+  // client is a no-op and leaks the websocket. Devil's advocate finding #12.
+  const supabase = useMemo(() => createClient(), [])
+
   const fetchIntegrations = async () => {
-    const supabase = createClient()
     const { data } = await supabase
       .from('integrations')
       .select('id, provider, status, account_email, account_name, last_synced_at, last_applied_at, last_health_check_at, expected_ready_at, blocked_reason, created_at, error_message')
@@ -463,24 +475,23 @@ export default function IntegrationsPage() {
   // Realtime subscription — when any integration row changes (status, ack
   // timestamps, refresh, etc.), repaint without a manual refresh. Required
   // so "Applying..." → "Active" transitions are visible immediately when the
-  // VPS watcher writes back its `last_applied_at` ack.
+  // VPS watcher writes back its `last_applied_at` ack. RLS on the integrations
+  // table scopes the changes to this client, so we can't see other tenants.
   useEffect(() => {
-    const supabase = createClient()
     const channel = supabase
       .channel('integrations-changes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'integrations' },
         () => {
-          // Could merge incrementally, but a re-fetch is simpler and the table
-          // is small per-tenant. Throttled to at most once per 500ms to avoid
-          // bursts during refresh-cron runs.
+          // Re-fetch is simpler than incremental merge. Per-tenant table is small.
           fetchIntegrations()
         },
       )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase])
 
   const connectedProviders = new Set(integrations.filter(i => i.status === 'connected').map(i => i.provider))
 

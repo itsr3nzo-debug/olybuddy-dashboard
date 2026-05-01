@@ -14,7 +14,9 @@ import { encryptToken, decryptToken } from '@/lib/encryption'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const TOKEN_URL = 'https://app.cal.com/oauth/token'
+// Verified against cal.com/docs/api-reference/v2/oauth (May 2026):
+// token URL is on api.cal.com/v2 not app.cal.com.
+const TOKEN_URL = 'https://api.cal.com/v2/auth/oauth2/token'
 
 export async function GET(req: NextRequest) {
   const cronSecret = req.headers.get('authorization')?.replace('Bearer ', '')
@@ -74,7 +76,15 @@ export async function GET(req: NextRequest) {
       signal: AbortSignal.timeout(10_000),
     }).catch(() => null)
 
-    if (!tokenRes) { failed++; continue }
+    if (!tokenRes) {
+      // Network error — restore status so dashboard doesn't stick on 'refreshing'.
+      await supabase.from('integrations').update({
+        status: 'connected',
+        error_message: 'Network error during token refresh; will retry',
+        updated_at: new Date().toISOString(),
+      }).eq('id', row.id)
+      failed++; continue
+    }
     if (!tokenRes.ok) {
       const body = await tokenRes.text().catch(() => '')
       await supabase.from('integrations').update({
