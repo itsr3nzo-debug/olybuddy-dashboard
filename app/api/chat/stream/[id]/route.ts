@@ -38,7 +38,9 @@ import { dispatchInternalTool } from '@/lib/llm/internal-tools'
 import { createUntypedServiceClient } from '@/lib/supabase/untyped'
 
 export const runtime = 'nodejs'
-export const maxDuration = 800 // requires Vercel Pro/Enterprise
+// Hobby caps at 60s. Was 800s (Pro/Enterprise). Long streams disconnect at
+// 60s — clients reconnect via the SSE retry path. Upgrade to Pro to extend.
+export const maxDuration = 60
 
 
 const MAX_TOOL_LOOPS = 8

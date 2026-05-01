@@ -18,7 +18,9 @@ import { enqueuePush } from '@/lib/push/onesignal'
 import { createUntypedServiceClient } from '@/lib/supabase/untyped'
 
 export const runtime = 'nodejs'
-export const maxDuration = 300
+// Hobby cap is 60s. Was 300 (Pro). Daily digest may now need to be chunked
+// across multiple invocations for large fleets — track in tasks.
+export const maxDuration = 60
 
 
 export async function GET(request: Request) {
