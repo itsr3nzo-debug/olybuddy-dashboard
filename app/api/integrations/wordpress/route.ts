@@ -67,8 +67,10 @@ function normaliseSiteUrl(input: string): string | null {
     // Supabase :54321, ES :9200, etc.) that happen to share hostname with a
     // WP install.
     if (u.port && u.port !== '80' && u.port !== '443') return null
-    // Strip trailing slash and any wp-admin / paths the user pasted by accident.
-    u.pathname = '/'
+    // Preserve subdirectory paths (e.g. example.com/blog/) — common for
+    // WP-in-subdirectory installs. Strip ONLY trailing wp-admin/wp-login the
+    // user pasted by accident. Devil's-advocate #17 (2026-05-01).
+    u.pathname = u.pathname.replace(/\/(wp-admin|wp-login\.php).*$/, '/')
     u.search = ''
     u.hash = ''
     return u.toString().replace(/\/$/, '')

@@ -113,8 +113,18 @@ export async function GET(req: NextRequest) {
         }
         credentials = { password: blob.password }
       } else if (row.provider === 'salon_booking_system') {
-        const blob = decrypted as { siteUrl: string; apiKey: string }
-        config = { siteUrl: blob.siteUrl, ...(row.metadata ?? {}) }
+        const blob = decrypted as {
+          siteUrl: string
+          apiKey: string
+          namespace?: string
+          authMode?: 'bearer' | 'x_api_key' | 'query'
+        }
+        config = {
+          siteUrl: blob.siteUrl,
+          namespace: blob.namespace ?? '/wp-json/salon/api/v1',
+          authMode: blob.authMode ?? 'bearer',
+          ...(row.metadata ?? {}),
+        }
         credentials = { apiKey: blob.apiKey }
       } else {
         return NextResponse.json(

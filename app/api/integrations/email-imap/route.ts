@@ -73,18 +73,31 @@ function emailDomain(addr: string): string | null {
 }
 
 function isPrivateIp(ip: string): boolean {
-  // Block private/loopback/link-local addresses — prevents SSRF where someone
-  // configures imapHost to 127.0.0.1, 10.x, 172.16-31.x, 192.168.x, 169.254.x,
-  // ::1, fc00::/7, fe80::/10. Same gate we apply on the WordPress route.
-  if (!isIP(ip)) return false
-  if (ip === '::1' || ip.startsWith('fe80:') || ip.startsWith('fc') || ip.startsWith('fd')) return true
+  // Block private/loopback/link-local addresses + IPv4-mapped IPv6 + CGNAT.
+  // Devil's-advocate finding #6 (2026-05-01): prior version missed
+  // ::ffff:127.0.0.1 (IPv4-mapped IPv6 — common SSRF bypass), 100.64/10
+  // (CGNAT), and a few edge cases.
+  if (!ip) return true   // refuse empty
+  // Strip IPv4-mapped IPv6 prefix and re-evaluate as IPv4.
+  const v4mapped = ip.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/i)
+  if (v4mapped) return isPrivateIp(v4mapped[1])
+
+  if (!isIP(ip)) return true   // unknown form → refuse
+  // IPv6
+  if (ip === '::1' || ip === '::') return true
+  if (ip.startsWith('fe80:')) return true                       // link-local
+  if (/^f[cd][0-9a-f]{2}:/i.test(ip)) return true               // ULA fc00::/7
+  // IPv4
+  if (!ip.includes('.')) return false  // pure IPv6 not caught above is public
   const parts = ip.split('.').map(Number)
   if (parts[0] === 127) return true
   if (parts[0] === 10) return true
   if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true
   if (parts[0] === 192 && parts[1] === 168) return true
   if (parts[0] === 169 && parts[1] === 254) return true
-  if (parts[0] === 0) return true                 // 0.0.0.0/8
+  if (parts[0] === 0) return true                                // 0.0.0.0/8
+  if (parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127) return true  // CGNAT
+  if (parts[0] >= 224) return true                               // multicast + reserved
   return false
 }
 
@@ -101,29 +114,39 @@ async function validateImap(
   password: string,
   imapHost: string,
 ): Promise<ImapValidation> {
-  // SSRF gate. Resolve to IP first, refuse private/loopback.
-  let ip: string
+  // SSRF gate. Resolve to IP, refuse private/loopback. Resolve ALL addresses
+  // (devil's-advocate #5: a malicious DNS could return one public + one
+  // private; we must reject if any are private). Then PIN the public IP for
+  // the actual connect so DNS rebinding can't swap it between resolution
+  // and connect — imapflow.host gets the IP, TLS servername is the hostname.
+  let resolved: { address: string; family: number }[]
   try {
-    const lookup = await dnsLookup(imapHost)
-    ip = lookup.address
+    const { lookup: dnsLookupAll } = await import('node:dns/promises')
+    resolved = await dnsLookupAll(imapHost, { all: true })
   } catch {
     return { ok: false, error: `Could not resolve IMAP server`, detail: `DNS lookup for ${imapHost} failed.` }
   }
-  if (isPrivateIp(ip)) {
-    return { ok: false, error: `IMAP host points to a private/loopback address`, detail: `Refusing to connect to ${ip}.` }
+  if (resolved.length === 0) {
+    return { ok: false, error: `IMAP host returned no addresses` }
   }
+  const privateAddrs = resolved.filter(r => isPrivateIp(r.address))
+  if (privateAddrs.length > 0) {
+    return { ok: false, error: `IMAP host resolves to a private/loopback address`, detail: `Refusing to connect to ${privateAddrs.map(r => r.address).join(', ')}.` }
+  }
+  // Pin the FIRST public IP — connect by IP, present the hostname for TLS SNI.
+  const pinnedIp = resolved[0].address
 
   // imapflow connect + login + list folders. We use IMAPS (993) by default —
   // most cPanel-style hosts (HostGator, Bluehost, Namecheap) support it.
   // We do NOT try plain IMAP (143) — that would fall back to cleartext on
   // misconfigured hosts.
   const client = new ImapFlow({
-    host: imapHost,
+    host: pinnedIp,
     port: 993,
     secure: true,
+    servername: imapHost,           // TLS SNI — cert is for the hostname
     auth: { user: emailAddress, pass: password },
     logger: false,
-    // 12s overall — fail fast on bad creds.
     socketTimeout: 12_000,
   })
 

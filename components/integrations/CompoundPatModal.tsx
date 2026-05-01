@@ -20,8 +20,12 @@ interface CompoundPatModalProps {
   onConnected: (info: { account_name?: string; account_email?: string }) => void
 }
 
-function clientValidate(field: string, value: string, kind: string | undefined): string | null {
-  if (!value.trim()) return `${field} is required`
+function clientValidate(field: string, value: string, kind: string | undefined, optional: boolean): string | null {
+  // Optional fields (e.g. IMAP host that auto-derives from domain) are
+  // allowed to be empty — skip validation entirely.
+  if (!value.trim()) {
+    return optional ? null : `${field} is required`
+  }
   if (kind === 'url') {
     try {
       const u = new URL(value)
@@ -32,14 +36,24 @@ function clientValidate(field: string, value: string, kind: string | undefined):
       return 'Not a valid URL'
     }
   }
+  if (kind === 'email') {
+    // Lightweight RFC-ish check. Server validates more strictly.
+    if (!/^[^\s@]+@[^\s@.]+\.[^\s@]+$/.test(value)) {
+      return 'Not a valid email address'
+    }
+  }
+  if (kind === 'hostname') {
+    // Bare hostname (no scheme, no path). Accept letters, digits, dots, hyphens.
+    if (!/^[a-zA-Z0-9.-]{1,253}$/.test(value)) {
+      return 'Not a valid hostname'
+    }
+  }
   if (kind === 'username') {
     if (!/^[a-zA-Z0-9._@-]{1,60}$/.test(value)) {
       return 'Username contains invalid characters'
     }
   }
   if (kind === 'wp_app_password') {
-    // WP application passwords are 24 chars (groups of 4 with spaces shown
-    // in the UI but stored without). Allow either form. Strip spaces server-side.
     const stripped = value.replace(/\s+/g, '')
     if (stripped.length !== 24) {
       return 'WordPress application password should be 24 characters (with or without spaces)'
@@ -73,7 +87,11 @@ export default function CompoundPatModal({
     // Client-side validation first.
     const newErrors: Record<string, string> = {}
     for (const f of cfg.fields) {
-      const err = clientValidate(f.label, values[f.key] ?? '', f.validate)
+      // Field is optional if its label or helpText hints "(optional)" or "Leave blank".
+      // Cleaner would be a `required: boolean` field on CompoundPatField — adding
+      // here as the lightest fix. Detected from helpText/label conventions.
+      const optional = /\(optional\)/i.test(f.label) || /leave blank/i.test(f.helpText ?? '')
+      const err = clientValidate(f.label, values[f.key] ?? '', f.validate, optional)
       if (err) newErrors[f.key] = err
     }
     if (Object.keys(newErrors).length > 0) {

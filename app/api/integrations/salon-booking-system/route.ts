@@ -49,10 +49,16 @@ async function getSession() {
 }
 
 function normaliseSiteUrl(input: string): string | null {
+  // Preserve subdirectory pathname (e.g. https://example.com/blog/) — common for
+  // WP-in-subdirectory installs where the REST API is at /blog/wp-json/...
+  // Devil's-advocate finding #17 (2026-05-01): prior version stripped paths
+  // entirely, breaking every subdirectory install.
   try {
     const u = new URL(input.trim())
     if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
-    u.pathname = '/'
+    // Strip ONLY trailing /wp-admin or /wp-login.php that the user pasted by
+    // accident. Keep any other pathname.
+    u.pathname = u.pathname.replace(/\/(wp-admin|wp-login\.php).*$/, '/')
     u.search = ''
     u.hash = ''
     return u.toString().replace(/\/$/, '')
@@ -81,7 +87,60 @@ interface SbsValidation {
   servicesFound?: number
 }
 
-async function validateSbs(siteUrl: string, apiKey: string): Promise<SbsValidation> {
+// SBS plugin REST documentation is partially gated behind a SwaggerHub login
+// so we don't have one canonical (namespace, auth) combo. This validator
+// probes a small matrix of plausible combos and reports which one worked.
+// Once we have a confirmed live install, narrow this down.
+const SBS_NAMESPACES = [
+  '/wp-json/salon/api/v1',
+  '/wp-json/salon-booking-system/v1',
+  '/wp-json/sb/v1',
+] as const
+
+type AuthMode = 'bearer' | 'x_api_key' | 'query'
+const SBS_AUTH_MODES: AuthMode[] = ['bearer', 'x_api_key', 'query']
+
+interface SbsProbeHit {
+  namespace: string
+  authMode: AuthMode
+  servicesCount: number
+}
+
+async function probeSbsCombo(
+  siteUrl: string,
+  namespace: string,
+  apiKey: string,
+  authMode: AuthMode,
+): Promise<{ ok: boolean; status?: number; servicesCount?: number; error?: string }> {
+  let url = `${siteUrl}${namespace}/services`
+  const headers: Record<string, string> = { Accept: 'application/json' }
+  if (authMode === 'bearer') headers.Authorization = `Bearer ${apiKey}`
+  else if (authMode === 'x_api_key') headers['X-API-Key'] = apiKey
+  else if (authMode === 'query') url += `${url.includes('?') ? '&' : '?'}api_key=${encodeURIComponent(apiKey)}`
+
+  const res = await fetch(url, {
+    method: 'GET',
+    headers,
+    signal: AbortSignal.timeout(8_000),
+  }).catch(() => null)
+
+  if (!res) return { ok: false, error: 'timeout' }
+  if (res.status === 404) return { ok: false, status: 404, error: 'namespace not found' }
+  if (res.status === 401 || res.status === 403) return { ok: false, status: res.status, error: 'auth rejected' }
+  if (!res.ok) return { ok: false, status: res.status, error: `http ${res.status}` }
+
+  let data: unknown
+  try { data = await res.json() } catch { return { ok: false, error: 'response not JSON' } }
+  const services = Array.isArray(data)
+    ? data
+    : (typeof data === 'object' && data !== null && 'data' in data
+        ? (data as { data: unknown[] }).data
+        : [])
+  if (!Array.isArray(services)) return { ok: false, error: 'response shape unrecognised' }
+  return { ok: true, servicesCount: services.length }
+}
+
+async function validateSbs(siteUrl: string, apiKey: string): Promise<SbsValidation & { hit?: SbsProbeHit }> {
   const host = new URL(siteUrl).hostname
   try {
     const lookup = await dnsLookup(host)
@@ -92,51 +151,44 @@ async function validateSbs(siteUrl: string, apiKey: string): Promise<SbsValidati
     return { ok: false, error: 'Could not resolve site hostname' }
   }
 
-  // Probe the plugin's namespace via /services. Plugin returns 200 with array
-  // of service objects; missing plugin returns 404 (or WP REST "no route").
-  const url = `${siteUrl}/wp-json/salon/api/v1/services`
-  const res = await fetch(url, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
-    signal: AbortSignal.timeout(10_000),
-  }).catch(() => null)
-
-  if (!res) {
-    return { ok: false, error: 'Could not reach the site', detail: 'Request timed out.' }
+  // Probe the matrix. Stop on first hit. Track the most informative failure
+  // so we can give a useful error when nothing matches.
+  let lastAuthError: string | null = null
+  let any404 = false
+  for (const namespace of SBS_NAMESPACES) {
+    for (const authMode of SBS_AUTH_MODES) {
+      const r = await probeSbsCombo(siteUrl, namespace, apiKey, authMode)
+      if (r.ok) {
+        return {
+          ok: true,
+          servicesFound: r.servicesCount ?? 0,
+          hit: { namespace, authMode, servicesCount: r.servicesCount ?? 0 },
+        }
+      }
+      if (r.status === 401 || r.status === 403) lastAuthError = `${namespace} (${authMode})`
+      if (r.status === 404) any404 = true
+    }
   }
-  if (res.status === 401 || res.status === 403) {
+  if (lastAuthError) {
     return {
       ok: false,
       error: 'API key rejected by Salon Booking System',
       detail:
-        'Generate a fresh key at WP-Admin → Salon → Settings → API → Generate Key. ' +
-        'Make sure you have Pro installed (the free version does not expose the REST API).',
+        `Generate a fresh key at WP-Admin → Salon → Settings → API → Generate Key. ` +
+        `Make sure you have Pro installed (free version has no API). Last attempt: ${lastAuthError}.`,
     }
   }
-  if (res.status === 404) {
+  if (any404) {
     return {
       ok: false,
-      error: 'Salon Booking System REST API not found at /wp-json/salon/api/v1',
+      error: 'Salon Booking System REST API not found',
       detail:
-        'Either Salon Booking System is not installed on this WordPress site, or only the ' +
-        'free version is installed. The REST API requires Salon Booking System Pro.',
+        `Tried ${SBS_NAMESPACES.length} namespaces × ${SBS_AUTH_MODES.length} auth modes — all returned 404. ` +
+        `Either SBS Pro is not installed on this WordPress site, or it uses an exotic configuration. ` +
+        `Verify the plugin is active + Pro license is applied.`,
     }
   }
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    return { ok: false, error: `Plugin returned HTTP ${res.status}`, detail: body.slice(0, 200) }
-  }
-
-  // Sanity-check the response shape.
-  let data: unknown
-  try {
-    data = await res.json()
-  } catch {
-    return { ok: false, error: `Plugin response wasn't JSON` }
-  }
-  const services = Array.isArray(data) ? data : (typeof data === 'object' && data !== null && 'data' in data ? (data as { data: unknown[] }).data : [])
-
-  return { ok: true, servicesFound: Array.isArray(services) ? services.length : 0 }
+  return { ok: false, error: 'Could not validate Salon Booking System on this site' }
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -168,7 +220,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: v.error, detail: v.detail }, { status: 400 })
   }
 
-  const credentialBlob = JSON.stringify({ siteUrl, apiKey, schemaVersion: 1 })
+  // Persist which (namespace, authMode) combo worked so the VPS adapter uses
+  // the same one at runtime. Avoids the matrix-probe at every tool call.
+  const credentialBlob = JSON.stringify({
+    siteUrl,
+    apiKey,
+    namespace: v.hit?.namespace ?? '/wp-json/salon/api/v1',
+    authMode: v.hit?.authMode ?? 'bearer',
+    schemaVersion: 2,
+  })
   const encrypted = encryptToken(credentialBlob)
 
   const supabase = svc()

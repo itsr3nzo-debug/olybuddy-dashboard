@@ -57,9 +57,9 @@ export interface CompoundPatField {
   key: string                       // form field key (used in API request body)
   label: string                     // human label
   placeholder?: string
-  type?: 'text' | 'url' | 'password'
+  type?: 'text' | 'url' | 'password' | 'email'
   helpText?: string                 // shown beneath the input
-  validate?: 'url' | 'username' | 'wp_app_password'  // client-side regex check before submit
+  validate?: 'url' | 'email' | 'username' | 'wp_app_password' | 'hostname'  // client-side regex check before submit
 }
 
 export interface ProviderCompoundPatConfig {
@@ -538,8 +538,8 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
           key: 'emailAddress',
           label: 'Email address',
           placeholder: 'info@ckbuilding.co.uk',
-          type: 'text',
-          validate: 'url',  // we just check it parses as something email-shaped
+          type: 'email',
+          validate: 'email',
           helpText: 'The full email address (e.g. info@yourbusiness.co.uk)',
         },
         {
@@ -554,6 +554,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
           label: 'IMAP server (optional)',
           placeholder: 'auto-detect from email domain',
           type: 'text',
+          validate: 'hostname',
           helpText: 'Leave blank to auto-derive (mail.{your-domain}). Override if HostGator gave you a different hostname.',
         },
       ],
