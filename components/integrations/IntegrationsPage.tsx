@@ -239,7 +239,24 @@ function AddIntegrationModal({ open, onClose, connectedProviders, onChanged }: {
   const [patProvider, setPatProvider] = useState<ProviderConfig | null>(null)
   const [compoundProvider, setCompoundProvider] = useState<ProviderConfig | null>(null)
 
-  const recommended = PROVIDERS.filter(p => p.recommendedForTrades && !connectedProviders.has(p.id))
+  // Same priority order as the page's quickTiles — keep the modal's
+  // "Recommended for Trades" section consistent so the 4 custom integrations
+  // surface first there too. Duplicated here because AddIntegrationModal is
+  // a separate React component scope.
+  const MODAL_PRIORITY = [
+    'wordpress', 'hostgator_email', 'google_business_profile', 'salon_booking_system',
+    'gmail', 'google_calendar', 'xero', 'fergus', 'stripe',
+  ]
+  const recommended = PROVIDERS
+    .filter(p => p.recommendedForTrades && !connectedProviders.has(p.id))
+    .sort((a, b) => {
+      const ai = MODAL_PRIORITY.indexOf(a.id)
+      const bi = MODAL_PRIORITY.indexOf(b.id)
+      if (ai === -1 && bi === -1) return 0
+      if (ai === -1) return 1
+      if (bi === -1) return -1
+      return ai - bi
+    })
 
   const filtered = PROVIDERS.filter(p => {
     if (category !== 'all' && p.category !== category) return false
@@ -534,9 +551,33 @@ export default function IntegrationsPage() {
   // Mirrors the ElevenLabs pattern of surfacing a small curated set below the
   // empty state so owners can one-click-connect the common ones without
   // opening the "Add integration" dialog first.
-  const quickTiles = PROVIDERS.filter(p =>
-    p.available && p.recommendedForTrades && !connectedProviders.has(p.id)
-  ).slice(0, 4)
+  // Priority order on the main-page tile grid. Newly-built custom integrations
+  // (WordPress, HostGator email, GBP, Salon Booking System) come first because
+  // they're the differentiated value our customers actually came in for.
+  // Composio-managed staples (gmail, gcal, xero, fergus, stripe) come after
+  // — useful but not the headline. Any recommendedForTrades provider not in
+  // this list still surfaces, just below the priority ones.
+  //
+  // Slice raised from 4 to 8 so the four new providers + four existing
+  // staples all appear without forcing the customer to open the "Add
+  // integration" dialog. Two rows of four on a typical viewport.
+  const QUICK_TILE_PRIORITY = [
+    'wordpress', 'hostgator_email', 'google_business_profile', 'salon_booking_system',
+    'gmail', 'google_calendar', 'xero', 'fergus', 'stripe',
+  ]
+  const quickTiles = PROVIDERS
+    .filter(p => p.available && p.recommendedForTrades && !connectedProviders.has(p.id))
+    .sort((a, b) => {
+      const ai = QUICK_TILE_PRIORITY.indexOf(a.id)
+      const bi = QUICK_TILE_PRIORITY.indexOf(b.id)
+      // Both in priority list → use that order. Only one in list → it wins.
+      // Neither → fall back to natural CURATED_PROVIDERS order (stable).
+      if (ai === -1 && bi === -1) return 0
+      if (ai === -1) return 1
+      if (bi === -1) return -1
+      return ai - bi
+    })
+    .slice(0, 8)
 
   return (
     <div className="px-6 py-8 max-w-6xl mx-auto">
