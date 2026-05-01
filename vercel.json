@@ -99,14 +99,6 @@
     {
       "path": "/api/cron/rotate-build-token",
       "schedule": "0 9 * * 1"
-    },
-    {
-      "path": "/api/cron/refresh-gbp-tokens",
-      "schedule": "*/50 * * * *"
-    },
-    {
-      "path": "/api/cron/refresh-calcom-tokens",
-      "schedule": "*/50 * * * *"
     }
   ],
   "functions": {
