@@ -111,7 +111,7 @@
   ],
   "functions": {
     "app/api/chat/stream/[id]/route.ts": {
-      "maxDuration": 800
+      "maxDuration": 300
     },
     "app/api/agent/handle-message/route.ts": {
       "maxDuration": 60
