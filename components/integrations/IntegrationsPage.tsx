@@ -460,7 +460,15 @@ export default function IntegrationsPage() {
     const err = params.get('error')
     const provider = params.get('provider')
     if (err === 'not_configured') {
-      setError(`${provider ? provider.charAt(0).toUpperCase() + provider.slice(1) : 'This integration'} is not set up yet. Contact your admin to configure the API credentials.`)
+      // Look up the provider's human display name from the registry instead of
+      // mangling the underscored slug ("Google_business_profile" → "Google
+      // Business Profile"). Falls back to the slug-with-spaces if no curated
+      // entry exists for this provider.
+      const displayName = provider
+        ? (PROVIDERS.find(p => p.id === provider)?.name
+            ?? provider.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()))
+        : 'This integration'
+      setError(`${displayName} isn't set up yet. The credentials need to be registered with the provider and added to our environment first — contact the Nexley team to enable it.`)
       window.history.replaceState({}, '', '/integrations')
     } else if (err === 'storage_failed') {
       setError(`Failed to save connection for ${provider || 'this integration'}. Please try again.`)
