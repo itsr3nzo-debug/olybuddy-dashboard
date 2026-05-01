@@ -36,9 +36,21 @@ function statusDisplay(integration: ConnectedIntegration): {
   variant: 'success' | 'warning' | 'destructive' | 'neutral' | 'info'
   pulse?: boolean
 } {
-  const { status, last_applied_at } = integration
-  // "Connected" without VPS ack = "applying" (intermediate state).
-  if (status === 'connected' && !last_applied_at) {
+  const { status, last_applied_at, provider } = integration
+  // "Applying" intermediate state ONLY applies to the custom-integration
+  // providers that flow through the VPS watcher pipeline. Composio-managed
+  // (gmail, googlecalendar, facebook, drive, etc.) and PAT-direct (fergus,
+  // xero) providers never get last_applied_at written — they're operational
+  // the moment they're stored. Without this guard, those rows showed
+  // "Applying" forever.
+  const VPS_PIPELINE_PROVIDERS = new Set([
+    'wordpress',
+    'hostgator_email',
+    'google_business_profile',
+    'salon_booking_system',
+    'icloud',
+  ])
+  if (status === 'connected' && !last_applied_at && VPS_PIPELINE_PROVIDERS.has(provider)) {
     return { label: 'Applying', variant: 'info', pulse: true }
   }
   switch (status) {
