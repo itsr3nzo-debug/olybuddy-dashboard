@@ -27,6 +27,30 @@ interface ConnectedIntegration {
 }
 
 /**
+ * Providers that flow through the VPS watcher pipeline (dashboard → Supabase →
+ * watcher → cred file → adapter → AI Employee). For these, the row's
+ * `last_applied_at` field is the source of truth for "credentials reached the
+ * agent" — `connected && !last_applied_at` means the watcher hasn't ack'd yet,
+ * so the pill should read "Applying" until it does.
+ *
+ * Composio-managed (gmail, googlecalendar, facebook, drive, etc.) and PAT-direct
+ * (fergus, xero) providers don't run through the VPS watcher — they're
+ * operational the moment they're stored. Without this allowlist, those rows
+ * stuck on "Applying" forever (no one writes last_applied_at for them).
+ *
+ * iCloud is intentionally NOT in this set yet — its compound_pat decrypt
+ * schema, dashboard registry entry, and ALLOWED whitelist haven't shipped to
+ * the dashboard yet, so a row with provider='icloud' would error in the
+ * cred-fetcher. Add iCloud here only after the rest of the wire-through lands.
+ */
+const VPS_PIPELINE_PROVIDERS = new Set([
+  'wordpress',
+  'hostgator_email',
+  'google_business_profile',
+  'salon_booking_system',
+])
+
+/**
  * Map raw DB status → display state with a single name and colour scheme.
  * Statuses we expect: connected | degraded | refreshing | expired | error |
  * disconnected | pending | validating | blocked_external.
@@ -37,19 +61,8 @@ function statusDisplay(integration: ConnectedIntegration): {
   pulse?: boolean
 } {
   const { status, last_applied_at, provider } = integration
-  // "Applying" intermediate state ONLY applies to the custom-integration
-  // providers that flow through the VPS watcher pipeline. Composio-managed
-  // (gmail, googlecalendar, facebook, drive, etc.) and PAT-direct (fergus,
-  // xero) providers never get last_applied_at written — they're operational
-  // the moment they're stored. Without this guard, those rows showed
-  // "Applying" forever.
-  const VPS_PIPELINE_PROVIDERS = new Set([
-    'wordpress',
-    'hostgator_email',
-    'google_business_profile',
-    'salon_booking_system',
-    'icloud',
-  ])
+  // See VPS_PIPELINE_PROVIDERS at module scope for the rationale on which
+  // providers can ever land here as "Applying".
   if (status === 'connected' && !last_applied_at && VPS_PIPELINE_PROVIDERS.has(provider)) {
     return { label: 'Applying', variant: 'info', pulse: true }
   }
@@ -579,7 +592,8 @@ export default function IntegrationsPage() {
   //
   // Slice raised from 4 to 8 so the four new providers + four existing
   // staples all appear without forcing the customer to open the "Add
-  // integration" dialog. Two rows of four on a typical viewport.
+  // integration" dialog. With grid-cols-3 on desktop, that lays out as
+  // three rows of three with the last row partially filled.
   const QUICK_TILE_PRIORITY = [
     'wordpress', 'hostgator_email', 'google_business_profile', 'salon_booking_system',
     'gmail', 'google_calendar', 'xero', 'fergus', 'stripe',
