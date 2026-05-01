@@ -433,6 +433,13 @@ export default function IntegrationsPage() {
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  // Quick-tile click can open a modal directly (compound-PAT or plain PAT) —
+  // separate from the AddIntegrationModal's own state. Without these, clicking
+  // a compound-PAT provider on the main page (e.g. WordPress) would fall
+  // through to the <a href="/api/oauth/wordpress"> default and hit the
+  // dynamic OAuth route's "Unsupported provider" error.
+  const [quickPatProvider, setQuickPatProvider] = useState<ProviderConfig | null>(null)
+  const [quickCompoundProvider, setQuickCompoundProvider] = useState<ProviderConfig | null>(null)
 
   // Handle error / success query params from OAuth redirects
   useEffect(() => {
@@ -728,17 +735,33 @@ export default function IntegrationsPage() {
       {!loading && quickTiles.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-2">
           {quickTiles.map(provider => {
-            const oauthProviderId = getOAuthProviderId(provider.id)
+            // Tile-routing rules — keep aligned with AddIntegrationModal's
+            // tileHref/handleTileClick. compoundPat and pat → modal (no href).
+            // customOAuth → /api/oauth/{provider.id} directly. Otherwise →
+            // /api/oauth/{getOAuthProviderId(provider.id)} (Composio path).
+            const href = (() => {
+              if (!provider.available) return undefined
+              if (provider.compoundPat || provider.pat) return undefined
+              if (provider.customOAuth) return `/api/oauth/${provider.id}`
+              return `/api/oauth/${getOAuthProviderId(provider.id)}`
+            })()
             return (
               <a
                 key={provider.id}
-                href={provider.available && !provider.pat ? `/api/oauth/${oauthProviderId}` : undefined}
+                href={href}
                 onClick={(e) => {
                   if (!provider.available) return
+                  if (provider.compoundPat) {
+                    e.preventDefault()
+                    setQuickCompoundProvider(provider)
+                    return
+                  }
                   if (provider.pat) {
                     e.preventDefault()
-                    setModalOpen(true)
+                    setQuickPatProvider(provider)
+                    return
                   }
+                  // else → the <a href> fires
                 }}
                 className="flex items-start gap-3 p-4 rounded-md border border-border bg-card hover:border-primary/40 hover:bg-muted/30 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -760,6 +783,24 @@ export default function IntegrationsPage() {
         connectedProviders={connectedProviders}
         onChanged={() => { fetchIntegrations() }}
       />
+
+      {/* Quick-tile direct-launch modals — opened when a tile in the page-level
+          grid is clicked. Lives at this level (not inside AddIntegrationModal)
+          because the page tiles bypass the modal entirely for one-click connect. */}
+      {quickPatProvider && (
+        <PatConnectModal
+          provider={quickPatProvider}
+          onClose={() => setQuickPatProvider(null)}
+          onConnected={() => { setQuickPatProvider(null); fetchIntegrations(); }}
+        />
+      )}
+      {quickCompoundProvider && (
+        <CompoundPatModal
+          provider={quickCompoundProvider}
+          onClose={() => setQuickCompoundProvider(null)}
+          onConnected={() => { setQuickCompoundProvider(null); fetchIntegrations(); }}
+        />
+      )}
     </div>
   )
 }
