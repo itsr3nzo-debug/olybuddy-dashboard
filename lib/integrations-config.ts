@@ -537,10 +537,22 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
 type ComposioRegistryEntry = { authConfigId: string; name: string; categories: string[] }
 const REGISTRY = composioRegistry as Record<string, ComposioRegistryEntry>
 
-// Map dashboard provider IDs to Composio toolkit slugs (mismatches only)
+// Map dashboard provider IDs to Composio toolkit slugs (mismatches only).
+// Used by the dedupe loop below to suppress the auto-generated AUTO_PROVIDERS
+// tile when a curated provider already exists for that slug.
+//
+// 2026-05-01: added `calcom: 'cal'` to suppress Composio's `cal` toolkit, which
+// otherwise renders as a SECOND scheduling tile next to our custom Cal.com one
+// — and would route through Composio's flow instead of our direct OAuth handler.
+// Devil's-advocate review caught this. Pre-emptively listed wordpress + GBP too
+// in case Composio adds them later; they're zero-impact today since neither slug
+// exists in the current Composio catalog.
 const PROVIDER_TO_TOOLKIT: Record<string, string> = {
   google_calendar: 'googlecalendar',
   google_drive: 'googledrive',
+  calcom: 'cal',
+  wordpress: 'wordpress',
+  google_business_profile: 'google_business_profile',
 }
 // Reverse: toolkit slug → curated provider ID
 const TOOLKIT_TO_CURATED_ID = new Map<string, string>()
