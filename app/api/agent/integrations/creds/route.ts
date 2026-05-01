@@ -92,9 +92,17 @@ export async function GET(req: NextRequest) {
       let config: Record<string, unknown>
       let credentials: Record<string, unknown>
 
+      // Strip owner-PII fields from metadata before serving to VPS — the VPS
+      // cred file should hold only what the adapter needs to operate. Audit
+      // round 3 finding M6 (2026-05-01).
+      const sanitisedMetadata: Record<string, unknown> = { ...(row.metadata ?? {}) }
+      delete sanitisedMetadata.connected_by
+      delete sanitisedMetadata.connected_at
+      delete sanitisedMetadata.e2e_test     // never persist test markers either
+
       if (row.provider === 'wordpress') {
         const blob = decrypted as { siteUrl: string; username: string; appPassword: string }
-        config = { siteUrl: blob.siteUrl, username: blob.username, ...(row.metadata ?? {}) }
+        config = { siteUrl: blob.siteUrl, username: blob.username, ...sanitisedMetadata }
         credentials = { appPassword: blob.appPassword }
       } else if (row.provider === 'hostgator_email') {
         const blob = decrypted as {
@@ -109,7 +117,7 @@ export async function GET(req: NextRequest) {
           smtpHost: blob.smtpHost,
           smtpPort: blob.smtpPort,
           smtpSecure: blob.smtpSecure,
-          ...(row.metadata ?? {}),
+          ...sanitisedMetadata,
         }
         credentials = { password: blob.password }
       } else if (row.provider === 'salon_booking_system') {
@@ -123,7 +131,7 @@ export async function GET(req: NextRequest) {
           siteUrl: blob.siteUrl,
           namespace: blob.namespace ?? '/wp-json/salon/api/v1',
           authMode: blob.authMode ?? 'bearer',
-          ...(row.metadata ?? {}),
+          ...sanitisedMetadata,
         }
         credentials = { apiKey: blob.apiKey }
       } else {

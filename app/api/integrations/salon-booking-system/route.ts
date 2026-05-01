@@ -151,34 +151,46 @@ async function validateSbs(siteUrl: string, apiKey: string): Promise<SbsValidati
     return { ok: false, error: 'Could not resolve site hostname' }
   }
 
-  // Probe the matrix. Stop on first hit. Track the most informative failure
-  // so we can give a useful error when nothing matches.
-  let lastAuthError: string | null = null
-  let any404 = false
+  // Probe the matrix in parallel. 9 calls in series = up to 72s (8s timeout
+  // each) which exceeds Vercel Hobby's 60s function cap. Audit round 3
+  // finding M4. Promise.all completes in ~max(individual_timeout) = 8s.
+  const probeJobs: Array<Promise<{ namespace: string; authMode: AuthMode; r: Awaited<ReturnType<typeof probeSbsCombo>> }>> = []
   for (const namespace of SBS_NAMESPACES) {
     for (const authMode of SBS_AUTH_MODES) {
-      const r = await probeSbsCombo(siteUrl, namespace, apiKey, authMode)
-      if (r.ok) {
-        return {
-          ok: true,
-          servicesFound: r.servicesCount ?? 0,
-          hit: { namespace, authMode, servicesCount: r.servicesCount ?? 0 },
-        }
-      }
-      if (r.status === 401 || r.status === 403) lastAuthError = `${namespace} (${authMode})`
-      if (r.status === 404) any404 = true
+      probeJobs.push(
+        probeSbsCombo(siteUrl, namespace, apiKey, authMode).then(r => ({ namespace, authMode, r })),
+      )
     }
   }
-  if (lastAuthError) {
+  const settled = await Promise.allSettled(probeJobs)
+  const results = settled.flatMap(s => s.status === 'fulfilled' ? [s.value] : [])
+
+  // Look for a winning combo first (200 with parseable shape).
+  const hit = results.find(x => x.r.ok)
+  if (hit) {
+    return {
+      ok: true,
+      servicesFound: hit.r.servicesCount ?? 0,
+      hit: { namespace: hit.namespace, authMode: hit.authMode, servicesCount: hit.r.servicesCount ?? 0 },
+    }
+  }
+  // Categorise the failures so the error message is informative. Better-rank
+  // shape-mismatch over auth-rejected (audit H2: prior version always reported
+  // "API key rejected" even when the actual issue was a wrong namespace where
+  // the plugin returns 401 default, hiding the right namespace's shape error).
+  const got200ButShapeMismatch = results.some(x => x.r.status === 200 || x.r.status === undefined && x.r.error?.includes('JSON'))
+  const lastAuthFail = results.find(x => x.r.status === 401 || x.r.status === 403)
+  const all404 = results.every(x => x.r.status === 404)
+
+  if (got200ButShapeMismatch) {
     return {
       ok: false,
-      error: 'API key rejected by Salon Booking System',
-      detail:
-        `Generate a fresh key at WP-Admin → Salon → Settings → API → Generate Key. ` +
-        `Make sure you have Pro installed (free version has no API). Last attempt: ${lastAuthError}.`,
+      error: 'A Salon Booking endpoint responded but in an unexpected shape',
+      detail: `One of the probed REST endpoints returned 200 but didn't match the documented response shape. ` +
+              `Likely a custom plugin build or an unrelated plugin colliding on the namespace. Contact support.`,
     }
   }
-  if (any404) {
+  if (all404) {
     return {
       ok: false,
       error: 'Salon Booking System REST API not found',
@@ -186,6 +198,16 @@ async function validateSbs(siteUrl: string, apiKey: string): Promise<SbsValidati
         `Tried ${SBS_NAMESPACES.length} namespaces × ${SBS_AUTH_MODES.length} auth modes — all returned 404. ` +
         `Either SBS Pro is not installed on this WordPress site, or it uses an exotic configuration. ` +
         `Verify the plugin is active + Pro license is applied.`,
+    }
+  }
+  if (lastAuthFail) {
+    return {
+      ok: false,
+      error: 'API key rejected by Salon Booking System',
+      detail:
+        `Generate a fresh key at WP-Admin → Salon → Settings → API → Generate Key. ` +
+        `Make sure you have Pro installed (free version has no API). ` +
+        `Tested combo: ${lastAuthFail.namespace} (${lastAuthFail.authMode}).`,
     }
   }
   return { ok: false, error: 'Could not validate Salon Booking System on this site' }

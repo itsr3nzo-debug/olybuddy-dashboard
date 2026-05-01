@@ -337,14 +337,10 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     iconColor: 'bg-muted text-muted-foreground',
     available: true,
   },
-  {
-    id: 'dext',
-    name: 'Dext',
-    description: 'Receipt and invoice data extraction',
-    category: 'documents',
-    iconColor: 'bg-muted text-muted-foreground',
-    available: false,
-  },
+  // (Dext removed here — the canonical Dext entry above at the Accounting
+  // section is "Dext (via Xero)" with the explanatory copy. Having two `dext`
+  // entries caused React-key duplicate warnings in the modal grid. Audit
+  // round 3 finding M1, 2026-05-01.)
   {
     id: 'hubdoc',
     name: 'HubDoc',

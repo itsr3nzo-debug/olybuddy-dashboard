@@ -86,7 +86,13 @@ function isPrivateIp(ip: string): boolean {
   // IPv6
   if (ip === '::1' || ip === '::') return true
   if (ip.startsWith('fe80:')) return true                       // link-local
-  if (/^f[cd][0-9a-f]{2}:/i.test(ip)) return true               // ULA fc00::/7
+  // ULA fc00::/7 — match prefix loosely. The previous regex `/^f[cd][0-9a-f]{2}:/`
+  // required exactly 2 hex chars before the colon, which silently allowed the
+  // collapsed form `fc::1` (audit round 3 finding C3). startsWith is broader
+  // but in this code path is also safe — there are no public addresses
+  // starting with `fc` or `fd` in the IPv6 unicast range.
+  const lc = ip.toLowerCase()
+  if (lc.startsWith('fc') || lc.startsWith('fd')) return true   // ULA fc00::/7
   // IPv4
   if (!ip.includes('.')) return false  // pure IPv6 not caught above is public
   const parts = ip.split('.').map(Number)

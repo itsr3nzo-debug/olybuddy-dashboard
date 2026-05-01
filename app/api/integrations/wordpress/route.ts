@@ -322,6 +322,27 @@ async function validateWordPressCreds(
     }
   }
 
+  // Fail-closed: require POSITIVE proof of an Editor-or-below role + a
+  // capability matching publish_posts. Audit round 3 finding H3 — previous
+  // version accepted users where roles=[] AND capabilities={} (e.g. a custom
+  // REST endpoint that strips both fields), since neither admin trip-wire
+  // fired. Now: must have at least one recognised role with positive
+  // edit/publish capability.
+  const allowedRoles = ['editor', 'author', 'contributor', 'shop_manager']
+  const hasAllowedRole = (user.roles ?? []).some((r) => allowedRoles.includes(r))
+  const requiredCap = userCaps.publish_posts === true || userCaps.edit_posts === true
+  if (!hasAllowedRole && !requiredCap) {
+    return {
+      ok: false,
+      error: `User ${username} has no recognised editor/author role and no publish/edit capability`,
+      detail:
+        'The bot user must have at least the WordPress Editor role (or Author / Contributor / Shop Manager) ' +
+        'with publish_posts or edit_posts capability. We could not detect either — likely the user has only ' +
+        'a custom role that strips standard capabilities, or the WP REST API on this site is filtering ' +
+        'these fields. Try creating a fresh user with the standard "Editor" role.',
+    }
+  }
+
   return { ok: true, user }
 }
 
