@@ -733,6 +733,7 @@ for (const [slug, entry] of Object.entries(REGISTRY)) {
 const CURATED_ICON_OVERRIDES: Record<string, string> = {
   microsoft_teams: 'microsoft-teams', google_calendar: 'google-calendar',
   outlook_calendar: 'outlook-calendar', google_drive: 'google-drive',
+  icloud_bridge: 'icloud-bridge',
 }
 
 function applyIcons(providers: ProviderConfig[]): ProviderConfig[] {
