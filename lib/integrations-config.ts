@@ -614,7 +614,7 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     iconUrl: '/integrations/icloud-bridge.svg',
     available: true,
     customPage: '/integrations/icloud-bridge',
-    recommendedForTrades: false,
+    recommendedForTrades: true,
   },
 ]
 
