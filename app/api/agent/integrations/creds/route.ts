@@ -134,6 +134,15 @@ export async function GET(req: NextRequest) {
           ...sanitisedMetadata,
         }
         credentials = { apiKey: blob.apiKey }
+      } else if (row.provider === 'icloud_bridge') {
+        // iCloud Bridge — encrypted blob is JSON {bridgeUrl, hmacSecret}.
+        // VPS adapter expects credentials.hmacSecret + config.bridgeUrl.
+        // DA-flagged: spread sanitisedMetadata FIRST and assign bridgeUrl
+        // LAST so the canonical value (from the encrypted blob) wins over
+        // any drifted metadata.bridge_url snapshot from an earlier probe.
+        const blob = decrypted as { bridgeUrl: string; hmacSecret: string }
+        config = { ...sanitisedMetadata, bridgeUrl: blob.bridgeUrl }
+        credentials = { hmacSecret: blob.hmacSecret }
       } else {
         return NextResponse.json(
           { error: `compound_pat provider ${row.provider} has no decrypt schema` },
@@ -207,7 +216,7 @@ async function listAll(clientId: string) {
     .from('integrations')
     .select('provider, status, metadata, last_applied_at, last_synced_at, expected_ready_at, blocked_reason, updated_at')
     .eq('client_id', clientId)
-    .in('provider', ['wordpress', 'hostgator_email', 'google_business_profile', 'salon_booking_system'])
+    .in('provider', ['wordpress', 'hostgator_email', 'google_business_profile', 'salon_booking_system', 'icloud_bridge'])
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -264,7 +273,7 @@ export async function POST(req: NextRequest) {
   // Whitelist providers — only the four custom integrations the adapter
   // exposes. Rejecting unknown values stops a compromised oak_ token from
   // triggering side effects on Composio rows or unrelated tables.
-  const ALLOWED = new Set(['wordpress', 'hostgator_email', 'google_business_profile', 'salon_booking_system'])
+  const ALLOWED = new Set(['wordpress', 'hostgator_email', 'google_business_profile', 'salon_booking_system', 'icloud_bridge'])
   if (!ALLOWED.has(provider)) {
     return NextResponse.json({ error: `provider must be one of: ${[...ALLOWED].join(', ')}` }, { status: 400 })
   }

@@ -38,16 +38,17 @@ interface ConnectedIntegration {
  * operational the moment they're stored. Without this allowlist, those rows
  * stuck on "Applying" forever (no one writes last_applied_at for them).
  *
- * iCloud is intentionally NOT in this set yet — its compound_pat decrypt
- * schema, dashboard registry entry, and ALLOWED whitelist haven't shipped to
- * the dashboard yet, so a row with provider='icloud' would error in the
- * cred-fetcher. Add iCloud here only after the rest of the wire-through lands.
+ * iCloud Bridge wired through 2026-05-02: registry entry + decrypt schema +
+ * ALLOWED whitelist + listAll all updated, so an icloud_bridge row connected
+ * but not-yet-applied correctly shows "Applying" until the watcher writes
+ * /opt/clients/{slug}/integrations/icloud_bridge.json on the VPS.
  */
 const VPS_PIPELINE_PROVIDERS = new Set([
   'wordpress',
   'hostgator_email',
   'google_business_profile',
   'salon_booking_system',
+  'icloud_bridge',
 ])
 
 /**
@@ -292,6 +293,8 @@ function AddIntegrationModal({ open, onClose, connectedProviders, onChanged }: {
   function tileHref(provider: ProviderConfig): string | undefined {
     // Connected tiles render as non-clickable; render no href.
     if (!provider.available || connectedProviders.has(provider.id)) return undefined
+    // Custom dashboard page (e.g. iCloud Bridge setup wizard).
+    if (provider.customPage) return provider.customPage
     // Compound-PAT and Plain-PAT tiles open a modal (not an href).
     if (provider.compoundPat || provider.pat) return undefined
     // customOAuth → direct flow at /api/oauth/{id}
@@ -302,6 +305,8 @@ function AddIntegrationModal({ open, onClose, connectedProviders, onChanged }: {
 
   function handleTileClick(e: React.MouseEvent, provider: ProviderConfig) {
     if (!provider.available || connectedProviders.has(provider.id)) return
+    // Custom-page providers: let the <a href> fire (Next.js client navigation).
+    if (provider.customPage) return
     if (provider.compoundPat) {
       e.preventDefault()
       setCompoundProvider(provider)
@@ -558,7 +563,10 @@ export default function IntegrationsPage() {
     const def = PROVIDERS.find(p => p.id === provider)
 
     let res: Response
-    if (def?.compoundPat) {
+    if (def?.customPage) {
+      // Custom-page providers (e.g. iCloud Bridge): dedicated DELETE endpoint
+      res = await fetch(`/api/integrations/${provider.replace(/_/g, '-')}`, { method: 'DELETE' })
+    } else if (def?.compoundPat) {
       // Compound-PAT providers (e.g. WordPress): DELETE on the validate endpoint
       res = await fetch(def.compoundPat.validateEndpoint, { method: 'DELETE' })
     } else if (def?.pat) {
@@ -763,6 +771,7 @@ export default function IntegrationsPage() {
             // /api/oauth/{getOAuthProviderId(provider.id)} (Composio path).
             const href = (() => {
               if (!provider.available) return undefined
+              if (provider.customPage) return provider.customPage
               if (provider.compoundPat || provider.pat) return undefined
               if (provider.customOAuth) return `/api/oauth/${provider.id}`
               return `/api/oauth/${getOAuthProviderId(provider.id)}`
@@ -773,6 +782,7 @@ export default function IntegrationsPage() {
                 href={href}
                 onClick={(e) => {
                   if (!provider.available) return
+                  if (provider.customPage) return  // <a href> handles client navigation
                   if (provider.compoundPat) {
                     e.preventDefault()
                     setQuickCompoundProvider(provider)

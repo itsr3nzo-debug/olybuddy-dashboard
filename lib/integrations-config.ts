@@ -82,6 +82,7 @@ export interface ProviderConfig {
   pat?: ProviderPATConfig // alternative auth mode — pasted token
   compoundPat?: ProviderCompoundPatConfig // multi-field credential form (e.g. WordPress)
   customOAuth?: boolean // OAuth not handled by Composio — use direct flow at /api/oauth/{id}
+  customPage?: string // dashboard page path for setup-wizard providers (e.g. iCloud Bridge)
   createsDualRows?: string[] // e.g., Google creates ['gmail', 'google_calendar']
   oauthProvider?: string // if this row maps to a different OAuth provider (e.g., gmail → google)
   recommendedForTrades?: boolean // surface in "Recommended for Trades" section
@@ -596,6 +597,24 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
         },
       ],
     },
+  },
+
+  // ═══ File Storage — iCloud Bridge ═══
+  {
+    // iCloud Bridge — read/write the customer's iCloud Drive, Photos, Notes, and
+    // Apple Shortcuts via a small service installed on a Mac in their office.
+    // Apple has no public API; the bridge runs on a Mac signed into iCloud
+    // and exposes REST over Tailscale + HMAC. Setup needs ~30 min of Zoom
+    // screen-share on first install (concierge) OR ~10 clicks self-serve.
+    id: 'icloud_bridge',
+    name: 'iCloud',
+    description: 'Read your iCloud Drive, Photos, Notes, and run Apple Shortcuts (requires a Mac)',
+    category: 'storage',
+    iconColor: 'bg-muted text-muted-foreground',
+    iconUrl: '/integrations/icloud-bridge.svg',
+    available: true,
+    customPage: '/integrations/icloud-bridge',
+    recommendedForTrades: false,
   },
 ]
 

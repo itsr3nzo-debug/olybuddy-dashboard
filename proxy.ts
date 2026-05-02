@@ -15,6 +15,11 @@ const PUBLIC_PATHS = [
   '/preview',                 // /preview/mobile is the prototype (no PII, demo only)
   '/preview-mobile',          // public/ assets served via /preview/mobile rewrite target
   '/oauth/mobile-success',    // OAuth completion page rendered after Composio callback
+  // iCloud Bridge installer assets — MUST serve unauth so `curl|bash` works
+  // from the customer's Mac. The script and bridge source files are not
+  // sensitive: the bridge enforces per-customer HMAC on every endpoint, and
+  // having the source published makes it auditable.
+  '/install',                 // /install/icloud-bridge.sh + /install/icloud-bridge/{server.ts,package.json}
 ]
 
 export async function proxy(request: NextRequest) {
