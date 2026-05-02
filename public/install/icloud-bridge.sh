@@ -115,8 +115,8 @@ if [ -z "${NEXLEY_TS_AUTHKEY:-}" ]; then
 This is the one piece we can't generate self-serve yet (we're working on it).
 
 For now, email setup@nexley.co.uk with subject "iCloud Bridge install key for
-<your-business-name>" — we'll email back a one-time install key within one
-business hour. Then re-run with:
+<your-business-name>" — we typically email back a one-time install key within
+one business day. Then re-run with:
 
   NEXLEY_TS_AUTHKEY=<key-we-emailed> bash <(curl -fsSL https://nexley.co.uk/install/icloud-bridge.sh) ${MODE} ${SECRET_MODE} ${SECRET_ARG}
 
@@ -139,6 +139,41 @@ echo "  Client: $CLIENT_SLUG"
 echo "  Install dir: $INSTALL_DIR"
 echo "  Bridge port: $BRIDGE_PORT"
 echo "════════════════════════════════════════════════════════════"
+
+# ─── Pre-flight: existing-tailnet check BEFORE any side-effects ─────────────
+# DA-flagged: if the Mac is already on a non-Nexley tailnet, bailing AFTER
+# Bun is installed leaves turds in ~/.bun/. Detect first, install second.
+PREFLIGHT_TS_BIN=""
+if command -v tailscale >/dev/null 2>&1; then
+    PREFLIGHT_TS_BIN="$(command -v tailscale)"
+elif [ -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ]; then
+    PREFLIGHT_TS_BIN="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+fi
+
+if [ -n "$PREFLIGHT_TS_BIN" ]; then
+    PREFLIGHT_TS_STATUS=$("$PREFLIGHT_TS_BIN" status --json 2>/dev/null || echo "{}")
+    PREFLIGHT_TS_STATE=$(echo "$PREFLIGHT_TS_STATUS" | grep -oE '"BackendState":[[:space:]]*"[^"]+"' | head -1 | sed -E 's/.*:[[:space:]]*"([^"]+)".*/\1/')
+    if [ "$PREFLIGHT_TS_STATE" = "Running" ]; then
+        PREFLIGHT_DNSNAME=$(echo "$PREFLIGHT_TS_STATUS" | grep -oE '"DNSName":[[:space:]]*"[^"]+"' | head -1 | sed -E 's/.*:[[:space:]]*"([^"]+)".*/\1/' | sed 's/\.$//')
+        PREFLIGHT_LOGIN=$(echo "$PREFLIGHT_TS_STATUS" | grep -oE '"LoginName":[[:space:]]*"[^"]+"' | head -1 | sed -E 's/.*:[[:space:]]*"([^"]+)".*/\1/')
+        cat >&2 <<EXISTING_TS_PREFLIGHT
+⚠️  This Mac is ALREADY signed into a Tailscale tailnet:
+       hostname: $PREFLIGHT_DNSNAME
+       login:    $PREFLIGHT_LOGIN
+
+If this is your personal/work tailnet, signing out and onto Nexley's tailnet
+will break your existing connections. STOP and decide:
+
+  - Keep your tailnet → cancel install, email setup@nexley.co.uk
+    so we can add the bridge to your tailnet via Tailscale share.
+  - Switch to Nexley's → re-run with NEXLEY_TS_FORCE_RESET=1
+
+Aborting BEFORE installing anything to keep your Mac clean.
+EXISTING_TS_PREFLIGHT
+        if [ "${NEXLEY_TS_FORCE_RESET:-0}" != "1" ]; then exit 1; fi
+        echo "[pre] NEXLEY_TS_FORCE_RESET=1 — proceeding (will replace tailnet)"
+    fi
+fi
 
 # ─── Step 1: Bun ─────────────────────────────────────────────────────────────
 if [ -z "$BUN_PATH" ] || [ ! -x "$BUN_PATH" ]; then
@@ -187,30 +222,11 @@ if ! command -v tailscale >/dev/null 2>&1; then
     export PATH="/Applications/Tailscale.app/Contents/MacOS:$PATH"
 fi
 
-# Pre-flight: detect existing tailnet membership (don't silently --reset)
+# Tailnet membership was already pre-flight-checked above; if we're here
+# either Tailscale wasn't running yet OR the user explicitly opted in via
+# NEXLEY_TS_FORCE_RESET=1. Bring up the new tailnet now.
 TS_STATUS_OUT=$(tailscale status --json 2>/dev/null || echo "{}")
 TS_BACKEND_STATE=$(echo "$TS_STATUS_OUT" | grep -oE '"BackendState":[[:space:]]*"[^"]+"' | head -1 | sed -E 's/.*:[[:space:]]*"([^"]+)".*/\1/')
-
-if [ "$TS_BACKEND_STATE" = "Running" ]; then
-    EXISTING_DNSNAME=$(echo "$TS_STATUS_OUT" | grep -oE '"DNSName":[[:space:]]*"[^"]+"' | head -1 | sed -E 's/.*:[[:space:]]*"([^"]+)".*/\1/' | sed 's/\.$//')
-    EXISTING_LOGIN=$(echo "$TS_STATUS_OUT" | grep -oE '"LoginName":[[:space:]]*"[^"]+"' | head -1 | sed -E 's/.*:[[:space:]]*"([^"]+)".*/\1/')
-    cat >&2 <<EXISTING_TS
-⚠️  This Mac is ALREADY signed into a Tailscale tailnet:
-       hostname: $EXISTING_DNSNAME
-       login:    $EXISTING_LOGIN
-
-If this is your personal/work tailnet, signing out and onto Nexley's tailnet
-will break your existing connections. STOP and decide:
-
-  - Keep your tailnet → cancel install, contact setup@nexley.co.uk
-    so we can add the bridge to your tailnet via Tailscale ACL share.
-  - Switch to Nexley's → re-run with NEXLEY_TS_FORCE_RESET=1
-
-Aborting to protect your existing tailnet membership.
-EXISTING_TS
-    if [ "${NEXLEY_TS_FORCE_RESET:-0}" != "1" ]; then exit 1; fi
-    echo "[2/9] NEXLEY_TS_FORCE_RESET=1 — proceeding with destructive --reset"
-fi
 
 if [ "$TS_BACKEND_STATE" != "Running" ]; then
     echo "[2/9] Bringing Tailscale up (Tailscale GUI auth dialog will appear — click Continue)…"

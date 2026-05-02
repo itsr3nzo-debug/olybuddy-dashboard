@@ -50,7 +50,13 @@ export function validateBridgeUrl(url: string): { ok: true; clean: string } | { 
 }
 
 export function validateHmacSecret(secret: string): boolean {
-  return /^[0-9a-f]{64}$/i.test(secret.trim());
+  // Bridge requires ≥32 chars (server.ts checks length only). Dashboard
+  // generates 64-char hex by default but accepts any printable ≥32-char
+  // secret to match the installer's same floor — otherwise customers who
+  // re-install with a secret pasted from a password manager would get a
+  // confusing 400 from the dashboard while the installer accepts it.
+  const s = secret.trim();
+  return s.length >= 32 && /^[\x21-\x7e]+$/.test(s);
 }
 
 /**

@@ -47,6 +47,15 @@ function LoginForm() {
 
   const supabase = createClient()
 
+  // After-auth destination: `?next=` from proxy redirect, defaulting to /dashboard.
+  // Must validate — open-redirect prevention. Only same-origin relative paths
+  // starting with `/` (and NOT `//` which would be protocol-relative).
+  const rawNext = searchParams.get('next') || '/dashboard'
+  const nextDestination =
+    rawNext.startsWith('/') && !rawNext.startsWith('//') && !rawNext.startsWith('/\\')
+      ? rawNext
+      : '/dashboard'
+
   useEffect(() => {
     const err = searchParams.get('error')
     if (err === 'auth_callback_failed') {
@@ -77,7 +86,7 @@ function LoginForm() {
             return
           }
           window.history.replaceState({}, '', '/login')
-          router.replace('/dashboard')
+          router.replace(nextDestination)
         })
       }
     }
@@ -93,7 +102,7 @@ function LoginForm() {
       setError(error.message.includes('Invalid login') ? 'Invalid email or password.' : error.message)
       setLoading(false)
     } else {
-      router.replace('/dashboard')
+      router.replace(nextDestination)
     }
   }
 

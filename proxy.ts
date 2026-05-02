@@ -52,10 +52,18 @@ export async function proxy(request: NextRequest) {
   const isPublic = PUBLIC_PATHS.some(p => pathname.startsWith(p))
   const isApi = pathname.startsWith('/api/')
 
-  // Unauthenticated users: redirect to login (login has a "Sign up" link)
+  // Unauthenticated users: redirect to login (login has a "Sign up" link).
+  // Preserve the intended destination as `next=` so login can bounce back
+  // to it after auth — avoids deep-links (e.g. emailed integration links)
+  // dumping the user at /dashboard regardless of where they were headed.
   if (!user && !isPublic && !isApi) {
     const url = request.nextUrl.clone()
+    const dest = pathname + (request.nextUrl.search || '')
     url.pathname = '/login'
+    url.search = ''
+    if (pathname !== '/' && pathname !== '/login') {
+      url.searchParams.set('next', dest)
+    }
     return NextResponse.redirect(url)
   }
 

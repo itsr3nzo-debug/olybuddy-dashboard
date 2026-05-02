@@ -179,8 +179,11 @@ export async function POST(req: NextRequest) {
         token_expires_at: null,
         scope: "drive,photos,notes,shortcuts",
         last_synced_at: new Date().toISOString(),
-        last_health_check_at: new Date().toISOString(),
-        health_failure_count: 0,
+        // last_health_check_at only set on a SUCCESSFUL probe — DA-flagged:
+        // setting it unconditionally lets a degraded row display "Last
+        // verified just now" with a green check while iCloud is broken.
+        last_health_check_at: probe.ok ? new Date().toISOString() : null,
+        health_failure_count: probe.ok ? 0 : 1,
         metadata: {
           auth_mode: "compound_pat",
           bridge_url: v.clean,                  // visible (not secret)
