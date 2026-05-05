@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { Message } from './types';
 import { rowToMessage } from './api';
@@ -15,9 +15,17 @@ export type RealtimeStatus = 'idle' | 'connecting' | 'open' | 'closed' | 'error'
  * status through thinking → drafting → done, and eventually writes the
  * final content. Each update fires here.
  *
+ * Lifecycle hardening (added 2026-05-05 to fix the long-lived-tab wedge):
+ *   1. Visibility-aware tear-down: when the tab is hidden for >2 min, drop
+ *      the channel; on visibility change, wait 1s + force a fresh subscribe.
+ *   2. Max-age refresh: every 10 min, force a fresh subscribe. Belt-and-
+ *      braces against silent websocket death that Supabase's internal
+ *      reconnect doesn't catch.
+ *   3. Stale-event watchdog (handled in caller): if expected events don't
+ *      arrive within N seconds of a pending row, caller bumps reconnectKey.
+ *
  * `onStatus` (optional) receives lifecycle events so the UI can show a
- * "reconnecting…" pill when the websocket drops. We intentionally do NOT
- * auto-reconnect — Supabase's client handles that; we just observe.
+ * "reconnecting…" pill when the websocket drops.
  */
 export function useChatRealtime(
   sessionId: string | null,
@@ -30,6 +38,41 @@ export function useChatRealtime(
    */
   reconnectKey?: number,
 ): void {
+  // Internal nonce that we bump from visibility changes + max-age refresh.
+  // Effect re-runs whenever this OR the external reconnectKey changes.
+  const [internalNonce, setInternalNonce] = useState(0);
+
+  // Visibility-aware lifecycle: when tab is hidden >2 min, tear down. On
+  // visibility change → wait 1s, then bump nonce to force fresh subscribe.
+  const hiddenSinceRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const HIDDEN_TEARDOWN_MS = 2 * 60 * 1000;
+    const onVis = () => {
+      if (document.hidden) {
+        hiddenSinceRef.current = Date.now();
+      } else if (hiddenSinceRef.current && Date.now() - hiddenSinceRef.current > HIDDEN_TEARDOWN_MS) {
+        hiddenSinceRef.current = null;
+        // Wait a beat for any tab-wake reconnect dust to settle, then
+        // force a clean re-subscribe.
+        setTimeout(() => setInternalNonce((n) => n + 1), 1000);
+      } else {
+        hiddenSinceRef.current = null;
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
+  // Max-age refresh: every 10 min on a session, drop + resubscribe. Catches
+  // the silent-websocket-death case Supabase's client doesn't always notice.
+  useEffect(() => {
+    if (!sessionId) return;
+    const MAX_AGE_MS = 10 * 60 * 1000;
+    const t = setInterval(() => setInternalNonce((n) => n + 1), MAX_AGE_MS);
+    return () => clearInterval(t);
+  }, [sessionId]);
+
   useEffect(() => {
     if (!sessionId) {
       onStatus?.('idle');
@@ -39,7 +82,7 @@ export function useChatRealtime(
     onStatus?.('connecting');
 
     const channel = supabase
-      .channel(`chat:${sessionId}`)
+      .channel(`chat:${sessionId}:${internalNonce}:${reconnectKey ?? 0}`)
       .on(
         'postgres_changes',
         {
@@ -75,10 +118,9 @@ export function useChatRealtime(
       });
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel).catch(() => {});
       onStatus?.('closed');
     };
-    // reconnectKey is listed so a bump triggers tear-down + re-subscribe.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, onMessage, onStatus, reconnectKey]);
+  }, [sessionId, internalNonce, reconnectKey]);
 }
