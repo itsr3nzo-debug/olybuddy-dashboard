@@ -294,6 +294,7 @@ export default function ChatApp(props: ChatAppProps) {
                 ...m,
                 breadcrumbs: dbMsg.breadcrumbs ?? m.breadcrumbs,
                 sources: dbMsg.sources ?? m.sources,
+                approval: dbMsg.approval ?? m.approval,
               };
             }
             return dbMsg;
