@@ -16,13 +16,18 @@ export type RealtimeStatus = 'idle' | 'connecting' | 'open' | 'closed' | 'error'
  * final content. Each update fires here.
  *
  * Lifecycle hardening (added 2026-05-05 to fix the long-lived-tab wedge):
- *   1. Visibility-aware tear-down: when the tab is hidden for >2 min, drop
- *      the channel; on visibility change, wait 1s + force a fresh subscribe.
+ *   1. Visibility-aware refresh: track how long the tab was hidden; on
+ *      visibility return after >2 min hidden, wait 1s + bump nonce so
+ *      the subscribe is fresh. (Channel itself stays open while hidden
+ *      — Supabase will queue events and Phoenix's heartbeat keeps the
+ *      socket alive; the issue we're fixing is silent stale state on
+ *      return, not background CPU.)
  *   2. Max-age refresh: every 10 min, force a fresh subscribe. Belt-and-
  *      braces against silent websocket death that Supabase's internal
  *      reconnect doesn't catch.
- *   3. Stale-event watchdog (handled in caller): if expected events don't
- *      arrive within N seconds of a pending row, caller bumps reconnectKey.
+ *   3. Stale-event watchdog (in ChatApp.tsx): if no realtime event in
+ *      15s while a pending row exists, the caller bumps reconnectKey
+ *      (throttled 30s) — closes the gap the 10-min refresh leaves.
  *
  * `onStatus` (optional) receives lifecycle events so the UI can show a
  * "reconnecting…" pill when the websocket drops.

@@ -309,6 +309,33 @@ export default function ChatApp(props: ChatAppProps) {
     return () => clearInterval(interval);
   }, [currentSessionId, props.clientId]);
 
+  // Stale-event watchdog ──────────────────────────────────────────────
+  // Closes the gap the 10-min max-age refresh leaves: if there's an
+  // in-flight assistant message AND realtime has been silent for >15s,
+  // the websocket is probably wedged (open but not delivering). Bump
+  // reconnectNonce to force a clean re-subscribe. Throttled to once
+  // per 30s so we don't thrash if the agent is genuinely just slow.
+  const lastWatchdogBumpRef = useRef<number>(0);
+  useEffect(() => {
+    if (!currentSessionId) return;
+    const tick = () => {
+      const inFlight = sessionsRef.current
+        .find((s) => s.id === currentSessionIdRef.current)?.messages
+        .some((m) =>
+          m.role === 'assistant' && (m.status === 'pending' || m.status === 'thinking' || m.status === 'drafting')
+        );
+      if (!inFlight) return;
+      const sinceEvent = Date.now() - lastRealtimeAtRef.current;
+      const sinceBump = Date.now() - lastWatchdogBumpRef.current;
+      if (sinceEvent > 15_000 && sinceBump > 30_000) {
+        lastWatchdogBumpRef.current = Date.now();
+        setReconnectNonce((n) => n + 1);
+      }
+    };
+    const interval = setInterval(tick, 5000);
+    return () => clearInterval(interval);
+  }, [currentSessionId]);
+
   // Actions ───────────────────────────────────────────────────────────
   // In admin (super_admin) view we confirm ONCE per tab that the user
   // intends to send to THIS client's agent. Prevents the "two tabs open,
