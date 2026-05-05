@@ -147,7 +147,11 @@ export function rowToMessage(row: {
   error_message?: string | null;
   created_at: string;
   completed_at?: string | null;
-  metadata?: { breadcrumbs?: Message['breadcrumbs']; attachments?: Message['attachments'] } | null;
+  metadata?: {
+    breadcrumbs?: Message['breadcrumbs'];
+    attachments?: Message['attachments'];
+    approval?: Message['approval'];
+  } | null;
   parent_id?: string | null;
 }): Message {
   return {
@@ -160,6 +164,7 @@ export function rowToMessage(row: {
     createdAt: row.created_at,
     breadcrumbs: row.metadata?.breadcrumbs ?? undefined,
     attachments: row.metadata?.attachments ?? undefined,
+    approval: row.metadata?.approval ?? undefined,
     parentId: row.parent_id ?? null,
   };
 }

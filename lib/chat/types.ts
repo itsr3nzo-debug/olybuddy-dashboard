@@ -48,6 +48,16 @@ export interface Message {
   breadcrumbs?: Breadcrumb[];
   /** Files/images/videos the user attached to this message. */
   attachments?: Attachment[];
+  /** Inline approval action proposed by the agent (B2). When present,
+   * dashboard renders Approve/Reject buttons. Bridge parses agent's
+   * ```action ...``` markdown fences against an allowlist (send_email,
+   * send_invoice, book_calendar, send_sms) and writes here. */
+  approval?: {
+    type: 'approval';
+    action: 'send_email' | 'send_invoice' | 'book_calendar' | 'send_sms';
+    summary: string;
+    payload: Record<string, unknown>;
+  };
   /** Immediate predecessor in the conversation tree. Siblings with the
    * same parent_id are alternate branches — created when the user edits
    * a past message. UI: show most-recent sibling by default + switcher. */

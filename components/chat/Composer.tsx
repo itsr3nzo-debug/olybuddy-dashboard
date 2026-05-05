@@ -1202,6 +1202,13 @@ function AssistantBubbleInner({ message, onOpenSource, streamingText, isActive, 
       {message.status === 'done' && message.breadcrumbs && message.breadcrumbs.length > 0 && (
         <BreadcrumbStrip crumbs={message.breadcrumbs} active={false} />
       )}
+      {message.status === 'done' && message.approval && (
+        <ApprovalCard
+          approval={message.approval}
+          messageId={message.id}
+          onResult={(result) => onFollowup?.(`[OWNER APPROVAL: ${result.toUpperCase()} #${message.id}]`)}
+        />
+      )}
       {(vaultFileIds.length > 0 || (message.sources && message.sources.length > 0)) && message.status === 'done' && (
         <div
           className="flex flex-wrap items-center gap-1.5 mt-2 pt-2.5"
@@ -1393,6 +1400,77 @@ function BreadcrumbStrip({
               </span>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * ApprovalCard — renders an inline Approve/Reject UI for high-stakes
+ * agent actions (B2 inline approval flow). The agent embeds an
+ * ```action {...}``` block in its reply; the bridge parses it into
+ * `message.approval` (see lib/chat/types.ts). When the owner clicks,
+ * we send a follow-up message that the agent picks up to execute.
+ *
+ * Allowlist: send_email, send_invoice, book_calendar, send_sms.
+ * Anything else is rejected at the bridge before reaching here.
+ */
+function ApprovalCard({
+  approval,
+  messageId,
+  onResult,
+}: {
+  approval: NonNullable<Message['approval']>;
+  messageId: string;
+  onResult: (result: 'approved' | 'rejected') => void;
+}) {
+  const [decided, setDecided] = useState<null | 'approved' | 'rejected'>(null);
+  const actionLabel: Record<string, string> = {
+    send_email: '📧 Send email',
+    send_invoice: '🧾 Send invoice',
+    book_calendar: '📅 Book calendar slot',
+    send_sms: '📱 Send SMS',
+  };
+  return (
+    <div
+      className="my-2.5 rounded-lg p-3"
+      style={{
+        background: 'rgb(var(--hy-bg-subtle) / 0.5)',
+        border: '1px solid rgb(var(--hy-border-strong))',
+      }}
+    >
+      <div className="flex items-center gap-2 mb-2 text-[11.5px] uppercase tracking-wider fg-muted font-semibold">
+        {actionLabel[approval.action] ?? `🔧 ${approval.action}`}
+        <span aria-hidden="true">·</span>
+        <span className="fg-subtle normal-case tracking-normal font-normal">awaiting your approval</span>
+      </div>
+      <p className="text-[13px] fg-base mb-3 leading-snug">{approval.summary}</p>
+      {decided ? (
+        <div className="text-[11.5px] fg-subtle">
+          {decided === 'approved' ? '✓ Approved — agent is executing.' : '✗ Rejected.'}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => { setDecided('approved'); onResult('approved'); }}
+            className="inline-flex items-center justify-center gap-1.5 rounded-md px-3 h-7 text-[12px] font-medium leading-none focus-ring transition-opacity hover:opacity-90"
+            style={{ background: 'rgb(var(--hy-fg-base))', color: 'rgb(var(--hy-fg-inverse))' }}
+            aria-label={`Approve: ${approval.summary}`}
+          >
+            Approve
+          </button>
+          <button
+            type="button"
+            onClick={() => { setDecided('rejected'); onResult('rejected'); }}
+            className="inline-flex items-center justify-center gap-1.5 rounded-md px-3 h-7 text-[12px] font-medium leading-none focus-ring transition-colors hover:bg-hover"
+            style={{ border: '1px solid rgb(var(--hy-border))', color: 'rgb(var(--hy-fg-base))' }}
+            aria-label={`Reject: ${approval.summary}`}
+          >
+            Reject
+          </button>
+          <span className="text-[10.5px] fg-muted ml-1">message #{messageId.slice(0, 8)}</span>
         </div>
       )}
     </div>
