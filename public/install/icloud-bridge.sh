@@ -435,11 +435,13 @@ cat <<EOF
   ✅ Bridge installed
 ════════════════════════════════════════════════════════════
 
-NEXT — Paste this into the dashboard form:
+NEXT — Paste this into the dashboard form (https://nexley.co.uk/integrations/icloud-bridge):
 
-    Bridge URL:  http://$TAILNET_HOSTNAME:$BRIDGE_PORT
-
-    (the HMAC secret is already in the dashboard — you generated it there)
+    Bridge URL:   http://$TAILNET_HOSTNAME:$BRIDGE_PORT
+    HMAC secret:  same value used during this install
+                  • self-serve mode → the secret you generated in the dashboard wizard
+                  • concierge mode  → the value you exported as NEXLEY_HMAC_SECRET
+                  Saved on this Mac at: $INSTALL_DIR/secret (last-4: …$SECRET_LAST4)
 
 THEN — Grant iCloud Drive access (1 macOS prompt):
 
