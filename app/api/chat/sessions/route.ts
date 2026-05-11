@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { resolveClientId } from '@/lib/chat/resolve-client';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { CHAT_TEMPORARILY_DISABLED, CHAT_DISABLED_MESSAGE } from '@/lib/chat/feature-flags';
 
 /** GET /api/chat/sessions?client=<uuid?> — list sessions for the resolved client. */
 export async function GET(req: Request) {
@@ -10,6 +11,12 @@ export async function GET(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
+  // Hard denylist — see lib/auth/chat-denylist.ts.
+  const { isChatBlocked } = await import('@/lib/auth/chat-denylist');
+  if (isChatBlocked(user.id)) {
+    return NextResponse.json({ error: 'account_suspended', message: 'Your account is suspended. Contact the Nexley team.' }, { status: 403 });
+  }
 
   const url = new URL(req.url);
   const explicit = url.searchParams.get('client') || undefined;
@@ -37,11 +44,23 @@ export async function GET(req: Request) {
 
 /** POST /api/chat/sessions — create a new session for the resolved client. */
 export async function POST(req: Request) {
+  if (CHAT_TEMPORARILY_DISABLED) {
+    return NextResponse.json(
+      { error: 'chat_disabled', message: CHAT_DISABLED_MESSAGE },
+      { status: 503 }
+    );
+  }
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
+  // Hard denylist — see lib/auth/chat-denylist.ts.
+  const { isChatBlocked } = await import('@/lib/auth/chat-denylist');
+  if (isChatBlocked(user.id)) {
+    return NextResponse.json({ error: 'account_suspended', message: 'Your account is suspended. Contact the Nexley team.' }, { status: 403 });
+  }
 
   let title = 'New chat';
   let explicit: string | undefined;

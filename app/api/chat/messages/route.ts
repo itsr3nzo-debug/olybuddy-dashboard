@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { resolveClientId, isSuperAdmin } from '@/lib/chat/resolve-client';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { CHAT_TEMPORARILY_DISABLED, CHAT_DISABLED_MESSAGE } from '@/lib/chat/feature-flags';
 
 // Hard upper bounds on the body so we fail fast instead of OOM-ing the
 // function on a malicious / runaway client. Real messages are well
@@ -33,11 +34,26 @@ const RATE_LIMIT_PER_MINUTE = 10;
  * recorded in admin_audit_log before the write is attempted.
  */
 export async function POST(req: Request) {
+  // Kill-switch — refuse before any work. Catches cached/stale frontend
+  // tabs that bypass the /chat page render.
+  if (CHAT_TEMPORARILY_DISABLED) {
+    return NextResponse.json(
+      { error: 'chat_disabled', message: CHAT_DISABLED_MESSAGE },
+      { status: 503 }
+    );
+  }
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
+  // Hard denylist — even if their JWT is technically valid, refuse chat.
+  // See lib/auth/chat-denylist.ts for the list and the policy.
+  const { isChatBlocked } = await import('@/lib/auth/chat-denylist');
+  if (isChatBlocked(user.id)) {
+    return NextResponse.json({ error: 'account_suspended', message: 'Your account is suspended. Contact the Nexley team.' }, { status: 403 });
+  }
 
   // Rate limit before touching the body — cheap SQL count, filters the
   // abuser out before we spend any cycles parsing JSON. Service-role
