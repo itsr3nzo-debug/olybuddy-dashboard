@@ -107,7 +107,7 @@ export default function SenderRolesEditor() {
 
   function addAlias() {
     if (!validPhone(aliasDraft)) {
-      setError('Alias must be a valid UK mobile')
+      setError('Alias must include a country code (e.g. +44, +353, +91)')
       return
     }
     if (data.owner_aliases.includes(aliasDraft)) {
@@ -172,7 +172,7 @@ export default function SenderRolesEditor() {
             type="tel"
             value={data.business_whatsapp}
             onChange={e => update('business_whatsapp', e.target.value)}
-            placeholder="+447xxx xxx xxx"
+            placeholder="+44 7xxx xxx xxx  ·  +353 87 xxx xxxx  ·  +91 9xxxx xxxxx"
             className={`w-full rounded-lg border bg-background px-3 py-2 pr-9 text-sm ${
               bizValid ? 'border-border' : 'border-brand-danger/40'
             } focus:outline-none focus:ring-2 focus:ring-brand-accent/30`}
@@ -200,7 +200,7 @@ export default function SenderRolesEditor() {
               type="tel"
               value={data.owner_phone}
               onChange={e => update('owner_phone', e.target.value)}
-              placeholder="+447xxx xxx xxx"
+              placeholder="+44 7xxx xxx xxx  ·  +353 87 xxx xxxx  ·  +91 9xxxx xxxxx"
               className={`w-full rounded-lg border bg-background px-3 py-2 pr-9 text-sm ${
                 ownerValid && !sameNumber ? 'border-border' : 'border-brand-danger/40'
               } focus:outline-none focus:ring-2 focus:ring-brand-accent/30`}
@@ -267,7 +267,7 @@ export default function SenderRolesEditor() {
             type="tel"
             value={aliasDraft}
             onChange={e => setAliasDraft(e.target.value)}
-            placeholder="+447xxx xxx xxx"
+            placeholder="+44 7xxx xxx xxx  ·  +353 87 xxx xxxx  ·  +91 9xxxx xxxxx"
             className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
           />
           <button

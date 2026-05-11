@@ -236,8 +236,9 @@ export default function OnboardingPage() {
               </label>
               <label className="block">
                 <span className="text-sm font-medium mb-1 block">Phone Number</span>
-                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44 7700 900000"
+                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44 7700 900000  ·  +353 87 123 4567  ·  +91 98765 43210"
                   className="w-full px-3 py-2 bg-background border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/50" />
+                <span className="text-xs text-muted-foreground mt-1 block">Include your country code — any WhatsApp-reachable mobile.</span>
               </label>
               <label className="block">
                 <span className="text-sm font-medium mb-1 block">Services You Offer</span>

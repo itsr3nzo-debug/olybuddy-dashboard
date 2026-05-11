@@ -4,6 +4,7 @@ import { validatePassword } from '@/lib/password-policy'
 import { sendVerificationEmail } from '@/lib/auth/email-verification'
 import { hashAgentKey } from '@/lib/agent-auth'
 import { attributeReferral } from '@/lib/referrals'
+import { normalizePhoneDigits } from '@/lib/phone'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -36,14 +37,14 @@ async function recordSignupAttempt(ip: string, supabase: any) {
 //                       any in-flight Stripe sessions that haven't completed.
 const VALID_PLANS = ['trial', 'pro', 'enterprise', 'employee', 'voice']
 
-// UK mobile normalization — accepts 07xxx, +447xxx, 447xxx, returns 447xxx or null.
-function normalizeUkPhone(input: string | undefined | null): string | null {
+// Phone normalization — international (E.164). Accepts UK domestic (07xxx),
+// any +<country><number>, 00 IDD prefix, or raw country-code-digits without +.
+// Returns digits-only (no +) for storage. See lib/phone.ts for the canonical
+// rules. Customers signing up from Ireland (+353), India (+91), etc. all
+// supported as long as the number is a WhatsApp-reachable mobile.
+function normalizePhone(input: string | undefined | null): string | null {
   if (!input) return null
-  const digits = String(input).replace(/[^\d+]/g, '')
-  if (/^\+447\d{9}$/.test(digits)) return digits.slice(1)
-  if (/^447\d{9}$/.test(digits)) return digits
-  if (/^07\d{9}$/.test(digits)) return '44' + digits.slice(1)
-  return null
+  return normalizePhoneDigits(String(input))
 }
 // Industry is a user-chosen string — not from a closed enum. We only guard
 // against empty/oversized input. The provisioning step falls back to a
@@ -81,13 +82,13 @@ export async function POST(req: NextRequest) {
   // Sender Role Protocol: both the agent's WhatsApp number and the owner's personal
   // WhatsApp number are REQUIRED. Without both, the agent can't distinguish
   // owner-commands from customer-enquiries.
-  const normalizedBusinessWa = normalizeUkPhone(business_whatsapp)
-  const normalizedOwnerPhone = normalizeUkPhone(owner_phone)
+  const normalizedBusinessWa = normalizePhone(business_whatsapp)
+  const normalizedOwnerPhone = normalizePhone(owner_phone)
   if (!normalizedBusinessWa) {
-    return NextResponse.json({ error: 'Business WhatsApp number must be a valid UK mobile' }, { status: 400 })
+    return NextResponse.json({ error: 'Business WhatsApp number must include a country code (e.g. +44 7700 900111, +353 87 1234567, +91 98765 43210)' }, { status: 400 })
   }
   if (!normalizedOwnerPhone) {
-    return NextResponse.json({ error: 'Your personal WhatsApp number must be a valid UK mobile' }, { status: 400 })
+    return NextResponse.json({ error: 'Your personal WhatsApp number must include a country code (e.g. +44 7700 900111, +353 87 1234567, +91 98765 43210)' }, { status: 400 })
   }
   if (normalizedBusinessWa === normalizedOwnerPhone) {
     return NextResponse.json({ error: 'Business and personal WhatsApp must be different numbers' }, { status: 400 })

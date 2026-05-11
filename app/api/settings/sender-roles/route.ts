@@ -15,16 +15,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
+import { normalizePhoneDigits } from '@/lib/phone'
 
-const UK_PHONE_RE = /^(\+?44|0)7\d{9}$/
-
+// Phone normalization — international (E.164). Accepts UK domestic (07xxx),
+// any +<country><number>, 00 IDD prefix, or raw country-code-digits without +.
+// Returns digits-only (no +) for storage. See lib/phone.ts.
 function normalizeUkPhone(input: string | undefined | null): string | null {
   if (!input) return null
-  const digits = input.replace(/[^\d+]/g, '')
-  if (/^\+447\d{9}$/.test(digits)) return digits.slice(1)
-  if (/^447\d{9}$/.test(digits)) return digits
-  if (/^07\d{9}$/.test(digits)) return '44' + digits.slice(1)
-  return null
+  return normalizePhoneDigits(String(input))
 }
 
 async function getAuthedClientId(): Promise<{ clientId: string | null; role: string | null }> {

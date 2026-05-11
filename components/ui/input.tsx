@@ -222,7 +222,7 @@ Select.displayName = 'Select'
    `<label>...</label>` + `<input>` pattern that exists in dozens of files.
 
    Usage:
-     <Field label="Owner phone" hint="UK mobile, e.g. 07700900111">
+     <Field label="Owner phone" hint="Include country code, e.g. +44 7700 900111">
        <Input type="tel" />
      </Field>
 
