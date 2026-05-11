@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { normalizePhone, normalizePhoneDigits } from '@/lib/phone'
 
-describe('normalizePhone — UK', () => {
-  it('handles UK 07xxx domestic format', () => {
+describe('normalizePhone — UK (backward compat)', () => {
+  it('handles UK 07xxx domestic format (11-digit)', () => {
     expect(normalizePhone('07123456789')).toBe('+447123456789')
   })
 
@@ -14,7 +14,7 @@ describe('normalizePhone — UK', () => {
     expect(normalizePhone('00447123456789')).toBe('+447123456789')
   })
 
-  it('handles 44xxx without + prefix', () => {
+  it('handles 447xxx UK E.164 without + prefix (legacy)', () => {
     expect(normalizePhone('447123456789')).toBe('+447123456789')
   })
 
@@ -27,19 +27,17 @@ describe('normalizePhone — UK', () => {
   })
 })
 
-describe('normalizePhone — international (non-UK customers)', () => {
+describe('normalizePhone — international with + prefix (the expected form)', () => {
   it('handles Ireland +353', () => {
     expect(normalizePhone('+353871234567')).toBe('+353871234567')
     expect(normalizePhone('+353 87 123 4567')).toBe('+353871234567')
     expect(normalizePhone('00353871234567')).toBe('+353871234567')
-    expect(normalizePhone('353871234567')).toBe('+353871234567')
   })
 
   it('handles India +91', () => {
     expect(normalizePhone('+919876543210')).toBe('+919876543210')
     expect(normalizePhone('+91 98765 43210')).toBe('+919876543210')
     expect(normalizePhone('00919876543210')).toBe('+919876543210')
-    expect(normalizePhone('919876543210')).toBe('+919876543210')
   })
 
   it('handles US/Canada +1', () => {
@@ -55,6 +53,48 @@ describe('normalizePhone — international (non-UK customers)', () => {
 
   it('handles France +33', () => {
     expect(normalizePhone('+33612345678')).toBe('+33612345678')
+  })
+
+  it('handles Germany +49', () => {
+    expect(normalizePhone('+4915123456789')).toBe('+4915123456789')
+    expect(normalizePhone('0049 151 23456789')).toBe('+4915123456789')
+  })
+})
+
+describe('normalizePhone — DA-flagged silent-misroute prevention', () => {
+  // These were SILENTLY BROKEN in the first round of international support.
+  // The naive "prefix +44 to anything starting with 0" rule would map an
+  // Irish "087" mobile to "+44 87 …" (a UK landline range), routing
+  // an Irish customer's WhatsApp pairing to the wrong country code.
+  // Reject and force the customer to add their + prefix instead.
+
+  it('rejects Irish domestic 087 (would have mis-routed to UK)', () => {
+    expect(normalizePhone('087 1234567')).toBeNull()
+    expect(normalizePhone('0871234567')).toBeNull()
+  })
+
+  it('rejects Irish domestic 086', () => {
+    expect(normalizePhone('086 1234567')).toBeNull()
+  })
+
+  it('rejects Australian domestic 04xx', () => {
+    expect(normalizePhone('0412 345 678')).toBeNull()
+    expect(normalizePhone('0412345678')).toBeNull()
+  })
+
+  it('rejects French domestic 06xx / 07xx (Apr 2026 ranges)', () => {
+    // French mobile = 06 or 07 + 8 digits = exactly 10 digits.
+    // (07700 900111 happens to be a UK 11-digit pattern — DON'T let a
+    // 10-digit 06/07 French number through, it would be misread.)
+    expect(normalizePhone('0612345678')).toBeNull()
+    expect(normalizePhone('0712345678')).toBeNull()
+  })
+
+  it('rejects no-prefix all-digits (ambiguous country code)', () => {
+    expect(normalizePhone('353871234567')).toBeNull()
+    expect(normalizePhone('919876543210')).toBeNull()
+    expect(normalizePhone('15551234567')).toBeNull()
+    expect(normalizePhone('9876543210')).toBeNull()
   })
 })
 
@@ -90,5 +130,6 @@ describe('normalizePhoneDigits — storage form (no leading +)', () => {
   it('returns null for invalid input', () => {
     expect(normalizePhoneDigits('')).toBeNull()
     expect(normalizePhoneDigits('not a phone')).toBeNull()
+    expect(normalizePhoneDigits('087 1234567')).toBeNull()  // Irish domestic — rejected
   })
 })

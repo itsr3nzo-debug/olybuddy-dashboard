@@ -85,10 +85,10 @@ export async function POST(req: NextRequest) {
   const normalizedBusinessWa = normalizePhone(business_whatsapp)
   const normalizedOwnerPhone = normalizePhone(owner_phone)
   if (!normalizedBusinessWa) {
-    return NextResponse.json({ error: 'Business WhatsApp number must include a country code (e.g. +44 7700 900111, +353 87 1234567, +91 98765 43210)' }, { status: 400 })
+    return NextResponse.json({ error: 'Business WhatsApp number must start with + and your country code (e.g. +44 7700 900111, +353 87 1234567, +91 98765 43210). UK domestic 07xxx format also accepted.' }, { status: 400 })
   }
   if (!normalizedOwnerPhone) {
-    return NextResponse.json({ error: 'Your personal WhatsApp number must include a country code (e.g. +44 7700 900111, +353 87 1234567, +91 98765 43210)' }, { status: 400 })
+    return NextResponse.json({ error: 'Your personal WhatsApp number must start with + and your country code (e.g. +44 7700 900111, +353 87 1234567, +91 98765 43210). UK domestic 07xxx format also accepted.' }, { status: 400 })
   }
   if (normalizedBusinessWa === normalizedOwnerPhone) {
     return NextResponse.json({ error: 'Business and personal WhatsApp must be different numbers' }, { status: 400 })
