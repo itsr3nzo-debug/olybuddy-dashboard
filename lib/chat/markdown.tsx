@@ -96,6 +96,29 @@ function CodeBlock({ lang, body }: { lang?: string; body: string }): React.React
   );
 }
 
+/**
+ * 2026-05-12 (DA-R1 F5) — link scheme allowlist.
+ *
+ * Reject `javascript:`, `data:`, `vbscript:`, `file:`, etc. before rendering
+ * the <a>. Allow http(s), mailto, tel, and any scheme-less URL (relative path,
+ * fragment, query). Renders dangerous links as plain text so the label is
+ * still visible but un-clickable.
+ *
+ * NOTE: if `![alt](url)` image-syntax is ever added to inlineMd, the same
+ * allowlist MUST apply to <img src>. Today only text links are rendered.
+ */
+function isSafeHref(href: string): boolean {
+  const trimmed = (href || '').trim().toLowerCase();
+  // Allowlist: known-safe schemes
+  if (/^https?:\/\//.test(trimmed)) return true;
+  if (/^mailto:/.test(trimmed)) return true;
+  if (/^tel:/.test(trimmed)) return true;
+  // No scheme at all (relative paths, fragments, query strings) — safe
+  if (!/^[a-z][a-z0-9+.\-]*:/.test(trimmed)) return true;
+  // Anything else (javascript:, data:, vbscript:, file:, blob:, etc.) — reject
+  return false;
+}
+
 function inlineMd(s: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
   let idx = 0;
@@ -106,18 +129,26 @@ function inlineMd(s: string): React.ReactNode[] {
     if (m.index > idx) nodes.push(s.slice(idx, m.index));
     if (m[1]) nodes.push(<strong key={key++}>{m[2]}</strong>);
     else if (m[3]) nodes.push(<code key={key++}>{m[4]}</code>);
-    else if (m[5])
-      nodes.push(
-        <a
-          key={key++}
-          href={m[7]}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="fg-base underline underline-offset-2 hover:opacity-80"
-        >
-          {m[6]}
-        </a>
-      );
+    else if (m[5]) {
+      const href = m[7];
+      if (isSafeHref(href)) {
+        nodes.push(
+          <a
+            key={key++}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="fg-base underline underline-offset-2 hover:opacity-80"
+          >
+            {m[6]}
+          </a>
+        );
+      } else {
+        // Dangerous URL scheme — render as plain text so attacker can't
+        // execute JS on click via `[click](javascript:fetch(...))`.
+        nodes.push(<span key={key++}>{m[6]} (link blocked: unsafe URL)</span>);
+      }
+    }
     idx = m.index + m[0].length;
   }
   if (idx < s.length) nodes.push(s.slice(idx));

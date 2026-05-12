@@ -58,7 +58,12 @@ export async function GET(
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const explicit = new URL(req.url).searchParams.get('client') || undefined;
-  const { clientId, isAdminOverride } = resolveClientId(user, explicit);
+  // 2026-05-12 (DA-R1 F8) — parity with /api/chat/messages: 403 on spoof
+  // rather than silent fallback to caller's own clientId.
+  const { clientId, isAdminOverride, spoofRejected } = resolveClientId(user, explicit);
+  if (spoofRejected) {
+    return NextResponse.json({ error: 'client_id override is admin-only' }, { status: 403 });
+  }
   if (!clientId) return NextResponse.json({ error: 'no client' }, { status: 400 });
   const reader = writerFor(supabase, isAdminOverride);
 
@@ -105,7 +110,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (typeof patch.title !== 'string' && typeof patch.pinned !== 'boolean')
     return NextResponse.json({ error: 'no fields' }, { status: 400 });
 
-  const { clientId, isAdminOverride } = resolveClientId(user, patch.client_id_hint);
+  // 2026-05-12 (DA-R1 F8) — parity with /api/chat/messages: 403 on spoof.
+  const { clientId, isAdminOverride, spoofRejected } = resolveClientId(user, patch.client_id_hint);
+  if (spoofRejected) {
+    return NextResponse.json({ error: 'client_id override is admin-only' }, { status: 403 });
+  }
   if (!clientId) return NextResponse.json({ error: 'no client' }, { status: 400 });
   const writer = writerFor(supabase, isAdminOverride);
 
@@ -141,7 +150,11 @@ export async function DELETE(
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const explicit = new URL(req.url).searchParams.get('client') || undefined;
-  const { clientId, isAdminOverride } = resolveClientId(user, explicit);
+  // 2026-05-12 (DA-R1 F8) — parity with /api/chat/messages: 403 on spoof.
+  const { clientId, isAdminOverride, spoofRejected } = resolveClientId(user, explicit);
+  if (spoofRejected) {
+    return NextResponse.json({ error: 'client_id override is admin-only' }, { status: 403 });
+  }
   if (!clientId) return NextResponse.json({ error: 'no client' }, { status: 400 });
   const writer = writerFor(supabase, isAdminOverride);
 

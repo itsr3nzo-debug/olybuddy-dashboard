@@ -11,6 +11,36 @@ import { CHAT_TEMPORARILY_DISABLED, CHAT_DISABLED_MESSAGE } from '@/lib/chat/fea
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 const MAX_CONTENT_CHARS = 100_000;
 const MAX_ATTACHMENTS = 20;
+
+// 2026-05-12 (DA-R1 F6) — per-attachment validation. Frontend renders
+// attachments via <a href={url}> for non-image kinds; a javascript:/data:
+// URL would XSS the dashboard. Server-side enforcement so curl callers can't
+// bypass the upload UI's helper sanitization (lib/chat/upload.ts).
+const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024; // 50MB per attachment
+const MIME_ALLOWLIST = new Set<string>([
+  // images — NOTE: image/svg+xml deliberately EXCLUDED. SVGs can carry
+  // <script> tags; <img src=svg> sandboxes in modern browsers but any inline
+  // renderer (icon libraries, dangerouslySetInnerHTML paths) executes them.
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  // documents
+  'application/pdf',
+  // plain text
+  'text/plain', 'text/csv', 'text/markdown',
+  // office
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  // audio / video
+  'audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/ogg', 'audio/webm',
+  'video/mp4', 'video/quicktime', 'video/webm',
+]);
+// Fail-CLOSED if SUPABASE_URL is unparseable — refuse all attachments rather
+// than skip the host check (v1's `?? ''` was fail-OPEN; DA-R1 #3 flagged it).
+const SUPABASE_HOST: string | null = (() => {
+  try { return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).host; }
+  catch { return null; }
+})();
 // Per-user rolling 60s window. 10/min is plenty for a human (even rapid
 // edit-and-resend); anything over is runaway client / abuse. Counted by
 // the check_chat_rate_limit RPC against agent_chat_messages+sessions,
@@ -112,6 +142,69 @@ export async function POST(req: Request) {
   const attachments = Array.isArray(body.attachments) ? body.attachments : [];
   if (attachments.length > MAX_ATTACHMENTS) {
     return NextResponse.json({ error: `max ${MAX_ATTACHMENTS} attachments per message` }, { status: 413 });
+  }
+  // 2026-05-12 (DA-R1 F6) — validate each attachment server-side. Without this,
+  // a curl caller could submit `attachment.url: "javascript:..."` and the
+  // dashboard's <a href={url}> renderer would XSS on click.
+  if (attachments.length > 0) {
+    if (!SUPABASE_HOST) {
+      return NextResponse.json(
+        { error: 'server misconfigured: SUPABASE_URL not parseable' },
+        { status: 500 },
+      );
+    }
+    for (const att of attachments) {
+      if (!att || typeof att !== 'object') {
+        return NextResponse.json({ error: 'invalid attachment shape' }, { status: 400 });
+      }
+      let attUrl: URL;
+      try { attUrl = new URL(String((att as { url?: unknown }).url ?? '')); }
+      catch { return NextResponse.json({ error: 'attachment.url is not a valid URL' }, { status: 400 }); }
+      if (attUrl.protocol !== 'https:') {
+        return NextResponse.json({ error: 'attachment.url must be https' }, { status: 400 });
+      }
+      if (attUrl.host !== SUPABASE_HOST) {
+        return NextResponse.json(
+          { error: 'attachment.url must be on the Supabase host' },
+          { status: 400 },
+        );
+      }
+      const attMime = (att as { mime?: unknown }).mime;
+      if (typeof attMime !== 'string' || !MIME_ALLOWLIST.has(attMime)) {
+        return NextResponse.json(
+          { error: `attachment.mime not allowed: ${String(attMime)}` },
+          { status: 400 },
+        );
+      }
+      const attSize = (att as { size?: unknown }).size;
+      if (typeof attSize !== 'number' || !Number.isFinite(attSize) || attSize < 0 || attSize > MAX_ATTACHMENT_BYTES) {
+        return NextResponse.json({ error: 'attachment.size out of bounds' }, { status: 400 });
+      }
+      const attName = (att as { name?: unknown }).name;
+      // Cap aligned with lib/chat/upload.ts:55 client-side sanitize (80 chars).
+      if (typeof attName !== 'string' || attName.length === 0 || attName.length > 80) {
+        return NextResponse.json({ error: 'attachment.name length invalid' }, { status: 400 });
+      }
+      const attKind = (att as { kind?: unknown }).kind;
+      if (typeof attKind !== 'string' || !/^[a-z]+$/.test(attKind) || attKind.length > 16) {
+        return NextResponse.json({ error: 'attachment.kind invalid' }, { status: 400 });
+      }
+      // kind ↔ mime consistency (DA-R1 #4) — prevent confusion attacks where
+      // an attacker sets kind=image with mime=application/pdf to bypass kind-
+      // specific rendering paths.
+      const expectedKind =
+        attMime.startsWith('image/') ? 'image' :
+        attMime.startsWith('video/') ? 'video' :
+        attMime.startsWith('audio/') ? 'audio' :
+        attMime === 'application/pdf' ? 'pdf' :
+        'file';
+      if (attKind !== expectedKind) {
+        return NextResponse.json(
+          { error: `attachment.kind=${attKind} does not match mime=${attMime} (expected ${expectedKind})` },
+          { status: 400 },
+        );
+      }
+    }
   }
   if (!content && attachments.length === 0) {
     return NextResponse.json({ error: 'content or attachments required' }, { status: 400 });
