@@ -18,7 +18,7 @@
  *
  * Toggle: flip to false, commit, push, redeploy.
  */
-export const CHAT_TEMPORARILY_DISABLED = true;
+export const CHAT_TEMPORARILY_DISABLED = false;
 
 export const CHAT_DISABLED_MESSAGE =
   'The dashboard chat is paused for maintenance. We’ll have it back online shortly.';
