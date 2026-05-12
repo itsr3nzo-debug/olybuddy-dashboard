@@ -93,6 +93,9 @@ const cspDirectives: Record<string, string[]> = {
     'https://vitals.vercel-insights.com',
     'https://vercel.live',
     'wss://ws-us3.pusher.com', // Vercel live preview
+    // LiveKit Cloud — admin voice channel (signal + media WebRTC).
+    'https://*.livekit.cloud',
+    'wss://*.livekit.cloud',
   ],
   'frame-src': [
     "'self'",
@@ -145,7 +148,10 @@ const securityHeaders = [
     key: 'Permissions-Policy',
     value: [
       'camera=()',
-      'microphone=()',
+      // Mic is enabled on this origin so the admin voice channel at /voice
+      // can publish audio to the LiveKit room. No cross-origin embeds —
+      // self is restrictive enough that only first-party pages can use it.
+      'microphone=(self)',
       'geolocation=()',
       'usb=()',
       'magnetometer=()',
