@@ -75,7 +75,7 @@ async function fetchStripeSubscription(subscriptionId: string): Promise<SubInfo 
 type UIState =
   | { kind: 'needs_setup' }                                       // No Stripe customer yet — legacy client or fresh signup before payment
   | { kind: 'pending_payment' }                                   // Checkout in flight — webhook will flip state within seconds
-  | { kind: 'trialing'; info: SubInfo }                           // Paid £20, card saved, 5-day trial active
+  | { kind: 'trialing'; info: SubInfo }                           // Paid £20, card saved, 3-day trial active
   | { kind: 'active'; info: SubInfo }                             // Paying £599/mo
   | { kind: 'scheduled_cancel'; info: SubInfo }                   // Cancelled but still has access until period end
   | { kind: 'past_due'; info: SubInfo }                           // Card failed — payment method needs update
@@ -141,7 +141,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
       {/* Banners based on query-string state */}
       {sp.upgraded === '1' && (
         <Banner kind="success" title="Payment received">
-          Your AI Employee is live. Your 5-day trial has started — you&apos;ll be auto-charged £599 on Day 6 unless you cancel.
+          Your AI Employee is live. Your 3-day trial has started — you&apos;ll be auto-charged £599 on Day 4 unless you cancel.
         </Banner>
       )}
       {sp.upgraded_early === '1' && (
@@ -225,9 +225,9 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
               <Section title="Set up billing" description="Activate your paid AI Employee subscription">
                 <div className="px-1">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-                    <Perk title="£19.99 onboarding fee" sub="Charged now — unlocks your 5-day trial on a dedicated VPS" />
-                    <Perk title="5-day trial" sub="Full access to your AI Employee. Cancel any time with no further charge." />
-                    <Perk title="£599 / month" sub="Auto-billed on Day 6 unless you cancel during the trial" />
+                    <Perk title="£19.99 onboarding fee" sub="Charged now — unlocks your 3-day trial on a dedicated VPS" />
+                    <Perk title="3-day trial" sub="Full access to your AI Employee. Cancel any time with no further charge." />
+                    <Perk title="£599 / month" sub="Auto-billed on Day 4 unless you cancel during the trial" />
                   </div>
                   <a
                     href="/api/stripe/upgrade"
@@ -242,13 +242,13 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
               </Section>
               <Section title="Why we charge £19.99 upfront" description="Reduces no-shows and proves you&apos;re serious">
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  The £19.99 onboarding covers the cost of provisioning your dedicated Hetzner server, WhatsApp number, and 5 days of Claude API usage. If you decide the AI Employee isn&apos;t for you within those 5 days, cancel from here in two clicks — no further charge. If you stay on, your first £599 month kicks in on Day 6 and the £19.99 is effectively absorbed into the subscription.
+                  The £19.99 onboarding covers the cost of provisioning your dedicated Hetzner server, WhatsApp number, and 3 days of Claude API usage. If you decide the AI Employee isn&apos;t for you within those 3 days, cancel from here in two clicks — no further charge. If you stay on, your first £599 month kicks in on Day 4 and the £19.99 is effectively absorbed into the subscription.
                 </p>
               </Section>
             </>
           )}
 
-          {/* STATE: trialing — paid £20, in the 5-day window */}
+          {/* STATE: trialing — paid £20, in the 3-day window */}
           {state.kind === 'trialing' && (
             <>
               <Section title="Current plan" description="Your trial is active">
@@ -356,7 +356,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
               <Section title="Subscription ended" description={state.legacy ? 'Your legacy trial has ended' : 'Your paid subscription was cancelled'}>
                 <p className="text-sm text-muted-foreground mb-4">
                   {state.legacy
-                    ? 'Ready to come back? Set up billing now — £19.99 to unlock a fresh 5-day trial, then £599/mo if you stay.'
+                    ? 'Ready to come back? Set up billing now — £19.99 to unlock a fresh 3-day trial, then £599/mo if you stay.'
                     : 'Your data is kept for 30 days after cancellation under UK GDPR. Reactivate now to pick up exactly where you left off.'}
                 </p>
                 <a

@@ -96,7 +96,7 @@ export async function GET() {
     // so the banner copy is honest. The proxy redirects these users to
     // /settings/billing anyway, where the "Resume payment" CTA lives.
     state = 'awaiting_payment'
-    message = 'Complete payment to start your 5-day trial — your AI Employee will be set up the moment Stripe confirms the charge.'
+    message = 'Complete payment to start your 3-day trial — your AI Employee will be set up the moment Stripe confirms the charge.'
   } else if (!clientRow.vps_ready) {
     state = 'awaiting_vps'
     message = 'Your AI Employee is being set up on its own private server. This normally takes 3–5 minutes.'

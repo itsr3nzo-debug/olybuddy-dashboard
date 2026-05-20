@@ -20,6 +20,12 @@ const PUBLIC_PATHS = [
   // sensitive: the bridge enforces per-customer HMAC on every endpoint, and
   // having the source published makes it auditable.
   '/install',                 // /install/icloud-bridge.sh + /install/icloud-bridge/{server.ts,package.json}
+  // Legal documents (T&Cs, DPA, Privacy) — MUST serve unauth. The signup
+  // wizard's checkbox links to /legal/terms-vX-YYYY-MM-DD.pdf and the
+  // unauthenticated customer needs to be able to OPEN the document they're
+  // being asked to agree to. Without this, GDPR Art. 7 informed-consent
+  // is unenforceable (DA post-deploy audit 2026-05-20, finding C1).
+  '/legal',
 ]
 
 export async function proxy(request: NextRequest) {

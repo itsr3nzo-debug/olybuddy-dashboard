@@ -1,9 +1,14 @@
 /**
- * Email templates for the 5-day trial conversion sequence.
+ * Email templates for the 3-day trial conversion sequence.
  * Short, direct, UK tone — matches the Nexley brand voice (see USER.md).
  *
  * Each render function returns { subject, html, text }. The cron driver
  * (app/api/cron/trial-sequence/route.ts) picks one based on day-N.
+ *
+ * 2026-05-20: compressed from 5-touch (Day 1/3/4/5/winback) to 4-touch
+ * (Day 1/2/3/winback) to match the new 3-day trial. The previous
+ * renderDay3 ("connect Gmail" nudge) was retired — its messaging assumed
+ * "2 days left" mid-trial, which doesn't exist in a 3-day window.
  */
 
 export interface TrialContact {
@@ -18,6 +23,7 @@ function footer() {
   return '<p style="color:#64748b;font-size:11px;margin-top:24px;">Nexley AI · nexley.ai · Stop receiving trial emails: <a href="https://nexley.ai/unsubscribe" style="color:#64748b;">unsubscribe</a></p>';
 }
 
+/** Day 1 — welcome + 2-minute first-step nudge. */
 export function renderDay1(c: TrialContact) {
   return {
     subject: `${c.name.split(' ')[0]}, your AI Employee is ready — 2-min first step`,
@@ -29,30 +35,20 @@ export function renderDay1(c: TrialContact) {
   <li>Watch the reply land in your pocket</li>
 </ol>
 <p>That's it — you just saw what every customer will see from now on. <a href="${c.dashboard_url}">Open your dashboard</a> to watch it in real time.</p>
+<p>While you're there, connect Gmail or Outlook from the Integrations tab so the agent can follow up by email too — 30 seconds, no code.</p>
 ${footer()}`,
-    text: `Hey ${c.name.split(' ')[0]},\n\nYour ${c.business_name} AI Employee is live.\n\n2-min test: text the business WhatsApp number, ask "What does ${c.business_name} do?", watch the reply.\n\nDashboard: ${c.dashboard_url}`,
+    text: `Hey ${c.name.split(' ')[0]},\n\nYour ${c.business_name} AI Employee is live.\n\n2-min test: text the business WhatsApp number, ask "What does ${c.business_name} do?", watch the reply.\n\nDashboard: ${c.dashboard_url}\nIntegrations (Gmail/Outlook): ${c.dashboard_url}/integrations`,
   };
 }
 
-export function renderDay3(c: TrialContact) {
-  return {
-    subject: `${c.name.split(' ')[0]}, connect Gmail to unlock automatic follow-ups`,
-    html: `<p>Hey ${c.name.split(' ')[0]},</p>
-<p>Your agent is answering WhatsApp — nice. The next unlock is <strong>follow-ups by email</strong>, which turns every enquiry into either a booking or a clear "no, thanks."</p>
-<p><a href="${c.dashboard_url}/integrations" style="display:inline-block;background:#6366f1;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">Connect Gmail</a></p>
-<p>Takes 30 seconds. No code. You're still on trial — 2 days left.</p>
-${footer()}`,
-    text: `${c.name.split(' ')[0]}, connect Gmail at ${c.dashboard_url}/integrations to unlock automatic follow-ups. 30 seconds. 2 days of trial left.`,
-  };
-}
-
-export function renderDay4(c: TrialContact) {
+/** Day 2 — heads-up: card will be auto-charged tomorrow. */
+export function renderDay2(c: TrialContact) {
   // UK formatted trial-end date: "Tuesday, 29 April"
   const endDate = c.trial_ends_at.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
   return {
     subject: `Heads up — your card will be charged £599 tomorrow`,
     html: `<p>Hey ${c.name.split(' ')[0]},</p>
-<p>Your 5-day trial ends ${endDate}. Tomorrow morning your card on file will be auto-charged £599 for your first month, and your ${c.business_name} AI Employee stays live without interruption.</p>
+<p>Your 3-day trial ends ${endDate}. Tomorrow morning your card on file will be auto-charged £599 for your first month, and your ${c.business_name} AI Employee stays live without interruption.</p>
 <p><strong>Happy with it so far?</strong> Do nothing — billing just happens.</p>
 <p><strong>Want to stop?</strong> You can cancel in two clicks from your dashboard, no awkward conversation required:</p>
 <p><a href="${c.dashboard_url}/settings/billing" style="display:inline-block;background:#64748b;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">Manage subscription</a></p>
@@ -62,11 +58,12 @@ ${footer()}`,
   };
 }
 
-export function renderDay5Morning(c: TrialContact) {
+/** Day 3 — going-paid-today / last-chance cancellation. */
+export function renderDay3(c: TrialContact) {
   return {
     subject: `Your AI Employee is going paid today — £599 will be charged`,
     html: `<p>Hey ${c.name.split(' ')[0]},</p>
-<p>Today's the day your 5-day trial ends. Your card will be auto-charged £599 for your first month. Your ${c.business_name} AI Employee stays live and keeps answering every call and WhatsApp.</p>
+<p>Today's the day your 3-day trial ends. Your card will be auto-charged £599 for your first month. Your ${c.business_name} AI Employee stays live and keeps answering every call and WhatsApp.</p>
 <p>Last chance to cancel without being charged:</p>
 <p><a href="${c.dashboard_url}/settings/billing" style="display:inline-block;background:#64748b;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">Cancel subscription</a></p>
 <p>If this is working for you — thanks. We'll never send a nag email again; you're officially one of us.</p>
@@ -75,6 +72,7 @@ ${footer()}`,
   };
 }
 
+/** Winback — fires 10+ days after trial start if the customer cancelled. */
 export function renderWinback(c: TrialContact) {
   return {
     subject: `We paused your AI — open invite to come back`,

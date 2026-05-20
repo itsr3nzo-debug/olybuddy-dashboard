@@ -30,7 +30,7 @@ async function recordSignupAttempt(ip: string, supabase: any) {
   await supabase.from('rate_limit_events').insert({ key: `signup:${ip}` })
 }
 
-// 'trial'      — £19.99 5-day trial → £599/mo (the standard onboarding flow)
+// 'trial'      — £19.99 3-day trial → £599/mo (the standard onboarding flow)
 // 'pro'        — £599/mo standalone (skips the trial; bills monthly straight away)
 // 'enterprise' — £2,995/mo for teams of 10+ (multi-seat, custom contracts)
 // 'employee', 'voice' — legacy plan IDs kept for backward compatibility with
@@ -66,6 +66,12 @@ export async function POST(req: NextRequest) {
     business_whatsapp, owner_phone, owner_name, agent_name,
     // Item #14 — referral code from ?ref= URL param, forwarded by signup wizard.
     referral_code,
+    // T&Cs consent — set client-side when the customer ticks the checkbox on
+    // Step 5. terms_agreed_at is an ISO timestamp; terms_version pins the
+    // specific document version they saw (so future T&Cs amendments don't
+    // retroactively bind earlier customers). Both stored verbatim alongside
+    // the request IP as the legal record of informed consent.
+    terms_agreed_at, terms_version,
   } = body
 
   // AI employee display name. Trim + cap at 30 chars (UI also caps at 30).
@@ -77,6 +83,25 @@ export async function POST(req: NextRequest) {
   // Input validation
   if (!business_name || !email || !password || !industry || !plan) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+  }
+
+  // T&Cs consent — required for every plan that hits this endpoint. The client
+  // already enforces the checkbox on Step 5; this is the server-side guard so a
+  // hand-crafted POST can't bypass it. Enterprise plan is mailto-only (the
+  // client short-circuits before calling /api/signup), so a request reaching
+  // here is always for a Stripe-charging plan and must carry consent.
+  if (!terms_agreed_at || typeof terms_agreed_at !== 'string') {
+    return NextResponse.json({ error: 'Terms and Conditions must be accepted to continue.' }, { status: 400 })
+  }
+  if (!terms_version || typeof terms_version !== 'string' || terms_version.length > 64) {
+    return NextResponse.json({ error: 'Missing or malformed terms version.' }, { status: 400 })
+  }
+  // Sanity-check the timestamp: must parse + be within the last 24h (catch
+  // stale or hand-crafted values; legitimate consent is set seconds before
+  // the POST fires).
+  const consentMs = Date.parse(terms_agreed_at)
+  if (!Number.isFinite(consentMs) || Math.abs(Date.now() - consentMs) > 24 * 60 * 60 * 1000) {
+    return NextResponse.json({ error: 'Terms agreement timestamp invalid or too old. Please re-tick the checkbox.' }, { status: 400 })
   }
 
   // Sender Role Protocol: both the agent's WhatsApp number and the owner's personal
@@ -151,38 +176,76 @@ export async function POST(req: NextRequest) {
   }
 
   // Helper — we may need to retry with a different slug on collision, so keep
-  // the insert payload in a reusable closure.
-  const insertClient = async (slugToUse: string) =>
-    supabase.from('clients').insert({
-      name: business_name,
-      slug: slugToUse,
-      email,
-      phone: resolvedPhone,
-      industry,
-      contact_name: contact_name || null,
-      location: location || null,
-      services_text: services || null,
-      referral_code: buildReferralCode(slugToUse),
-      // Every signup now goes through Stripe Checkout BEFORE becoming a real
-      // 'trial'. Until the checkout.session.completed webhook fires and sets
-      // stripe_customer_id + stripe_subscription_id, the client row stays in
-      // 'pending_payment' — this prevents:
-      //   (a) trial-expiry cron from emailing "your trial has ended" to people
-      //       who never actually paid (filter matches only status='trial')
-      //   (b) provision-poller from spinning up a VPS before payment clears
-      //       (filter requires status IN ('trial','active'))
-      //   (c) the billing page rendering a stale "you're on a 5-day trial"
-      //       CTA for someone who abandoned checkout
-      subscription_status: 'pending_payment',
-      subscription_plan: plan,
-      // Webhook sets trial_ends_at from sub.trial_end — don't guess here; a
-      // signup-time value would drift if webhook delivery is delayed a few
-      // minutes (and this is what's bitten us before).
-      trial_ends_at: null,
-      onboarding_completed: false,
-      onboarding_step: 0,
-      vps_status: 'pending',
-    }).select('id').single()
+  // the insert payload in a reusable closure. The terms_* fields are split
+  // out so we can detect a deploy-race (code shipped ahead of the
+  // supabase-migration-terms-consent.sql migration) and fail closed instead
+  // of silently losing the legal record of consent.
+  const baseClientRow = (slugToUse: string) => ({
+    name: business_name,
+    slug: slugToUse,
+    email,
+    phone: resolvedPhone,
+    industry,
+    contact_name: contact_name || null,
+    location: location || null,
+    services_text: services || null,
+    referral_code: buildReferralCode(slugToUse),
+    // Every signup now goes through Stripe Checkout BEFORE becoming a real
+    // 'trial'. Until the checkout.session.completed webhook fires and sets
+    // stripe_customer_id + stripe_subscription_id, the client row stays in
+    // 'pending_payment' — this prevents:
+    //   (a) trial-expiry cron from emailing "your trial has ended" to people
+    //       who never actually paid (filter matches only status='trial')
+    //   (b) provision-poller from spinning up a VPS before payment clears
+    //       (filter requires status IN ('trial','active'))
+    //   (c) the billing page rendering a stale "you're on a 3-day trial"
+    //       CTA for someone who abandoned checkout
+    subscription_status: 'pending_payment',
+    subscription_plan: plan,
+    // Webhook sets trial_ends_at from sub.trial_end — don't guess here; a
+    // signup-time value would drift if webhook delivery is delayed a few
+    // minutes (and this is what's bitten us before).
+    trial_ends_at: null,
+    onboarding_completed: false,
+    onboarding_step: 0,
+    vps_status: 'pending',
+  })
+  const termsFields = {
+    // T&Cs legal record (added 2026-05-20). Captured the moment the user
+    // ticked the checkbox on Step 5; preserved for dispute resolution.
+    // Schema migration: supabase-migration-terms-consent.sql.
+    terms_agreed_at: terms_agreed_at,
+    terms_version: terms_version,
+    terms_agreed_ip: ip,
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  type InsertResult = { data: { id: any } | null; error: any | null }
+  const insertClient = async (slugToUse: string): Promise<InsertResult> => {
+    const result = await supabase
+      .from('clients')
+      .insert({ ...baseClientRow(slugToUse), ...termsFields })
+      .select('id').single() as InsertResult
+    // DA-C5 fix: if the code has shipped ahead of the terms-consent migration,
+    // Postgres returns 42703 (undefined_column) on the terms_* fields. Fail
+    // closed with a 503 — do NOT silently drop the consent record (we'd be
+    // collecting £19.99 without a legal record of consent, which would unwind
+    // in any later dispute). The operator sees the loud log + fixes the
+    // migration, signup recovers automatically.
+    if (
+      result.error &&
+      result.error.code === '42703' &&
+      /terms_(agreed_at|version|agreed_ip)/.test(String(result.error.message || ''))
+    ) {
+      console.error(
+        '[signup] CRITICAL: clients.terms_* columns missing — supabase-migration-terms-consent.sql not applied. Refusing signup to avoid lost consent record. Apply migration ASAP.'
+      )
+      return {
+        data: null,
+        error: { code: 'TERMS_COLUMNS_MISSING', message: 'Signup is temporarily unavailable while a configuration change rolls out. Please try again in a few minutes.' },
+      }
+    }
+    return result
+  }
 
   let { data: client, error: clientErr } = await insertClient(slug)
 
@@ -196,6 +259,11 @@ export async function POST(req: NextRequest) {
     const err = clientErr as any
     const msg = String(err?.message || '')
     const details = String(err?.details || '')
+    // DA-C5 — deploy-race short-circuit (terms-consent columns missing).
+    // Surface a polite 503 instead of bleeding the Postgres error to the user.
+    if (err?.code === 'TERMS_COLUMNS_MISSING') {
+      return NextResponse.json({ error: err.message }, { status: 503 })
+    }
     if (err?.code === '23505') {
       if (msg.includes('email') || details.includes('email')) {
         return NextResponse.json(
@@ -317,7 +385,7 @@ export async function POST(req: NextRequest) {
     console.error('[signup] failed to enqueue provisioning:', e)
   }
 
-  // Enrol in the trial-sequence email drip (Day 1/3/4/5 nudges + winback).
+  // Enrol in the trial-sequence email drip (Day 1/2/3 nudges + winback).
   // Idempotent via PK on user_id.
   if (authData?.user?.id) {
     try {
@@ -363,14 +431,14 @@ export async function POST(req: NextRequest) {
   }
 
   // UNIFIED CHECKOUT FLOW (same for every plan):
-  //   1. Charge £20 onboarding fee now (mode=payment) — covers the 5-day trial.
+  //   1. Charge £20 onboarding fee now (mode=payment) — covers the 3-day trial.
   //   2. Save the card (setup_future_usage='off_session') so we can auto-bill later.
   //   3. Stripe webhook checkout.session.completed creates a Subscription on the
-  //      same customer with trial_period_days=5 + £599/mo price. The first
-  //      subscription invoice fires on Day 6.
+  //      same customer with trial_period_days=3 + £599/mo price. The first
+  //      subscription invoice fires on Day 4.
   //
-  // This matches the owner-stated flow: "£20 onboarding for 5-day trial, then
-  // £599/mo" — they pay once at signup, then Stripe auto-bills £599 on Day 6
+  // This matches the owner-stated flow: "£20 onboarding for 3-day trial, then
+  // £599/mo" — they pay once at signup, then Stripe auto-bills £599 on Day 4
   // unless they cancel in the dashboard during the trial.
   const trialPriceId = process.env.STRIPE_PRICE_TRIAL
   const subscriptionPriceId = process.env.STRIPE_PRICE_EMPLOYEE
@@ -403,12 +471,12 @@ export async function POST(req: NextRequest) {
         business_name,
         // Used by the webhook to create the subscription on completion.
         create_subscription_price: subscriptionPriceId,
-        subscription_trial_days: '5',
+        subscription_trial_days: '3',
         user_id: authData?.user?.id ?? '',
       },
       line_items: [{ price: trialPriceId, quantity: 1 }],
       payment_intent_data: {
-        // Keeps the card on file so we can auto-bill £599 on Day 6 off-session.
+        // Keeps the card on file so we can auto-bill £599 on Day 4 off-session.
         setup_future_usage: 'off_session',
         metadata: { client_id: clientId, purpose: 'onboarding_fee' },
       },

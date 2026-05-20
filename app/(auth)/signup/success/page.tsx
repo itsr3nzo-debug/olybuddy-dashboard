@@ -86,9 +86,9 @@ export default function SignupSuccessPage() {
           <p className="mt-2 text-sm text-muted-foreground">
             <span className="font-mono tabular-nums">£19.99</span> charged
             <span className="text-muted-foreground/60"> · </span>
-            5-day trial active
+            3-day trial active
             <span className="text-muted-foreground/60"> · </span>
-            <span className="font-mono tabular-nums">£599/mo</span> auto-bills on Day 6 unless you cancel.
+            <span className="font-mono tabular-nums">£599/mo</span> auto-bills on Day 4 unless you cancel.
           </p>
         </div>
 

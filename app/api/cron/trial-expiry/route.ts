@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
 
   // Find trial clients where trial_ends_at has passed.
   // IMPORTANT: Clients with a Stripe subscription will transition naturally —
-  // Stripe auto-bills on Day 6, and customer.subscription.updated flips status
+  // Stripe auto-bills on Day 4, and customer.subscription.updated flips status
   // to 'active' via the webhook. We only manually expire orphan trials that
   // have NO stripe_subscription_id (legacy signups from before billing was
   // wired up, or subscription creation failures).
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   // Sentinel filter: trial_ends_at > NOW + 1 year is interpreted as "do not
   // auto-expire" (used for simulated/test rows where someone deliberately
   // pushed the date far out). Real trials are ≤30 days max.
-  const oneYearFromNow = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+  const oneYearFromNow = new Date(Date.now() + 363 * 24 * 60 * 60 * 1000).toISOString()
   const { data: expiredTrials } = await supabase
     .from('clients')
     .select('id, name, email, trial_ends_at, stripe_subscription_id')
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   for (const client of expiredTrials) {
     if (client.stripe_subscription_id) {
       // Client has a Stripe sub — leave it to Stripe. Stripe's billing engine
-      // will charge £599 on Day 6 (or mark the sub past_due/canceled if the
+      // will charge £599 on Day 4 (or mark the sub past_due/canceled if the
       // card fails), and our customer.subscription.updated webhook keeps
       // Supabase in sync.
       skippedWithSub++
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
         to: client.email,
         subject: 'Your Nexley AI trial has ended',
         html: `<p>Hi,</p>
-          <p>Your 5-day trial for ${client.name} has ended.</p>
+          <p>Your 3-day trial for ${client.name} has ended.</p>
           <p>Your AI Employee is now paused. To keep it running, sign up to a paid plan:</p>
           <p><a href="${process.env.NEXT_PUBLIC_SITE_URL}/login" style="background:#2563EB;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Sign in to re-activate</a></p>
           <p>Your data is safe — we'll keep it for 30 days.</p>

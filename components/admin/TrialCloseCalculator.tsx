@@ -440,7 +440,7 @@ export default function TrialCloseCalculator({ stats }: { stats: TrialCloseStats
                       <AnimatedNumber target={debouncedTarget} prefix="£" duration={600} />
                     </div>
                     <p className="text-base text-muted-foreground">
-                      {stats.period === 'trial' ? 'during their 5-day trial.' :
+                      {stats.period === 'trial' ? 'during their 3-day trial.' :
                        stats.period === '30d' ? 'in the last 30 days.' :
                                                 'since they joined.'}
                     </p>

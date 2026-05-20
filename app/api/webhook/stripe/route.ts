@@ -114,8 +114,8 @@ export async function POST(req: NextRequest) {
         // SIGNUP COMPLETION: /api/signup Checkouts carry client_id + plan +
         // create_subscription_price. This means the customer just paid the £20
         // onboarding fee (mode=payment) and their card is saved (setup_future_usage).
-        // Now we create the £599/mo subscription with a 5-day trial on the same
-        // customer so Stripe auto-bills Day 6 unless they cancel.
+        // Now we create the £599/mo subscription with a 3-day trial on the same
+        // customer so Stripe auto-bills Day 4 unless they cancel.
         if (clientId && metadata.plan && metadata.create_subscription_price && stripeCustomerId) {
           let subscriptionId: string | null = null;
           let trialEndsAt: string | null = null;
@@ -123,10 +123,10 @@ export async function POST(req: NextRequest) {
           try {
             const { getStripe } = await import('@/lib/stripe');
             const stripe = getStripe();
-            const trialDays = parseInt(metadata.subscription_trial_days || '5', 10);
+            const trialDays = parseInt(metadata.subscription_trial_days || '3', 10);
 
             // Find the PaymentMethod we saved via setup_future_usage so the new
-            // subscription can charge it off-session on Day 6.
+            // subscription can charge it off-session on Day 4.
             const paymentIntentId = typeof session.payment_intent === 'string'
               ? session.payment_intent
               : session.payment_intent?.id;
@@ -157,11 +157,11 @@ export async function POST(req: NextRequest) {
             trialEndsAt = sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null;
           } catch (subErr: any) {
             console.error('[stripe webhook] subscription creation failed:', subErr?.message);
-            // Failsafe: still give the customer a 5-day access window so the
+            // Failsafe: still give the customer a 3-day access window so the
             // trial-expiry cron can eventually clean them up if ops don't fix
             // the Stripe sub manually. Without this, trial_ends_at stays null
             // and they'd be stuck in trial limbo forever.
-            trialEndsAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
+            trialEndsAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
             // Telegram alert — a paying customer just lost their auto-renewal.
             try {
               const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -222,9 +222,9 @@ export async function POST(req: NextRequest) {
             const chatId = process.env.TELEGRAM_CHAT_ID;
             if (botToken && chatId) {
               const msg = `🎉 New paid signup: ${metadata.business_name || clientId}\n` +
-                          `Paid £${((amountPence || 0) / 100).toFixed(2)} onboarding fee. 5-day trial started.\n` +
+                          `Paid £${((amountPence || 0) / 100).toFixed(2)} onboarding fee. 3-day trial started.\n` +
                           `Email: ${customerEmail}\n` +
-                          `£599/mo auto-bills on: ${trialEndsAt ? new Date(trialEndsAt).toLocaleDateString('en-GB') : 'Day 6'}\n` +
+                          `£599/mo auto-bills on: ${trialEndsAt ? new Date(trialEndsAt).toLocaleDateString('en-GB') : 'Day 4'}\n` +
                           `vps_status=pending — poller will provision within 60s.`;
               await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
                 method: 'POST',
@@ -241,13 +241,13 @@ export async function POST(req: NextRequest) {
               const { sendSystemEmail } = await import('@/lib/email');
               const trialEndPretty = trialEndsAt
                 ? new Date(trialEndsAt).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
-                : 'in 5 days';
+                : 'in 3 days';
               await sendSystemEmail({
                 to: customerEmail,
                 subject: 'Payment confirmed — Your AI Employee is being built',
                 html: `<p>Hi ${metadata.business_name || 'there'},</p>
                   <p>Your £19.99 onboarding fee has been received. Your AI Employee's dedicated server is being built right now — it'll be ready in about 15 minutes.</p>
-                  <p><strong>Your 5-day trial ends ${trialEndPretty}.</strong> On that date, your card will be auto-billed £599 for your first month. You can cancel anytime before then from your dashboard.</p>
+                  <p><strong>Your 3-day trial ends ${trialEndPretty}.</strong> On that date, your card will be auto-billed £599 for your first month. You can cancel anytime before then from your dashboard.</p>
                   <p><a href="${process.env.NEXT_PUBLIC_SITE_URL!}/login" style="background:#2563EB;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Sign in to your dashboard</a></p>
                   <p>Forgot your password? <a href="${process.env.NEXT_PUBLIC_SITE_URL!}/forgot-password">Reset it here</a>.</p>
                   <p>— The Nexley AI Team</p>`,
@@ -287,10 +287,27 @@ export async function POST(req: NextRequest) {
       }
 
       case 'customer.subscription.trial_will_end': {
-        // Fires 3 days before trial ends. Our 5-day trial → fires on Day 2.
-        // Email nudge handled by /api/cron/trial-sequence (Day 3/4/5 emails).
-        // OPS Telegram alert lets Kade make a proactive conversion-boost call.
+        // Stripe fires this exactly 3 days before trial_end. With a 3-day
+        // trial that means it fires ~at signup time — useless as a "trial
+        // ending soon" alert, and would spam Kade's Telegram with a noise
+        // ping seconds after every signup.
+        // DA-C6 fix: only Telegram if the trial actually ends within the
+        // next ~12h, so this works as an early-warning even if Stripe ever
+        // shifts the fire point (or we bump trial length back up).
+        // Email nudges are handled by /api/cron/trial-sequence (Day 1/2/3).
         const sub = event.data.object;
+        const hoursUntilTrialEnd = sub.trial_end
+          ? (sub.trial_end - Math.floor(Date.now() / 1000)) / 3600
+          : Infinity;
+        if (hoursUntilTrialEnd > 12) {
+          // Too early — Day 2 email + Day 3 email will handle the warning.
+          // Just mark the event processed and exit.
+          await supabase
+            .from('stripe_events')
+            .update({ processed: true, processed_at: new Date().toISOString() })
+            .eq('stripe_event_id', eventId);
+          break;
+        }
         try {
           const { data: client } = await supabase
             .from('clients')
@@ -302,7 +319,7 @@ export async function POST(req: NextRequest) {
           if (botToken && chatId && client) {
             const trialEnd = sub.trial_end
               ? new Date(sub.trial_end * 1000).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
-              : 'in 3 days';
+              : 'soon';
             const msg = `⏰ Trial ending soon: ${client.name || 'customer'}\n` +
                         `Email: ${client.email || 'unknown'}\n` +
                         `£599/mo auto-bills on ${trialEnd}.\n` +

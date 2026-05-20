@@ -13,7 +13,7 @@ interface PlanCardsProps {
  * PlanCards — v3.
  *
  * Three-tier plan picker:
- *   1. Trial      — £19.99 for 5 days, converts to £599/mo
+ *   1. Trial      — £19.99 for 3 days, converts to £599/mo
  *   2. Full Power — £599/mo (the standard offering, "looks worth it")
  *   3. Enterprise — £2,995/mo for teams of 10+
  *
@@ -50,7 +50,7 @@ const TRIAL_FEATURES = [
 ]
 
 const PRO_FEATURES = [
-  'Everything in the 5-day trial',
+  'Everything in the 3-day trial',
   'Full-power AI Employee — unlimited WhatsApp + email handling',
   'Custom voice & tone, trained on your past messages',
   'Priority routing — replies in under 30 seconds, 24/7',
@@ -73,17 +73,17 @@ const ENTERPRISE_FEATURES = [
 const PLANS: Plan[] = [
   {
     id: 'trial',
-    eyebrow: '5-day trial · no risk',
+    eyebrow: '3-day trial · no risk',
     priceMain: '£19.99',
     // Short sub-line so the price block has the same vertical rhythm
     // as the other two cards. The "then £599/mo" detail lives in the
     // description + footnote where it has room to breathe.
     priceSub: 'one-time',
-    description: 'Try the full-power plan for 5 days, then £599/mo from Day 6. Cancel anytime.',
+    description: 'Try the full-power plan for 3 days, then £599/mo from Day 4. Cancel anytime.',
     features: TRIAL_FEATURES,
-    cta: 'Start 5-day trial',
+    cta: 'Start 3-day trial',
     highlight: false,
-    footnote: '£19.99 charged securely by Stripe. On Day 6 your card is auto-billed £599 unless you cancel first.',
+    footnote: '£19.99 charged securely by Stripe. On Day 4 your card is auto-billed £599 unless you cancel first.',
   },
   {
     id: 'pro',

@@ -44,7 +44,16 @@ const EMPTY_FORM = {
   business_whatsapp: '',
   owner_phone: '',
   owner_name: '',
+  // T&Cs consent — ISO timestamp set the moment the customer ticks the
+  // checkbox on Step 5. Empty until ticked. Doubles as a flag + value:
+  // canProceed() treats truthy as "agreed". Stripped from draft persistence
+  // so a restored draft requires a fresh tick (legally stronger consent).
+  terms_agreed_at: '',
 }
+
+// Bumped to v2.1 (2026-05-20) when clause 4.4A — trial-period cancellation
+// exception — was added. PDF at /legal/terms-v2.1-2026-05-20.pdf is canonical.
+const TERMS_VERSION = 'v2.1-2026-05-20'
 
 export default function SignupPage() {
   return (
@@ -118,7 +127,10 @@ function SignupWizard() {
       }
       if (draft.form) {
         // Strip password defensively — never persisted, but be paranoid.
-        const safe = { ...EMPTY_FORM, ...draft.form, password: '' }
+        // Also strip terms_agreed_at: a restored draft is a NEW session, so
+        // we require a fresh tick. Storing prior consent would be legally
+        // weaker (consent must be contemporaneous with the agreement moment).
+        const safe = { ...EMPTY_FORM, ...draft.form, password: '', terms_agreed_at: '' }
         setForm(safe as typeof EMPTY_FORM)
       }
       if (draft.step && draft.step >= 1 && draft.step <= TOTAL_STEPS) {
@@ -140,8 +152,10 @@ function SignupWizard() {
   useEffect(() => {
     if (!hydrated || typeof window === 'undefined') return
     try {
-      const { password: _pw, ...persistable } = form
-      void _pw
+      // Strip password (security) AND terms_agreed_at (fresh tick required
+      // each session — see restore branch above). Both stay in-memory only.
+      const { password: _pw, terms_agreed_at: _ta, ...persistable } = form
+      void _pw; void _ta
       window.localStorage.setItem(DRAFT_KEY, JSON.stringify({
         form: persistable,
         step,
@@ -151,7 +165,17 @@ function SignupWizard() {
   }, [form, step, hydrated])
 
   function update(field: string, value: string) {
-    setForm(prev => ({ ...prev, [field]: value }))
+    setForm(prev => {
+      const next = { ...prev, [field]: value }
+      // DA-S2 fix: changing the plan invalidates a stale "I agreed" tick on
+      // the previous plan's terms — the price + recurrence + commitment text
+      // the user saw was different. Force a fresh tick after a plan change so
+      // consent is always paired with the plan actually in front of them.
+      if (field === 'plan' && prev.plan !== value) {
+        next.terms_agreed_at = ''
+      }
+      return next
+    })
     if (error) setError('')
   }
 
@@ -182,7 +206,12 @@ function SignupWizard() {
     if (step === 2) return !!form.business_name && !!form.industry
     if (step === 3) return phoneNumbersStepValid(form.business_whatsapp, form.owner_phone)
     if (step === 4) return !!form.personality && !!form.agent_name.trim() && form.agent_name.trim().length <= 30
-    if (step === 5) return !!form.plan
+    if (step === 5) {
+      // Enterprise = mailto, no Stripe + no contract formed here. Other plans
+      // require the T&Cs checkbox tick on Step 5.
+      if (form.plan === 'enterprise') return true
+      return !!form.plan && !!form.terms_agreed_at
+    }
     return false
   }
 
@@ -238,6 +267,11 @@ function SignupWizard() {
           owner_name: form.owner_name || form.contact_name,
           // Item #14 — forward the referral code if we captured one earlier.
           referral_code: referralCode,
+          // T&Cs consent — terms_agreed_at is already in ...form (set when
+          // the user ticked the checkbox on Step 5). terms_version pins it
+          // to the document they actually saw; the server stores both + the
+          // request IP as the legal record of consent.
+          terms_version: TERMS_VERSION,
         }),
       })
 
@@ -462,7 +496,7 @@ function SignupWizard() {
 
                 {/* Social proof */}
                 <p className="text-center text-xs text-slate-500 mt-6">
-                  Trusted by UK service businesses. 5-day trial — cancel anytime before billing starts.
+                  Trusted by UK service businesses. 3-day trial — cancel anytime before billing starts.
                 </p>
               </div>
             )}
@@ -611,7 +645,7 @@ function SignupWizard() {
                     ? "Tell us about your team and we'll be in touch within one business day."
                     : form.plan === 'pro'
                       ? 'Skip the trial and start on the full-power plan today.'
-                      : 'Start with a 5-day trial — pay £19.99 today, full plan kicks in on Day 6 unless you cancel.'}
+                      : 'Start with a 3-day trial — pay £19.99 today, full plan kicks in on Day 4 unless you cancel.'}
                 </p>
 
                 <PlanCards
@@ -619,6 +653,43 @@ function SignupWizard() {
                   onSelect={v => update('plan', v)}
                   industry={form.industry}
                 />
+
+                {/* T&Cs consent — required for trial/pro (Stripe Checkout binds
+                    them to the agreement at the moment of charge). Skipped for
+                    enterprise (mailto only; no contract formed here, sales will
+                    send a separate order form per the T&Cs).
+                    The tick records terms_agreed_at as an ISO timestamp — the
+                    server stores it + terms_version + the request IP as the
+                    legal record of consent. */}
+                {form.plan !== 'enterprise' && (
+                  <div className="max-w-2xl mx-auto mt-8 pt-6 border-t border-white/10">
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={!!form.terms_agreed_at}
+                        onChange={e => update('terms_agreed_at', e.target.checked ? new Date().toISOString() : '')}
+                        className="mt-0.5 w-4 h-4 rounded border-white/20 bg-white/5 text-indigo-500 focus:ring-2 focus:ring-indigo-500/50 cursor-pointer flex-shrink-0"
+                        aria-required="true"
+                      />
+                      <span className="text-xs text-slate-300 leading-relaxed">
+                        I agree to Nexley AI&apos;s{' '}
+                        <a
+                          href="/legal/terms-v2.1-2026-05-20.pdf"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2"
+                        >
+                          Terms and Conditions
+                        </a>
+                        {form.plan === 'trial' ? (
+                          <> and authorise Nexley AI to charge <strong className="text-white">£19.99 today</strong> for the 3-day trial, then <strong className="text-white">£599/month from Day 4</strong> unless I cancel during the trial.</>
+                        ) : (
+                          <> and authorise Nexley AI to charge <strong className="text-white">£599/month</strong> on a monthly rolling basis.</>
+                        )}
+                      </span>
+                    </label>
+                  </div>
+                )}
               </div>
             )}
           </motion.div>
@@ -669,7 +740,7 @@ function SignupWizard() {
               ) : form.plan === 'pro' ? (
                 <>Start Full Power — £599/mo<ArrowRight size={16} /></>
               ) : (
-                <>Start my 5-day trial — £19.99<ArrowRight size={16} /></>
+                <>Start my 3-day trial — £19.99<ArrowRight size={16} /></>
               )}
             </button>
           )}

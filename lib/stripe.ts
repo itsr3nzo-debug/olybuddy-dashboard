@@ -25,7 +25,7 @@ export const PLAN_PRICES: Record<string, string | undefined> = {
 
 export const PLAN_DETAILS: Record<string, { name: string; subtitle: string; price: string; period: string; features: string[] }> = {
   trial: {
-    name: '5-Day Trial',
+    name: '3-Day Trial',
     subtitle: 'See the results before you commit',
     price: '£20',
     period: 'one-time',

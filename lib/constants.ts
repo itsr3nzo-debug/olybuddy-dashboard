@@ -35,7 +35,7 @@ export const PLAN_PRICES_PENCE: Record<string, number> = {
 
 export const PLAN_LABELS: Record<string, string> = {
   free: 'Free',
-  trial: '5-day trial — £19.99',
+  trial: '3-day trial — £19.99',
   employee: 'AI Employee — £599/mo',
   voice: 'AI Employee + Voice — £999/mo',
 }

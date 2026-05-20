@@ -96,8 +96,8 @@ export default async function PlanUpgradePanel({ clientId }: { clientId: string 
     return (
       <Panel
         variant="indigo"
-        title="Come back — £19.99 gets you a fresh 5-day trial"
-        subtitle="Reactivate and your previous config is restored. Then £599/mo auto-starts from Day 6 unless you cancel again."
+        title="Come back — £19.99 gets you a fresh 3-day trial"
+        subtitle="Reactivate and your previous config is restored. Then £599/mo auto-starts from Day 4 unless you cancel again."
         ctaLabel="Reactivate — £19.99"
         ctaHref="/api/stripe/upgrade"
       />
@@ -126,7 +126,7 @@ export default async function PlanUpgradePanel({ clientId }: { clientId: string 
         daysLeft={daysLeft}
         title={
           daysLeft && daysLeft > 0
-            ? `You're on a 5-day trial — ${daysLeft} day${daysLeft === 1 ? '' : 's'} left`
+            ? `You're on a 3-day trial — ${daysLeft} day${daysLeft === 1 ? '' : 's'} left`
             : 'Your trial converts today'
         }
         subtitle={
@@ -147,7 +147,7 @@ export default async function PlanUpgradePanel({ clientId }: { clientId: string 
     <Panel
       variant="indigo"
       title="Set up billing to keep your AI Employee running"
-      subtitle="£19.99 today unlocks a 5-day trial on your existing server. £599/mo kicks in on Day 6 — cancel anytime before."
+      subtitle="£19.99 today unlocks a 3-day trial on your existing server. £599/mo kicks in on Day 4 — cancel anytime before."
       ctaLabel="Set up billing — £19.99"
       ctaHref="/api/stripe/upgrade"
       secondaryHref="/settings/billing"
