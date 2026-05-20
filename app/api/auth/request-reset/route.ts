@@ -119,6 +119,10 @@ export async function POST(req: NextRequest) {
     replyTo: REPLY_TO,
   });
   if (sent.success) {
+    // 2026-05-20 DA preempt: log messageId on success so future audits can
+    // grep Vercel logs to confirm send-side actually relayed (without
+    // logging the recipient email, which we don't want in logs).
+    console.log(`[request-reset] sent ok messageId=${sent.messageId}`);
     return NextResponse.json({ ok: true });
   }
 
