@@ -193,6 +193,14 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
 
   // ═══ Accounting ═══
   {
+    // Xero — routed through Composio (Path A in /api/oauth/[provider]/route.ts).
+    // Composio does NOT offer managed credentials for Xero (their API explicitly
+    // rejects use_composio_managed_auth with code 306). Activation requires
+    // a Xero developer app's client_id + client_secret (XERO_CLIENT_ID /
+    // XERO_CLIENT_SECRET in .env.local), then run
+    // `npx tsx scripts/composio-setup-xero.ts` to create the Composio authConfig
+    // and add the resulting ac_xxx to lib/composio-registry.json.
+    // Until then, the tile renders but the connect button will error.
     id: 'xero',
     name: 'Xero',
     description: 'Invoices, contacts, bank reconciliation, VAT/CIS — Nexley drafts, you approve',
@@ -200,36 +208,6 @@ const CURATED_PROVIDERS: ProviderConfig[] = [
     iconColor: 'bg-muted text-muted-foreground',
     available: true,
     recommendedForTrades: true,
-    oauth: {
-      authUrl: 'https://login.xero.com/identity/connect/authorize',
-      tokenUrl: 'https://identity.xero.com/connect/token',
-      userinfoUrl: 'https://api.xero.com/connections',
-      revokeUrl: 'https://identity.xero.com/connect/revocation',
-      // GRANULAR scopes — required for apps created after 2 Mar 2026 (Nexley's
-      // Xero app was registered 2026-04-17, so we're on the new-granular system).
-      // The older broad scopes `accounting.transactions.read` and
-      // `accounting.reports.read` are REJECTED by Xero's OAuth as
-      // "unauthorized_client / Invalid scope" for post-Mar-2026 apps — they
-      // must be split into the specific granular scopes below.
-      //
-      // Verified against Xero docs 2026-04-20 (developer.xero.com/documentation/guides/oauth2/scopes):
-      //   ✅ accounting.contacts                     — contact CRUD
-      //   ✅ accounting.invoices                     — invoice CRUD (read included)
-      //   ✅ accounting.payments                     — payment CRUD
-      //   ✅ accounting.banktransactions.read        — bank transactions (replaces part of transactions.read)
-      //   ✅ accounting.settings.read                — chart of accounts, items, tax rates, currencies
-      //   ✅ accounting.reports.aged.read            — aged receivables/payables (chase-overdue skill)
-      //   ✅ accounting.reports.profitandloss.read   — P&L (monthly brief)
-      //   ✅ accounting.reports.balancesheet.read    — BS
-      //   ✅ accounting.reports.trialbalance.read    — TB
-      //   ✅ accounting.reports.taxreports.read      — VAT return (MTD)
-      //   ✅ offline_access                          — refresh tokens
-      // Existing clients who authorised before this change must reconnect to
-      // pick up the new scope set (Xero consent screen re-prompts).
-      scopes: 'openid profile email accounting.contacts accounting.invoices accounting.payments accounting.banktransactions.read accounting.settings.read accounting.reports.aged.read accounting.reports.profitandloss.read accounting.reports.balancesheet.read accounting.reports.trialbalance.read accounting.reports.taxreports.read offline_access',
-      clientIdEnv: 'XERO_CLIENT_ID',
-      clientSecretEnv: 'XERO_CLIENT_SECRET',
-    },
   },
   {
     // Fergus now offers self-serve PATs (shipped 2025). Path in Fergus web app:

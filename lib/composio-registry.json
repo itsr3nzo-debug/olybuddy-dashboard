@@ -916,5 +916,12 @@
       "forms & surveys",
       "productivity"
     ]
+  },
+  "xero": {
+    "authConfigId": "ac_K3cvHeb9nkG0",
+    "name": "Xero",
+    "categories": [
+      "accounting"
+    ]
   }
 }
