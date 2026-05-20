@@ -17,7 +17,14 @@ export const runtime = 'nodejs';
  * have accounts (enumeration defence).
  */
 
-const DASHBOARD_ORIGIN = 'https://nexley.vercel.app';
+// 2026-05-20: was hardcoded to 'https://nexley.vercel.app' which broke
+// reset on the live brand domain — users clicked the email link, landed on
+// the Vercel preview origin, the verifyOtp() call set session cookies on
+// .vercel.app and they never propagated back to nexley.co.uk so the new
+// password worked but the customer was "still logged out". Use the live
+// NEXT_PUBLIC_SITE_URL with nexley.co.uk as last-resort fallback so neither
+// path leaks the preview domain.
+const DASHBOARD_ORIGIN = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || 'https://nexley.co.uk';
 const REPLY_TO = process.env.SMTP_REPLY_TO || 'hello@nexley.ai';
 
 // Per-email rate limit. In-memory (resets on cold start, good enough for the

@@ -26,7 +26,9 @@ export const dynamic = 'force-dynamic';
  */
 
 const CRON_SECRET = process.env.CRON_SECRET;
-const ORIGIN = 'https://nexley.vercel.app';
+// 2026-05-20: was hardcoded to vercel.app preview; nudge trial emails to the
+// live brand domain so customers click into the production dashboard.
+const ORIGIN = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || 'https://nexley.co.uk';
 
 type Stage = 'day1' | 'day2' | 'day3' | 'winback';
 

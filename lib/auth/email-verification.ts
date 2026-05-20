@@ -22,7 +22,10 @@ import { buildVerifyEmailMessage } from '@/lib/email-templates/verify-email'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://nexley.vercel.app'
+// 2026-05-20: fallback was 'https://nexley.vercel.app' which would direct
+// new-signup verification emails to the Vercel preview domain if the env var
+// were ever unset. Brand domain is the source of truth.
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://nexley.co.uk').replace(/\/$/, '')
 
 export const VERIFICATION_TTL_HOURS = 24
 
