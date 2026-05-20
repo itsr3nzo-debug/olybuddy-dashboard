@@ -131,16 +131,28 @@ export async function POST(request: NextRequest) {
         userId = authData.user?.id ?? null
       }
 
-      // Generate magic link and send it via our system email
+      // Generate magic link and send it via our system email. We rebuild the
+      // URL via rebuildSupabaseActionLink so the click bypasses Supabase's
+      // server-side verify hop (allowlist-honoring). Fallback to brand domain
+      // if NEXT_PUBLIC_SITE_URL is unset (was an unsafe non-null assertion
+      // before the 2026-05-20 fix).
+      const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || 'https://nexley.co.uk'
       const { data: linkData } = await supabase.auth.admin.generateLink({
         type: 'magiclink',
         email,
         options: {
-          redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL!}/auth/callback`,
+          redirectTo: `${SITE_URL}/auth/callback`,
         },
       })
 
       if (linkData?.properties?.action_link) {
+        const { rebuildSupabaseActionLink } = await import('@/lib/auth/action-link')
+        const welcomeLink = rebuildSupabaseActionLink(
+          linkData.properties.action_link,
+          `${SITE_URL}/auth/callback`,
+          'magiclink',
+        )
+
         const { sendSystemEmail } = await import('@/lib/email')
         const result = await sendSystemEmail({
           to: email,
@@ -150,10 +162,10 @@ export async function POST(request: NextRequest) {
               <h1 style="font-size:24px;">Welcome to Nexley AI!</h1>
               <p>Your AI Employee is set up and ready to answer calls for <strong>${business_name}</strong>.</p>
               <p>Click below to access your dashboard:</p>
-              <a href="${linkData.properties.action_link}" style="display:inline-block;background:#6366f1;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin:16px 0;">
+              <a href="${welcomeLink}" style="display:inline-block;background:#6366f1;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin:16px 0;">
                 Open Dashboard
               </a>
-              <p style="color:#666;font-size:13px;margin-top:24px;">This link expires in 1 hour. After that, use the magic link login on the dashboard.</p>
+              <p style="color:#666;font-size:13px;margin-top:24px;">This link expires in 1 hour. After that, use forgot-password on the dashboard.</p>
             </div>
           `,
         })

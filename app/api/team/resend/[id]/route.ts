@@ -73,12 +73,16 @@ export async function POST(
     )
   }
 
+  // Same rebuild-action-link pattern as team-invite — bypass Supabase's
+  // server-side verify hop so the click doesn't depend on the project's
+  // redirect-URL allowlist.
+  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || 'https://nexley.co.uk'
   const { data: linkData, error: linkErr } =
     await adminSupabase.auth.admin.generateLink({
       type: 'magiclink',
       email: target.user.email,
       options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+        redirectTo: `${SITE_URL}/auth/callback`,
       },
     })
 
@@ -88,6 +92,13 @@ export async function POST(
       { status: 500 },
     )
   }
+
+  const { rebuildSupabaseActionLink } = await import('@/lib/auth/action-link')
+  const inviteLink = rebuildSupabaseActionLink(
+    linkData.properties.action_link,
+    `${SITE_URL}/auth/callback`,
+    'magiclink',
+  )
 
   // Fetch inviter + client display name for the email body.
   const { data: clientRow } = await adminSupabase
@@ -104,7 +115,7 @@ export async function POST(
     const { subject, html, text } = buildTeamInviteEmail({
       clientName,
       inviterName,
-      actionLink: linkData.properties.action_link,
+      actionLink: inviteLink,
       resend: true,
     })
     await sendSystemEmail({ to: target.user.email, subject, html, text })

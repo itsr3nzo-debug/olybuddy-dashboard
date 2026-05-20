@@ -112,18 +112,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: authErr.message }, { status: 500 });
   }
 
-  // Generate magic link for the invited user
+  // Generate magic link for the invited user. We rebuild the resulting URL via
+  // rebuildSupabaseActionLink so the invitee's click bypasses Supabase's
+  // server-side verify hop (which honours the project's redirect-URL
+  // allowlist — same allowlist failure that broke /api/auth/request-reset
+  // before 2026-05-20).
+  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || 'https://nexley.co.uk';
   const { data: linkData, error: linkErr } = await adminSupabase.auth.admin.generateLink({
     type: "magiclink",
     email,
     options: {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+      redirectTo: `${SITE_URL}/auth/callback`,
     },
   });
 
   if (linkErr || !linkData.properties?.action_link) {
     return NextResponse.json({ error: "User created but failed to generate invite link" }, { status: 500 });
   }
+
+  const { rebuildSupabaseActionLink } = await import("@/lib/auth/action-link");
+  const inviteLink = rebuildSupabaseActionLink(
+    linkData.properties.action_link,
+    `${SITE_URL}/auth/callback`,
+    "magiclink",
+  );
 
   // Fetch the client's business name so the invite email can say
   // "join Joseph Solutions" instead of a generic "the dashboard".
@@ -145,7 +157,7 @@ export async function POST(req: NextRequest) {
     const { subject, html, text } = buildTeamInviteEmail({
       clientName,
       inviterName,
-      actionLink: linkData.properties.action_link,
+      actionLink: inviteLink,
     });
     await sendSystemEmail({ to: email, subject, html, text });
   } catch {
