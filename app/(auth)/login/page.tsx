@@ -25,8 +25,11 @@ import { Field, Input } from '@/components/ui/input'
  * - Solid primary submit button with right-arrow
  * - Magic-link fallback as a quiet ghost button
  *
- * Behavioural unchanged: password sign-in, magic-link fallback, hash-token
- * recovery handler for ?type=recovery, error param sniffing.
+ * Behavioural: password sign-in, hash-token recovery handler for ?type=recovery,
+ * error param sniffing. (2026-05-20: magic-link fallback removed — it went via
+ * Supabase's built-in mailer and so couldn't be branded from hello@nexley.ai
+ * without extra Supabase Custom SMTP config. Forgot-password covers the
+ * can't-remember case.)
  */
 export default function LoginPage() {
   return (
@@ -104,23 +107,6 @@ function LoginForm() {
     } else {
       router.replace(nextDestination)
     }
-  }
-
-  async function handleMagicLinkFallback() {
-    if (!email) {
-      setError('Enter your email first to receive a sign-in link.')
-      return
-    }
-    setLoading(true)
-    setError('')
-    setInfo('')
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
-    })
-    setLoading(false)
-    if (error) setError(error.message)
-    else setInfo(`If an account exists for ${email}, a sign-in link has been sent.`)
   }
 
   return (
@@ -213,15 +199,6 @@ function LoginForm() {
                   <ArrowRight size={14} strokeWidth={1.75} />
                 </>
               )}
-            </button>
-
-            <button
-              type="button"
-              onClick={handleMagicLinkFallback}
-              disabled={loading || !email}
-              className="w-full h-9 inline-flex items-center justify-center rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Email me a sign-in link instead
             </button>
           </form>
         </div>
